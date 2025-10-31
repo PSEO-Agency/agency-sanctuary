@@ -20,6 +20,7 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          owner_user_id: string | null
           settings: Json | null
           slug: string
           updated_at: string
@@ -30,6 +31,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          owner_user_id?: string | null
           settings?: Json | null
           slug: string
           updated_at?: string
@@ -40,6 +42,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          owner_user_id?: string | null
           settings?: Json | null
           slug?: string
           updated_at?: string
@@ -49,30 +52,54 @@ export type Database = {
       }
       profiles: {
         Row: {
+          agency_id: string | null
           avatar_url: string | null
           created_at: string
           email: string
           full_name: string | null
           id: string
+          role: Database["public"]["Enums"]["app_role"] | null
+          sub_account_id: string | null
           updated_at: string
         }
         Insert: {
+          agency_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email: string
           full_name?: string | null
           id: string
+          role?: Database["public"]["Enums"]["app_role"] | null
+          sub_account_id?: string | null
           updated_at?: string
         }
         Update: {
+          agency_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
           id?: string
+          role?: Database["public"]["Enums"]["app_role"] | null
+          sub_account_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_sub_account_id_fkey"
+            columns: ["sub_account_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subaccounts: {
         Row: {
@@ -115,69 +142,23 @@ export type Database = {
           },
         ]
       }
-      user_roles: {
-        Row: {
-          agency_id: string | null
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["user_role"]
-          subaccount_id: string | null
-          user_id: string
-        }
-        Insert: {
-          agency_id?: string | null
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["user_role"]
-          subaccount_id?: string | null
-          user_id: string
-        }
-        Update: {
-          agency_id?: string | null
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["user_role"]
-          subaccount_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_roles_subaccount_id_fkey"
-            columns: ["subaccount_id"]
-            isOneToOne: false
-            referencedRelation: "subaccounts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      get_user_agency: { Args: { _user_id: string }; Returns: string }
-      get_user_subaccount: { Args: { _user_id: string }; Returns: string }
-      has_role: {
+      user_agency_id: { Args: { _user_id: string }; Returns: string }
+      user_has_role: {
         Args: {
-          _role: Database["public"]["Enums"]["user_role"]
+          _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
       }
+      user_subaccount_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
-      user_role:
-        | "super_admin"
-        | "agency_admin"
-        | "subaccount_admin"
-        | "subaccount_user"
+      app_role: "super_admin" | "agency_admin" | "sub_account_user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -305,12 +286,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      user_role: [
-        "super_admin",
-        "agency_admin",
-        "subaccount_admin",
-        "subaccount_user",
-      ],
+      app_role: ["super_admin", "agency_admin", "sub_account_user"],
     },
   },
 } as const
