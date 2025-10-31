@@ -12,6 +12,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { SubaccountSwitcher } from "./SubaccountSwitcher";
 
 interface SubaccountSidebarProps {
   subaccountId: string;
@@ -37,6 +38,11 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   return (
     <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
       <SidebarContent className="flex-1 pt-16">
+        {!collapsed && (
+          <div className="px-2 py-2">
+            <SubaccountSwitcher />
+          </div>
+        )}
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
             pSEO Builder

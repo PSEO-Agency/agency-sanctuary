@@ -19,16 +19,18 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && profile) {
-      // Redirect based on role
+      // Redirect based on role - default new users to agency portal
       switch (profile.role) {
         case "super_admin":
           navigate("/super-admin");
           break;
-        case "agency_admin":
-          navigate(`/agency/${profile.agency_id}`);
-          break;
         case "sub_account_user":
           navigate(`/subaccount/${profile.sub_account_id}/dashboard`);
+          break;
+        case "agency_admin":
+        default:
+          // Default all users (including new signups) to agency portal
+          navigate(`/agency/${profile.agency_id}`);
           break;
       }
     }

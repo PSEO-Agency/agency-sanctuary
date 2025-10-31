@@ -110,21 +110,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
         },
+        emailRedirectTo: `${window.location.origin}/`,
       },
     });
-
+    
     if (error) throw error;
-    toast.success("Account created successfully!");
+    
+    // Create agency for new user
+    if (data.user) {
+      const { data: agencyData } = await supabase
+        .from('agencies')
+        .insert({
+          name: `${fullName}'s Agency`,
+          slug: `${fullName.toLowerCase().replace(/\s+/g, '-')}-agency-${Date.now()}`,
+          owner_user_id: data.user.id
+        })
+        .select()
+        .single();
+      
+      if (agencyData) {
+        await supabase
+          .from('profiles')
+          .update({
+            role: 'agency_admin',
+            agency_id: agencyData.id
+          })
+          .eq('id', data.user.id);
+      }
+    }
+    
+    toast.success("Account created! Please check your email to verify your account.");
   };
 
   const signOut = async () => {

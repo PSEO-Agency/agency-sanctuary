@@ -12,6 +12,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { SubaccountSwitcher } from "./SubaccountSwitcher";
 
 interface AgencySidebarProps {
   agencyId: string;
@@ -30,13 +31,12 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
-      <div className="p-6 border-b border-sidebar-border">
-        <h1 className={`text-xl font-bold text-sidebar-foreground ${collapsed ? "text-center" : ""}`}>
-          {collapsed ? "PS" : "PSEO Builder"}
-        </h1>
-      </div>
-
-      <SidebarContent className="flex-1">
+      <SidebarContent className="flex-1 pt-16">
+        {!collapsed && (
+          <div className="px-2 py-2">
+            <SubaccountSwitcher />
+          </div>
+        )}
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
             Agency Portal
