@@ -36,13 +36,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
-      <div className="p-6 border-b border-sidebar-border">
-        <h1 className={`text-xl font-bold text-sidebar-foreground ${collapsed ? "text-center" : ""}`}>
-          {collapsed ? "PS" : "PSEO Builder"}
-        </h1>
-      </div>
-
-      <SidebarContent className="flex-1">
+      <SidebarContent className="flex-1 pt-16">
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
             pSEO Builder

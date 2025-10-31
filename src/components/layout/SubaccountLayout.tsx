@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
+import logo from "@/assets/logo.png";
 
 interface SubaccountLayoutProps {
   children: React.ReactNode;
@@ -27,9 +28,14 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
       <div className="min-h-screen flex w-full flex-col">
         <ImpersonationBanner />
         
-        <header className="h-14 flex items-center border-b bg-card px-4 gap-4">
-          <SidebarTrigger />
+        <header className="h-16 flex items-center border-b bg-white px-6 gap-6 relative z-10">
+          {/* Logo Section */}
+          <div className="flex items-center gap-4">
+            <SidebarTrigger />
+            <img src={logo} alt="PSEO Builder" className="h-8" />
+          </div>
           
+          {/* Search Bar */}
           <div className="flex-1 max-w-xl">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -37,7 +43,8 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Right Side Actions */}
+          <div className="flex items-center gap-4 ml-auto">
             <div className="px-4 py-2 bg-success/10 text-success rounded-full font-medium text-sm">
               50 credits
             </div>
