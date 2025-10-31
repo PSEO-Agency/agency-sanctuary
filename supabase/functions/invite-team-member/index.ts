@@ -34,25 +34,26 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Inviting user:", { email, fullName, subaccountId });
 
-    // Generate a temporary password
-    const tempPassword = crypto.randomUUID();
-
-    // Create the user
-    const { data: userData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+    // Use inviteUserByEmail which sends an invitation email automatically
+    const { data: userData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
-      password: tempPassword,
-      email_confirm: true,
-      user_metadata: {
-        full_name: fullName,
-      },
-    });
+      {
+        redirectTo: `${req.headers.get("origin")}/auth`,
+        data: {
+          full_name: fullName,
+        },
+      }
+    );
 
-    if (createUserError) {
-      console.error("Error creating user:", createUserError);
-      throw createUserError;
+    if (inviteError) {
+      console.error("Error inviting user:", inviteError);
+      throw inviteError;
     }
 
-    console.log("User created successfully:", userData.user.id);
+    console.log("User invited successfully:", userData.user.id);
+
+    // Wait a moment for the profile to be created by the trigger
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Update the profile with subaccount_id
     const { error: updateProfileError } = await supabaseAdmin
@@ -68,21 +69,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw updateProfileError;
     }
 
-    console.log("Profile updated successfully");
-
-    // Send password reset email so user can set their own password
-    const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: {
-        redirectTo: `${req.headers.get("origin")}/auth`,
-      },
-    });
-
-    if (resetError) {
-      console.error("Error sending reset email:", resetError);
-      // Don't throw - user is created, just log the error
-    }
+    console.log("Profile updated with subaccount_id successfully");
 
     return new Response(
       JSON.stringify({ 
