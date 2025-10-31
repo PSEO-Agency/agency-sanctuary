@@ -26,7 +26,7 @@ export default function Subaccount() {
           <Route path="reports" element={<Reports />} />
           <Route path="wordpress" element={<WordPress />} />
           <Route path="automation" element={<Automation />} />
-          <Route path="settings" element={<Settings />} />
+          <Route path="settings/*" element={<Settings />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </SubaccountLayout>
