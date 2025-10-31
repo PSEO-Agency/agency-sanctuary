@@ -8,6 +8,7 @@ import Pages from "./subaccount/Pages";
 import Reports from "./subaccount/Reports";
 import WordPress from "./subaccount/WordPress";
 import Automation from "./subaccount/Automation";
+import Launchpad from "./subaccount/Launchpad";
 import Settings from "./subaccount/Settings";
 
 export default function Subaccount() {
@@ -28,13 +29,14 @@ export default function Subaccount() {
         <Route path="*" element={
           <SubaccountLayout subaccountId={subaccountId}>
             <Routes>
+              <Route path="launchpad" element={<Launchpad />} />
               <Route path="dashboard" element={<SubaccountDashboard />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="pages" element={<Pages />} />
               <Route path="reports" element={<Reports />} />
               <Route path="wordpress" element={<WordPress />} />
               <Route path="automation" element={<Automation />} />
-              <Route path="*" element={<Navigate to="dashboard" replace />} />
+              <Route path="*" element={<Navigate to="launchpad" replace />} />
             </Routes>
           </SubaccountLayout>
         } />

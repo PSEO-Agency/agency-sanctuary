@@ -1,4 +1,4 @@
-import { Home, FolderKanban, FileText, BarChart3, Settings, Wand2, Cog } from "lucide-react";
+import { Home, FolderKanban, FileText, BarChart3, Settings, Wand2, Cog, Rocket } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -23,16 +23,22 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   const location = useLocation();
   const collapsed = state === "collapsed";
 
-  const pseoBuilderItems = [
-    { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: Home },
-    { title: "Campaigns", url: `/subaccount/${subaccountId}/campaigns`, icon: FolderKanban },
-    { title: "Pages", url: `/subaccount/${subaccountId}/pages`, icon: FileText },
-    { title: "Reports", url: `/subaccount/${subaccountId}/reports`, icon: BarChart3 },
-  ];
+  const launchpadItem = {
+    title: "Launchpad",
+    url: `/subaccount/${subaccountId}/launchpad`,
+    icon: Rocket,
+  };
 
   const contentMachineItems = [
     { title: "WordPress Integration", url: `/subaccount/${subaccountId}/wordpress`, icon: Wand2 },
     { title: "Automation Builder", url: `/subaccount/${subaccountId}/automation`, icon: Cog },
+  ];
+
+  const pseoBuilderItems = [
+    { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: Home, disabled: true },
+    { title: "Campaigns", url: `/subaccount/${subaccountId}/campaigns`, icon: FolderKanban, disabled: true },
+    { title: "Pages", url: `/subaccount/${subaccountId}/pages`, icon: FileText, disabled: true },
+    { title: "Reports", url: `/subaccount/${subaccountId}/reports`, icon: BarChart3, disabled: true },
   ];
 
   return (
@@ -43,13 +49,34 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
             <SubaccountSwitcher />
           </div>
         )}
+
+        {/* Launchpad Section */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className={location.pathname === launchpadItem.url ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                >
+                  <NavLink to={launchpadItem.url} end>
+                    <launchpadItem.icon className="h-5 w-5" />
+                    {!collapsed && <span>{launchpadItem.title}</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Content Machine Section */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
-            pSEO Builder
+            Content Machine
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {pseoBuilderItems.map((item) => {
+              {contentMachineItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -69,24 +96,28 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* pSEO Builder Section */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
-            Content Machine
+            pSEO Builder
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {contentMachineItems.map((item) => {
+              {pseoBuilderItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
-                      asChild 
-                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                      disabled={item.disabled}
+                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/50 cursor-not-allowed"}
                     >
-                      <NavLink to={item.url} end>
-                        <item.icon className="h-5 w-5" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
+                      <item.icon className="h-5 w-5" />
+                      {!collapsed && (
+                        <span className="flex items-center justify-between w-full">
+                          {item.title}
+                          {item.disabled && <span className="text-xs text-muted-foreground ml-2">Soon</span>}
+                        </span>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -116,3 +147,4 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
     </Sidebar>
   );
 }
+
