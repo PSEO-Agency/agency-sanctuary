@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Building2, User, Plug, CreditCard, ArrowLeft } from "lucide-react";
+import { Building2, User, Users, Plug, CreditCard, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -30,6 +30,11 @@ export function SettingsSidebar({ subaccountId }: SettingsSidebarProps) {
       title: "My Profile",
       icon: User,
       path: `/subaccount/${subaccountId}/settings/profile`,
+    },
+    {
+      title: "Team",
+      icon: Users,
+      path: `/subaccount/${subaccountId}/settings/team`,
     },
     {
       title: "Integrations",
