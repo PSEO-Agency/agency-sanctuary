@@ -1,6 +1,7 @@
 import { Routes, Route, useParams, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { SubaccountLayout } from "@/components/layout/SubaccountLayout";
+import { SubaccountSettingsLayout } from "@/components/layout/SubaccountSettingsLayout";
 import SubaccountDashboard from "./subaccount/Dashboard";
 import Campaigns from "./subaccount/Campaigns";
 import Pages from "./subaccount/Pages";
@@ -18,18 +19,26 @@ export default function Subaccount() {
 
   return (
     <ProtectedRoute>
-      <SubaccountLayout subaccountId={subaccountId}>
-        <Routes>
-          <Route path="dashboard" element={<SubaccountDashboard />} />
-          <Route path="campaigns" element={<Campaigns />} />
-          <Route path="pages" element={<Pages />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="wordpress" element={<WordPress />} />
-          <Route path="automation" element={<Automation />} />
-          <Route path="settings/*" element={<Settings />} />
-          <Route path="*" element={<Navigate to="dashboard" replace />} />
-        </Routes>
-      </SubaccountLayout>
+      <Routes>
+        <Route path="settings/*" element={
+          <SubaccountSettingsLayout subaccountId={subaccountId}>
+            <Settings />
+          </SubaccountSettingsLayout>
+        } />
+        <Route path="*" element={
+          <SubaccountLayout subaccountId={subaccountId}>
+            <Routes>
+              <Route path="dashboard" element={<SubaccountDashboard />} />
+              <Route path="campaigns" element={<Campaigns />} />
+              <Route path="pages" element={<Pages />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="wordpress" element={<WordPress />} />
+              <Route path="automation" element={<Automation />} />
+              <Route path="*" element={<Navigate to="dashboard" replace />} />
+            </Routes>
+          </SubaccountLayout>
+        } />
+      </Routes>
     </ProtectedRoute>
   );
 }
