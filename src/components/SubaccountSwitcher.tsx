@@ -86,7 +86,7 @@ export function SubaccountSwitcher() {
           <div className="flex items-center gap-2 truncate">
             <Building2 className="h-4 w-4 flex-shrink-0 text-foreground" />
             <span className="truncate text-sm text-foreground">
-              {currentSubaccount?.name || "Agency Portal"}
+              {currentSubaccount?.name || "Select subaccount"}
             </span>
           </div>
           <ChevronDown className="h-4 w-4 flex-shrink-0 text-foreground" />
@@ -101,7 +101,7 @@ export function SubaccountSwitcher() {
           className="rounded-lg cursor-pointer"
         >
           <Building2 className="mr-2 h-4 w-4" />
-          Agency Portal
+          Back to Agency
         </DropdownMenuItem>
         
         <DropdownMenuSeparator className="bg-border/50" />
