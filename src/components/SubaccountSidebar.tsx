@@ -31,13 +31,13 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const contentMachineItems = [
     { title: "WordPress Integration", url: `/subaccount/${subaccountId}/wordpress`, icon: Wand2 },
+    { title: "Pages", url: `/subaccount/${subaccountId}/pages`, icon: FileText },
     { title: "Automation Builder", url: `/subaccount/${subaccountId}/automation`, icon: Cog },
   ];
 
   const pseoBuilderItems = [
     { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: Home, disabled: true },
     { title: "Campaigns", url: `/subaccount/${subaccountId}/campaigns`, icon: FolderKanban, disabled: true },
-    { title: "Pages", url: `/subaccount/${subaccountId}/pages`, icon: FileText, disabled: true },
     { title: "Reports", url: `/subaccount/${subaccountId}/reports`, icon: BarChart3, disabled: true },
   ];
 

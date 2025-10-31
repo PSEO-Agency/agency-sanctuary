@@ -30,12 +30,12 @@ export default function Subaccount() {
           <SubaccountLayout subaccountId={subaccountId}>
             <Routes>
               <Route path="launchpad" element={<Launchpad />} />
+              <Route path="wordpress" element={<WordPress />} />
+              <Route path="pages" element={<Pages />} />
+              <Route path="automation" element={<Automation />} />
               <Route path="dashboard" element={<SubaccountDashboard />} />
               <Route path="campaigns" element={<Campaigns />} />
-              <Route path="pages" element={<Pages />} />
               <Route path="reports" element={<Reports />} />
-              <Route path="wordpress" element={<WordPress />} />
-              <Route path="automation" element={<Automation />} />
               <Route path="*" element={<Navigate to="launchpad" replace />} />
             </Routes>
           </SubaccountLayout>
