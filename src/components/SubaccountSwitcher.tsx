@@ -76,7 +76,7 @@ export function SubaccountSwitcher({ subaccountId }: SubaccountSwitcherProps) {
   );
 
   const handleSwitch = (subaccountId: string) => {
-    navigate(`/subaccount/${subaccountId}/dashboard`);
+    navigate(`/subaccount/${subaccountId}/launchpad`);
   };
 
   const handleBackToAgency = () => {
