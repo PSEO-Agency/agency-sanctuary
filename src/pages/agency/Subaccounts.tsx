@@ -182,7 +182,7 @@ export default function Subaccounts() {
                     id="description"
                     value={newSubaccount.businessDetails.description || ""}
                     onChange={(e) => updateBusinessDetails("description", e.target.value)}
-                    placeholder="Brief description of the business"
+                    placeholder="Describe your business"
                     rows={3}
                   />
                 </div>
