@@ -28,7 +28,7 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
       <div className="min-h-screen flex w-full flex-col">
         <ImpersonationBanner />
         
-        <header className="h-16 flex items-center border-b bg-white px-6 gap-6 relative z-10">
+        <header className="sticky top-0 z-50 h-16 flex items-center border-b bg-white px-6 gap-6">
           {/* Logo Section */}
           <div className="flex items-center gap-4">
             <SidebarTrigger />

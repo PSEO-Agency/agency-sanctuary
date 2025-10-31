@@ -24,11 +24,6 @@ export function SuperAdminSidebar() {
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
-      <div className="p-6 border-b border-sidebar-border">
-        <h1 className={`text-xl font-bold text-sidebar-foreground ${collapsed ? "text-center" : ""}`}>
-          {collapsed ? "PS" : "PSEO Builder"}
-        </h1>
-      </div>
 
       <SidebarContent>
         <SidebarGroup>
