@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { toast } from "sonner";
 import { ArrowLeft, Save, Send, Loader2, Upload, X } from "lucide-react";
 
@@ -15,6 +15,7 @@ export default function BlogEditor() {
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
   
   // Form state
   const [title, setTitle] = useState("");
@@ -29,6 +30,17 @@ export default function BlogEditor() {
       fetchBlogPost();
     }
   }, [blogId]);
+
+  // Auto-save every 30 seconds
+  useEffect(() => {
+    if (blogId && blogId !== 'new' && (title || content)) {
+      const timer = setTimeout(() => {
+        handleAutoSave();
+      }, 30000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [title, content, excerpt, featuredImage, categories, tags]);
 
   const fetchBlogPost = async () => {
     setLoading(true);
@@ -74,7 +86,7 @@ export default function BlogEditor() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${subaccountId}/${Date.now()}.${fileExt}`;
       
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('blog-images')
         .upload(fileName, file);
 
@@ -91,6 +103,33 @@ export default function BlogEditor() {
       toast.error(error.message || "Failed to upload image");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleAutoSave = async () => {
+    if (!title || !content || blogId === 'new') return;
+
+    setAutoSaving(true);
+    try {
+      const postData = {
+        title,
+        content,
+        excerpt: excerpt || content.substring(0, 150),
+        featured_image: featuredImage,
+        categories: categories.split(',').map(c => c.trim()).filter(Boolean),
+        tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      };
+
+      const { error } = await supabase
+        .from('blog_posts')
+        .update(postData)
+        .eq('id', blogId);
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Auto-save error:', error);
+    } finally {
+      setAutoSaving(false);
     }
   };
 
@@ -130,7 +169,7 @@ export default function BlogEditor() {
 
         if (error) throw error;
         toast.success("Draft saved successfully");
-        navigate(`/subaccount/${subaccountId}/blogs/${data.id}`);
+        navigate(`/subaccount/${subaccountId}/blogs/${data.id}/edit`);
       }
     } catch (error: any) {
       console.error('Save error:', error);
@@ -239,114 +278,103 @@ export default function BlogEditor() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(`/subaccount/${subaccountId}/blogs`)}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Blogs
-        </Button>
-        <div className="flex gap-2">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center justify-between px-4">
           <Button
-            variant="outline"
-            onClick={handleSaveDraft}
-            disabled={loading}
+            variant="ghost"
+            onClick={() => navigate(`/subaccount/${subaccountId}/blogs`)}
+            className="gap-2"
           >
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            Save Draft
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
           </Button>
-          <Button
-            onClick={handlePublishToWordPress}
-            disabled={publishing}
-          >
-            {publishing ? (
-              <>
+          
+          <div className="flex items-center gap-2">
+            {autoSaving && (
+              <span className="text-xs text-muted-foreground">Saving...</span>
+            )}
+            <Button
+              variant="outline"
+              onClick={handleSaveDraft}
+              disabled={loading}
+            >
+              {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Publishing...
-              </>
-            ) : (
-              <>
-                <Send className="mr-2 h-4 w-4" />
-                Publish to WordPress
-              </>
-            )}
-          </Button>
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Save Draft
+            </Button>
+            <Button
+              onClick={handlePublishToWordPress}
+              disabled={publishing}
+            >
+              {publishing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Publish
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {blogId && blogId !== 'new' ? 'Edit Blog Post' : 'Create Blog Post'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
+      {/* Main Content */}
+      <main className="container max-w-5xl mx-auto py-8 px-4">
+        <div className="space-y-8">
+          {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
             <Input
               id="title"
-              placeholder="Enter post title"
+              placeholder="Blog post title..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="text-2xl font-semibold"
+              className="text-4xl font-bold border-0 focus-visible:ring-0 px-0 placeholder:text-muted-foreground/50"
             />
           </div>
 
+          {/* Featured Image */}
           <div className="space-y-2">
-            <Label htmlFor="excerpt">Excerpt (Meta Description)</Label>
-            <Textarea
-              id="excerpt"
-              placeholder="Brief summary of your post (160 characters max for SEO)"
-              value={excerpt}
-              onChange={(e) => setExcerpt(e.target.value)}
-              rows={3}
-              maxLength={160}
-            />
-            <p className="text-xs text-muted-foreground">
-              {excerpt.length}/160 characters
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Featured Image</Label>
             {featuredImage ? (
-              <div className="relative">
+              <div className="relative rounded-lg overflow-hidden">
                 <img
                   src={featuredImage}
                   alt="Featured"
-                  className="w-full h-64 object-cover rounded-lg"
+                  className="w-full h-96 object-cover"
                 />
                 <Button
                   variant="destructive"
                   size="icon"
-                  className="absolute top-2 right-2"
+                  className="absolute top-4 right-4"
                   onClick={() => setFeaturedImage("")}
                 >
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             ) : (
-              <div className="border-2 border-dashed rounded-lg p-8 text-center">
+              <div className="border-2 border-dashed rounded-lg p-12 text-center hover:border-primary/50 transition-colors">
                 <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <div className="space-y-2">
                   <Label
                     htmlFor="image-upload"
-                    className="cursor-pointer text-primary hover:underline"
+                    className="cursor-pointer text-primary hover:underline text-base"
                   >
-                    {uploading ? "Uploading..." : "Click to upload image"}
+                    {uploading ? "Uploading..." : "Add featured image"}
                   </Label>
                   <Input
                     id="image-upload"
@@ -356,7 +384,7 @@ export default function BlogEditor() {
                     onChange={handleImageUpload}
                     disabled={uploading}
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     PNG, JPG, WEBP up to 5MB
                   </p>
                 </div>
@@ -364,44 +392,58 @@ export default function BlogEditor() {
             )}
           </div>
 
+          {/* Rich Text Editor */}
           <div className="space-y-2">
-            <Label htmlFor="content">Content *</Label>
-            <Textarea
-              id="content"
-              placeholder="Write your blog post content here... (HTML supported)"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={20}
-              className="font-mono text-sm"
+            <RichTextEditor
+              content={content}
+              onChange={setContent}
+              placeholder="Write your blog post content..."
             />
-            <p className="text-xs text-muted-foreground">
-              You can use HTML tags for formatting
-            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Metadata Section */}
+          <div className="border-t pt-8 space-y-6">
+            <h3 className="text-lg font-semibold">SEO & Metadata</h3>
+            
             <div className="space-y-2">
-              <Label htmlFor="categories">Categories</Label>
-              <Input
-                id="categories"
-                placeholder="Technology, Business (comma-separated)"
-                value={categories}
-                onChange={(e) => setCategories(e.target.value)}
+              <Label htmlFor="excerpt">Excerpt (Meta Description)</Label>
+              <Textarea
+                id="excerpt"
+                placeholder="Brief summary of your post (160 characters max for SEO)"
+                value={excerpt}
+                onChange={(e) => setExcerpt(e.target.value)}
+                rows={3}
+                maxLength={160}
               />
+              <p className="text-xs text-muted-foreground">
+                {excerpt.length}/160 characters
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tags">Tags</Label>
-              <Input
-                id="tags"
-                placeholder="AI, automation (comma-separated)"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="categories">Categories</Label>
+                <Input
+                  id="categories"
+                  placeholder="Technology, Business (comma-separated)"
+                  value={categories}
+                  onChange={(e) => setCategories(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tags">Tags</Label>
+                <Input
+                  id="tags"
+                  placeholder="AI, automation (comma-separated)"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                />
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </main>
     </div>
   );
 }

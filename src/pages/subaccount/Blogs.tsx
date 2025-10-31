@@ -53,7 +53,7 @@ export default function Blogs() {
             Create and manage blog posts for your WordPress site
           </p>
         </div>
-        <Button onClick={() => navigate(`/subaccount/${subaccountId}/blogs/new`)}>
+        <Button onClick={() => navigate(`/subaccount/${subaccountId}/blogs/new/edit`)}>
           <Plus className="mr-2 h-4 w-4" />
           New Blog Post
         </Button>
@@ -72,7 +72,7 @@ export default function Blogs() {
               <p className="text-muted-foreground mb-4">
                 Create your first blog post to get started
               </p>
-              <Button onClick={() => navigate(`/subaccount/${subaccountId}/blogs/new`)}>
+              <Button onClick={() => navigate(`/subaccount/${subaccountId}/blogs/new/edit`)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Blog Post
               </Button>
@@ -102,7 +102,7 @@ export default function Blogs() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/subaccount/${subaccountId}/blogs/${post.id}`)}
+                      onClick={() => navigate(`/subaccount/${subaccountId}/blogs/${post.id}/edit`)}
                     >
                       <Edit className="mr-2 h-3 w-3" />
                       Edit

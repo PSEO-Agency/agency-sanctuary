@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import SuperAdmin from "./pages/SuperAdmin";
 import Agency from "./pages/Agency";
 import Subaccount from "./pages/Subaccount";
+import BlogEditor from "./pages/subaccount/BlogEditor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -34,6 +35,7 @@ const App: React.FC = () => {
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/super-admin/*" element={<SuperAdmin />} />
                 <Route path="/agency/:agencyId/*" element={<Agency />} />
+                <Route path="/subaccount/:subaccountId/blogs/:blogId/edit" element={<BlogEditor />} />
                 <Route path="/subaccount/:subaccountId/*" element={<Subaccount />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

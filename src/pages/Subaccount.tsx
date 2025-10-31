@@ -5,7 +5,6 @@ import { SubaccountSettingsLayout } from "@/components/layout/SubaccountSettings
 import SubaccountDashboard from "./subaccount/Dashboard";
 import Campaigns from "./subaccount/Campaigns";
 import Blogs from "./subaccount/Blogs";
-import BlogEditor from "./subaccount/BlogEditor";
 import Reports from "./subaccount/Reports";
 import WordPress from "./subaccount/WordPress";
 import Automation from "./subaccount/Automation";
@@ -33,7 +32,6 @@ export default function Subaccount() {
               <Route path="launchpad" element={<Launchpad />} />
               <Route path="wordpress" element={<WordPress />} />
           <Route path="blogs" element={<Blogs />} />
-          <Route path="blogs/:blogId" element={<BlogEditor />} />
               <Route path="automation" element={<Automation />} />
               <Route path="dashboard" element={<SubaccountDashboard />} />
               <Route path="campaigns" element={<Campaigns />} />
