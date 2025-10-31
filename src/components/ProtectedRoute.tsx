@@ -2,40 +2,39 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
-type UserRole = "super_admin" | "agency_admin" | "subaccount_admin" | "subaccount_user";
+type AppRole = "super_admin" | "agency_admin" | "sub_account_user";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: UserRole;
+  requiredRole?: AppRole;
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user, userRole, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
         navigate("/auth");
-      } else if (requiredRole && userRole?.role !== requiredRole) {
+      } else if (requiredRole && profile?.role !== requiredRole) {
         // Redirect to appropriate portal based on role
-        switch (userRole?.role) {
+        switch (profile?.role) {
           case "super_admin":
             navigate("/super-admin");
             break;
           case "agency_admin":
-            navigate(`/agency/${userRole.agency_id}`);
+            navigate(`/agency/${profile.agency_id}`);
             break;
-          case "subaccount_admin":
-          case "subaccount_user":
-            navigate(`/subaccount/${userRole.subaccount_id}`);
+          case "sub_account_user":
+            navigate(`/subaccount/${profile.sub_account_id}/dashboard`);
             break;
           default:
             navigate("/auth");
         }
       }
     }
-  }, [user, userRole, loading, requiredRole, navigate]);
+  }, [user, profile, loading, requiredRole, navigate]);
 
   if (loading) {
     return (

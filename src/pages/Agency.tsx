@@ -1,20 +1,29 @@
-import { useParams } from "react-router-dom";
+import { Routes, Route, useParams, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AgencyLayout } from "@/components/layout/AgencyLayout";
+import AgencyDashboard from "./agency/Dashboard";
+import Subaccounts from "./agency/Subaccounts";
+import Team from "./agency/Team";
+import AgencySettings from "./agency/Settings";
 
 export default function Agency() {
   const { agencyId } = useParams();
 
+  if (!agencyId) {
+    return <Navigate to="/auth" />;
+  }
+
   return (
     <ProtectedRoute requiredRole="agency_admin">
-      <div className="min-h-screen p-6">
-        <h1 className="text-3xl font-bold mb-4">Agency Portal</h1>
-        <p className="text-muted-foreground">Manage your subaccounts</p>
-        
-        <div className="mt-8 border-2 border-dashed rounded-lg p-12 text-center">
-          <p className="text-muted-foreground">Agency dashboard coming soon...</p>
-          <p className="text-xs text-muted-foreground mt-2">Agency ID: {agencyId}</p>
-        </div>
-      </div>
+      <AgencyLayout agencyId={agencyId}>
+        <Routes>
+          <Route path="/" element={<AgencyDashboard />} />
+          <Route path="/subaccounts" element={<Subaccounts />} />
+          <Route path="/team" element={<Team />} />
+          <Route path="/settings" element={<AgencySettings />} />
+          <Route path="*" element={<Navigate to={`/agency/${agencyId}`} replace />} />
+        </Routes>
+      </AgencyLayout>
     </ProtectedRoute>
   );
 }

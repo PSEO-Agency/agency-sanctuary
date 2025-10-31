@@ -14,26 +14,25 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, user, userRole } = useAuth();
+  const { signIn, signUp, user, profile } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && userRole) {
+    if (user && profile) {
       // Redirect based on role
-      switch (userRole.role) {
+      switch (profile.role) {
         case "super_admin":
           navigate("/super-admin");
           break;
         case "agency_admin":
-          navigate(`/agency/${userRole.agency_id}`);
+          navigate(`/agency/${profile.agency_id}`);
           break;
-        case "subaccount_admin":
-        case "subaccount_user":
-          navigate(`/subaccount/${userRole.subaccount_id}`);
+        case "sub_account_user":
+          navigate(`/subaccount/${profile.sub_account_id}/dashboard`);
           break;
       }
     }
-  }, [user, userRole, navigate]);
+  }, [user, profile, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

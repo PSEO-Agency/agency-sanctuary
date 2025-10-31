@@ -22,7 +22,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/super-admin" element={<SuperAdmin />} />
+            <Route path="/super-admin/*" element={<SuperAdmin />} />
             <Route path="/agency/:agencyId/*" element={<Agency />} />
             <Route path="/subaccount/:subaccountId/*" element={<Subaccount />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -1,16 +1,19 @@
+import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { SuperAdminLayout } from "@/components/layout/SuperAdminLayout";
+import SuperAdminDashboard from "./super-admin/Dashboard";
+import Agencies from "./super-admin/Agencies";
 
 export default function SuperAdmin() {
   return (
     <ProtectedRoute requiredRole="super_admin">
-      <div className="min-h-screen p-6">
-        <h1 className="text-3xl font-bold mb-4">Super Admin Portal</h1>
-        <p className="text-muted-foreground">Manage agencies and subaccounts</p>
-        
-        <div className="mt-8 border-2 border-dashed rounded-lg p-12 text-center">
-          <p className="text-muted-foreground">Super admin dashboard coming soon...</p>
-        </div>
-      </div>
+      <SuperAdminLayout>
+        <Routes>
+          <Route path="/" element={<SuperAdminDashboard />} />
+          <Route path="/agencies" element={<Agencies />} />
+          <Route path="*" element={<Navigate to="/super-admin" replace />} />
+        </Routes>
+      </SuperAdminLayout>
     </ProtectedRoute>
   );
 }

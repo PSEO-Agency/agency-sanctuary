@@ -1,9 +1,8 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { SubaccountSidebar } from "@/components/SubaccountSidebar";
+import { SuperAdminSidebar } from "@/components/SuperAdminSidebar";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
-import { Bell, Search, User } from "lucide-react";
+import { Bell, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,12 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface SubaccountLayoutProps {
+interface SuperAdminLayoutProps {
   children: React.ReactNode;
-  subaccountId: string;
 }
 
-export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutProps) {
+export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   const { user, signOut } = useAuth();
 
   return (
@@ -30,18 +28,9 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
         <header className="h-14 flex items-center border-b bg-card px-4 gap-4">
           <SidebarTrigger />
           
-          <div className="flex-1 max-w-xl">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search..." className="pl-10" />
-            </div>
-          </div>
+          <div className="flex-1" />
 
           <div className="flex items-center gap-4">
-            <div className="px-4 py-2 bg-success/10 text-success rounded-full font-medium text-sm">
-              50 credits
-            </div>
-
             <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />
             </Button>
@@ -55,13 +44,10 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">My Account</p>
+                    <p className="text-sm font-medium">Super Admin</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>Profile Settings</DropdownMenuItem>
-                <DropdownMenuItem>Billing</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => signOut()}>
                   Sign Out
@@ -72,7 +58,7 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          <SubaccountSidebar subaccountId={subaccountId} />
+          <SuperAdminSidebar />
           <main className="flex-1 overflow-y-auto bg-background p-6">
             {children}
           </main>
