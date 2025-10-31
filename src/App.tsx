@@ -20,27 +20,29 @@ const queryClient = new QueryClient({
   },
 });
 
-function App() {
+const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <React.Fragment>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <AuthProvider>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={<Navigate to="/auth" replace />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/super-admin/*" element={<SuperAdmin />} />
-              <Route path="/agency/:agencyId/*" element={<Agency />} />
-              <Route path="/subaccount/:subaccountId/*" element={<Subaccount />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </TooltipProvider>
+        <BrowserRouter>
+          <TooltipProvider>
+            <AuthProvider>
+              <Toaster />
+              <Sonner />
+              <Routes>
+                <Route path="/" element={<Navigate to="/auth" replace />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/super-admin/*" element={<SuperAdmin />} />
+                <Route path="/agency/:agencyId/*" element={<Agency />} />
+                <Route path="/subaccount/:subaccountId/*" element={<Subaccount />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </TooltipProvider>
+        </BrowserRouter>
       </QueryClientProvider>
-    </BrowserRouter>
+    </React.Fragment>
   );
-}
+};
 
 export default App;
