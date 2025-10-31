@@ -8,6 +8,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { SubaccountSwitcher } from "@/components/SubaccountSwitcher";
 
 interface SettingsSidebarProps {
   subaccountId: string;
@@ -47,23 +48,28 @@ export function SettingsSidebar({ subaccountId }: SettingsSidebarProps) {
   };
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
-      <SidebarHeader className="pt-16 px-4">
+    <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
+      <SidebarHeader className="pt-20 px-2">
         {!collapsed && (
-          <Button
-            variant="ghost"
-            onClick={handleBack}
-            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Button>
+          <>
+            <div className="mb-4">
+              <SubaccountSwitcher />
+            </div>
+            <Button
+              variant="ghost"
+              onClick={handleBack}
+              className="w-full justify-start gap-2 bg-background/80 hover:bg-background rounded-xl border border-border/50 text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </>
         )}
         {collapsed && (
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="w-full p-2"
+            className="w-full p-2 bg-background/80 hover:bg-background rounded-xl"
             title="Back to Dashboard"
           >
             <ArrowLeft className="h-4 w-4" />
