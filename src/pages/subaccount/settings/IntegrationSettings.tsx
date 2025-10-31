@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Wordpress, Check, X } from "lucide-react";
+import { Code, Check, X } from "lucide-react";
 
 export default function IntegrationSettings() {
   const { subaccountId } = useParams();
@@ -28,8 +28,9 @@ export default function IntegrationSettings() {
       .eq('id', subaccountId)
       .maybeSingle();
     
-    if (data?.integration_settings?.wordpress) {
-      const wp = data.integration_settings.wordpress;
+    const settings = data?.integration_settings as any;
+    if (settings?.wordpress) {
+      const wp = settings.wordpress;
       setWordpressUrl(wp.url || "");
       setWordpressUsername(wp.username || "");
       setWordpressPassword(wp.app_password || "");
@@ -86,8 +87,9 @@ export default function IntegrationSettings() {
         .eq('id', subaccountId)
         .maybeSingle();
 
+      const currentSettings = (currentData?.integration_settings as any) || {};
       const updatedSettings = {
-        ...(currentData?.integration_settings || {}),
+        ...currentSettings,
         wordpress: {
           url: wordpressUrl,
           username: wordpressUsername,
@@ -122,7 +124,7 @@ export default function IntegrationSettings() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Wordpress className="h-6 w-6" />
+            <Code className="h-6 w-6" />
             <CardTitle>WordPress Integration</CardTitle>
           </div>
           <CardDescription>

@@ -50,6 +50,65 @@ export type Database = {
         }
         Relationships: []
       }
+      blog_posts: {
+        Row: {
+          categories: string[] | null
+          content: string
+          created_at: string
+          excerpt: string | null
+          featured_image: string | null
+          id: string
+          published_at: string | null
+          status: string
+          subaccount_id: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+          wordpress_post_id: string | null
+          wordpress_url: string | null
+        }
+        Insert: {
+          categories?: string[] | null
+          content: string
+          created_at?: string
+          excerpt?: string | null
+          featured_image?: string | null
+          id?: string
+          published_at?: string | null
+          status?: string
+          subaccount_id: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          wordpress_post_id?: string | null
+          wordpress_url?: string | null
+        }
+        Update: {
+          categories?: string[] | null
+          content?: string
+          created_at?: string
+          excerpt?: string | null
+          featured_image?: string | null
+          id?: string
+          published_at?: string | null
+          status?: string
+          subaccount_id?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          wordpress_post_id?: string | null
+          wordpress_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_posts_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           agency_id: string | null
