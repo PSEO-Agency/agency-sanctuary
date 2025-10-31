@@ -82,14 +82,14 @@ export function SubaccountSwitcher() {
   return (
     <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="w-full justify-between px-3 py-2 bg-background/80 hover:bg-background rounded-xl border border-border/50">
+        <Button variant="ghost" className="w-full justify-between px-3 py-2 bg-background/80 hover:bg-background rounded-xl border border-border/50 text-foreground">
           <div className="flex items-center gap-2 truncate">
-            <Building2 className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate text-sm">
+            <Building2 className="h-4 w-4 flex-shrink-0 text-foreground" />
+            <span className="truncate text-sm text-foreground">
               {currentSubaccount?.name || "Agency Portal"}
             </span>
           </div>
-          <ChevronDown className="h-4 w-4 flex-shrink-0" />
+          <ChevronDown className="h-4 w-4 flex-shrink-0 text-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64 bg-background z-50">
