@@ -19,7 +19,11 @@ interface Subaccount {
   name: string;
 }
 
-export function SubaccountSwitcher() {
+interface SubaccountSwitcherProps {
+  subaccountId?: string;
+}
+
+export function SubaccountSwitcher({ subaccountId }: SubaccountSwitcherProps) {
   const [subaccounts, setSubaccounts] = useState<Subaccount[]>([]);
   const [currentSubaccount, setCurrentSubaccount] = useState<Subaccount | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -28,18 +32,18 @@ export function SubaccountSwitcher() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (profile?.sub_account_id) {
+    if (subaccountId) {
       fetchCurrentSubaccount();
     }
-  }, [profile?.sub_account_id]);
+  }, [subaccountId]);
 
   const fetchCurrentSubaccount = async () => {
-    if (!profile?.sub_account_id) return;
+    if (!subaccountId) return;
     const { data } = await supabase
       .from('subaccounts')
       .select('id, name')
-      .eq('id', profile.sub_account_id)
-      .single();
+      .eq('id', subaccountId)
+      .maybeSingle();
     
     if (data) {
       setCurrentSubaccount(data);
