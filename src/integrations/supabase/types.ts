@@ -177,7 +177,7 @@ export type Database = {
           created_at?: string
           id?: string
           integration_settings?: Json | null
-          location_id: string
+          location_id?: string
           name: string
           updated_at?: string
         }

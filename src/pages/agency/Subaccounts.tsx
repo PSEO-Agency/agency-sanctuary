@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ import { Plus, LogIn, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
 
 interface Subaccount {
   id: string;
@@ -32,13 +34,28 @@ interface Subaccount {
   created_at: string;
 }
 
+interface BusinessDetails {
+  description?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  streetAddress?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+}
+
 export default function Subaccounts() {
   const { agencyId } = useParams();
   const [subaccounts, setSubaccounts] = useState<Subaccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newSubaccount, setNewSubaccount] = useState({ name: "", location_id: "" });
+  const [newSubaccount, setNewSubaccount] = useState({ 
+    name: "",
+    businessDetails: {} as BusinessDetails
+  });
   const { impersonateUser } = useAuth();
 
   useEffect(() => {
@@ -74,18 +91,28 @@ export default function Subaccounts() {
         .insert([{
           agency_id: agencyId,
           name: newSubaccount.name,
-          location_id: newSubaccount.location_id,
+          business_settings: newSubaccount.businessDetails as Record<string, any>
         }]);
 
       if (error) throw error;
       
       toast.success("Sub-account created successfully");
       setIsCreateOpen(false);
-      setNewSubaccount({ name: "", location_id: "" });
+      setNewSubaccount({ 
+        name: "",
+        businessDetails: {} as BusinessDetails
+      });
       fetchSubaccounts();
     } catch (error: any) {
       toast.error(error.message || "Failed to create sub-account");
     }
+  };
+
+  const updateBusinessDetails = (field: keyof BusinessDetails, value: string) => {
+    setNewSubaccount(prev => ({
+      ...prev,
+      businessDetails: { ...prev.businessDetails, [field]: value }
+    }));
   };
 
   const handleLoginAs = async (subaccountId: string) => {
@@ -129,33 +156,136 @@ export default function Subaccounts() {
               Create Sub-account
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Sub-account</DialogTitle>
               <DialogDescription>
-                Add a new sub-account to your agency
+                Add a new sub-account to your agency. Location ID will be auto-generated.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Sub-account Name</Label>
-                <Input
-                  id="name"
-                  value={newSubaccount.name}
-                  onChange={(e) => setNewSubaccount({ ...newSubaccount, name: e.target.value })}
-                  placeholder="My Business"
-                />
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="font-semibold">Basic Information</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Business Name *</Label>
+                  <Input
+                    id="name"
+                    value={newSubaccount.name}
+                    onChange={(e) => setNewSubaccount({ ...newSubaccount, name: e.target.value })}
+                    placeholder="My Business"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={newSubaccount.businessDetails.description || ""}
+                    onChange={(e) => updateBusinessDetails("description", e.target.value)}
+                    placeholder="Brief description of the business"
+                    rows={3}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="location_id">Location ID (unique)</Label>
-                <Input
-                  id="location_id"
-                  value={newSubaccount.location_id}
-                  onChange={(e) => setNewSubaccount({ ...newSubaccount, location_id: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                  placeholder="my-business-001"
-                />
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h3 className="font-semibold">Contact Information (Optional)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={newSubaccount.businessDetails.phone || ""}
+                      onChange={(e) => updateBusinessDetails("phone", e.target.value)}
+                      placeholder="+1 (555) 000-0000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newSubaccount.businessDetails.email || ""}
+                      onChange={(e) => updateBusinessDetails("email", e.target.value)}
+                      placeholder="contact@business.com"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="website">Website</Label>
+                  <Input
+                    id="website"
+                    type="url"
+                    value={newSubaccount.businessDetails.website || ""}
+                    onChange={(e) => updateBusinessDetails("website", e.target.value)}
+                    placeholder="https://www.business.com"
+                  />
+                </div>
               </div>
-              <Button onClick={handleCreateSubaccount} className="w-full">
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h3 className="font-semibold">Address (Optional)</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="streetAddress">Street Address</Label>
+                  <Input
+                    id="streetAddress"
+                    value={newSubaccount.businessDetails.streetAddress || ""}
+                    onChange={(e) => updateBusinessDetails("streetAddress", e.target.value)}
+                    placeholder="123 Main Street"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      value={newSubaccount.businessDetails.city || ""}
+                      onChange={(e) => updateBusinessDetails("city", e.target.value)}
+                      placeholder="San Francisco"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State / Province</Label>
+                    <Input
+                      id="state"
+                      value={newSubaccount.businessDetails.state || ""}
+                      onChange={(e) => updateBusinessDetails("state", e.target.value)}
+                      placeholder="CA"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="zipCode">ZIP / Postal Code</Label>
+                    <Input
+                      id="zipCode"
+                      value={newSubaccount.businessDetails.zipCode || ""}
+                      onChange={(e) => updateBusinessDetails("zipCode", e.target.value)}
+                      placeholder="94102"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country</Label>
+                    <Input
+                      id="country"
+                      value={newSubaccount.businessDetails.country || ""}
+                      onChange={(e) => updateBusinessDetails("country", e.target.value)}
+                      placeholder="United States"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleCreateSubaccount} 
+                className="w-full"
+                disabled={!newSubaccount.name.trim()}
+              >
                 Create Sub-account
               </Button>
             </div>
