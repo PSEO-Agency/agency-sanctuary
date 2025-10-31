@@ -34,48 +34,78 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Inviting user:", { email, fullName, subaccountId });
 
-    // Use inviteUserByEmail which sends an invitation email automatically
-    const { data: userData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
-      {
-        redirectTo: `${req.headers.get("origin")}/auth`,
-        data: {
+    // First check if user already exists
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = existingUsers?.users?.find(u => u.email === email);
+
+    let userId: string;
+
+    if (existingUser) {
+      console.log("User already exists, adding to subaccount:", existingUser.id);
+      userId = existingUser.id;
+
+      // Just update the profile with subaccount_id
+      const { error: updateProfileError } = await supabaseAdmin
+        .from("profiles")
+        .update({ 
+          sub_account_id: subaccountId,
           full_name: fullName,
-        },
+        })
+        .eq("id", userId);
+
+      if (updateProfileError) {
+        console.error("Error updating profile:", updateProfileError);
+        throw updateProfileError;
       }
-    );
 
-    if (inviteError) {
-      console.error("Error inviting user:", inviteError);
-      throw inviteError;
+      console.log("Existing user added to subaccount successfully");
+    } else {
+      // Use inviteUserByEmail which sends an invitation email automatically
+      const { data: userData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        email,
+        {
+          redirectTo: `${req.headers.get("origin")}/auth`,
+          data: {
+            full_name: fullName,
+          },
+        }
+      );
+
+      if (inviteError) {
+        console.error("Error inviting user:", inviteError);
+        throw inviteError;
+      }
+
+      console.log("User invited successfully:", userData.user.id);
+      userId = userData.user.id;
+
+      // Wait a moment for the profile to be created by the trigger
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Update the profile with subaccount_id
+      const { error: updateProfileError } = await supabaseAdmin
+        .from("profiles")
+        .update({ 
+          sub_account_id: subaccountId,
+          full_name: fullName,
+        })
+        .eq("id", userId);
+
+      if (updateProfileError) {
+        console.error("Error updating profile:", updateProfileError);
+        throw updateProfileError;
+      }
+
+      console.log("Profile updated with subaccount_id successfully");
     }
-
-    console.log("User invited successfully:", userData.user.id);
-
-    // Wait a moment for the profile to be created by the trigger
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Update the profile with subaccount_id
-    const { error: updateProfileError } = await supabaseAdmin
-      .from("profiles")
-      .update({ 
-        sub_account_id: subaccountId,
-        full_name: fullName,
-      })
-      .eq("id", userData.user.id);
-
-    if (updateProfileError) {
-      console.error("Error updating profile:", updateProfileError);
-      throw updateProfileError;
-    }
-
-    console.log("Profile updated with subaccount_id successfully");
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "User invited successfully. They will receive an email to set their password.",
-        userId: userData.user.id,
+        message: existingUser 
+          ? "User added to subaccount successfully."
+          : "User invited successfully. They will receive an email to set their password.",
+        userId,
       }),
       {
         status: 200,
