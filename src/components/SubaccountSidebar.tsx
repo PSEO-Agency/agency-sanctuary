@@ -1,8 +1,9 @@
-import { Home, FolderKanban, FileText, BarChart3, Settings, Wand2 } from "lucide-react";
+import { Home, FolderKanban, FileText, BarChart3, Settings, Wand2, Cog } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -29,30 +30,35 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   ];
 
   const contentMachineItems = [
-    { title: "WordPress", url: `/subaccount/${subaccountId}/wordpress`, icon: Wand2 },
-    { title: "Automation", url: `/subaccount/${subaccountId}/automation`, icon: Settings },
+    { title: "WordPress Integration", url: `/subaccount/${subaccountId}/wordpress`, icon: Wand2 },
+    { title: "Automation Builder", url: `/subaccount/${subaccountId}/automation`, icon: Cog },
   ];
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
-      <div className="p-6 border-b">
-        <h1 className={`text-xl font-bold bg-gradient-sidebar bg-clip-text text-transparent ${collapsed ? "text-center" : ""}`}>
+      <div className="p-6 border-b border-sidebar-border">
+        <h1 className={`text-xl font-bold text-sidebar-foreground ${collapsed ? "text-center" : ""}`}>
           {collapsed ? "PS" : "PSEO Builder"}
         </h1>
       </div>
 
-      <SidebarContent>
+      <SidebarContent className="flex-1">
         <SidebarGroup>
-          <SidebarGroupLabel>pSEO Builder</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
+            pSEO Builder
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {pseoBuilderItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={isActive}>
+                    <SidebarMenuButton 
+                      asChild 
+                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                    >
                       <NavLink to={item.url} end>
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-5 w-5" />
                         {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
@@ -64,16 +70,21 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Content Machine</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
+            Content Machine
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {contentMachineItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={isActive}>
+                    <SidebarMenuButton 
+                      asChild 
+                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                    >
                       <NavLink to={item.url} end>
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-5 w-5" />
                         {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
@@ -83,22 +94,25 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={location.pathname === `/subaccount/${subaccountId}/settings`}>
-                  <NavLink to={`/subaccount/${subaccountId}/settings`} end>
-                    <Settings className="h-4 w-4" />
-                    {!collapsed && <span>Settings</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border p-4">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              asChild 
+              className={location.pathname === `/subaccount/${subaccountId}/settings` 
+                ? "bg-sidebar-accent text-sidebar-accent-foreground" 
+                : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+            >
+              <NavLink to={`/subaccount/${subaccountId}/settings`} end>
+                <Settings className="h-5 w-5" />
+                {!collapsed && <span>Settings</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }

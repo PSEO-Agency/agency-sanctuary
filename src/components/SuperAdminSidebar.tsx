@@ -24,24 +24,29 @@ export function SuperAdminSidebar() {
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
-      <div className="p-6 border-b">
-        <h1 className={`text-xl font-bold bg-gradient-sidebar bg-clip-text text-transparent ${collapsed ? "text-center" : ""}`}>
+      <div className="p-6 border-b border-sidebar-border">
+        <h1 className={`text-xl font-bold text-sidebar-foreground ${collapsed ? "text-center" : ""}`}>
           {collapsed ? "PS" : "PSEO Builder"}
         </h1>
       </div>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
+            Super Admin
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={isActive}>
+                    <SidebarMenuButton 
+                      asChild 
+                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                    >
                       <NavLink to={item.url} end>
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-5 w-5" />
                         {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
