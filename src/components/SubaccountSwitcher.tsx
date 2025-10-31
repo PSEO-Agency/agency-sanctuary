@@ -82,7 +82,7 @@ export function SubaccountSwitcher() {
   return (
     <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="w-full justify-between px-2 hover:bg-muted/50">
+        <Button variant="ghost" className="w-full justify-between px-3 py-2 bg-background/80 hover:bg-background rounded-xl border border-border/50">
           <div className="flex items-center gap-2 truncate">
             <Building2 className="h-4 w-4 flex-shrink-0" />
             <span className="truncate text-sm">
@@ -92,7 +92,7 @@ export function SubaccountSwitcher() {
           <ChevronDown className="h-4 w-4 flex-shrink-0" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64 bg-muted/30 backdrop-blur-sm border-border rounded-xl p-2 z-50">
+      <DropdownMenuContent align="start" className="w-64 bg-background z-50">
         <DropdownMenuLabel className="px-2">Switch Account</DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-border/50" />
         
