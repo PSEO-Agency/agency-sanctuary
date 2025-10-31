@@ -58,10 +58,27 @@ export default function TeamSettings() {
 
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("User invitation sent! (Feature in development)");
-    setInviteOpen(false);
-    setEmail("");
-    setFullName("");
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('invite-team-member', {
+        body: {
+          email,
+          fullName,
+          subaccountId,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(data.message || "User invited successfully!");
+      setInviteOpen(false);
+      setEmail("");
+      setFullName("");
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Error inviting user:", error);
+      toast.error(error.message || "Failed to invite user");
+    }
   };
 
   const handleDeleteUser = async (userId: string) => {
