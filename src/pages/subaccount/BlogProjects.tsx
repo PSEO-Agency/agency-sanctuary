@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, FolderOpen, Loader2, CheckCircle, XCircle, Database } from "lucide-react";
+import { Plus, FolderOpen, Loader2, CheckCircle, XCircle, Database, ChevronDown, ChevronRight } from "lucide-react";
+import { ArticlesTable } from "@/components/articles/ArticlesTable";
 
 interface BlogProject {
   id: string;
@@ -24,7 +26,6 @@ interface AirtableTable {
 
 export default function BlogProjects() {
   const { subaccountId } = useParams();
-  const navigate = useNavigate();
   const [projects, setProjects] = useState<BlogProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -33,7 +34,7 @@ export default function BlogProjects() {
   const [creating, setCreating] = useState(false);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
   const [connectionResults, setConnectionResults] = useState<Record<string, { success: boolean; tables?: AirtableTable[]; error?: string }>>({});
-
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   useEffect(() => {
     fetchProjects();
   }, [subaccountId]);
@@ -198,66 +199,85 @@ export default function BlogProjects() {
       ) : (
         <div className="grid gap-4">
           {projects.map((project) => (
-            <Card key={project.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="flex items-center gap-2">
-                      <FolderOpen className="h-5 w-5" />
-                      {project.name}
-                    </CardTitle>
-                    <CardDescription className="mt-2">
-                      Airtable Base: <code className="bg-muted px-1 py-0.5 rounded text-xs">{project.airtable_base_id}</code>
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => testAirtableConnection(project.id, project.airtable_base_id)}
-                      disabled={testingConnection === project.id}
-                    >
-                      {testingConnection === project.id ? (
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                      ) : connectionResults[project.id]?.success ? (
-                        <CheckCircle className="mr-2 h-3 w-3 text-green-500" />
-                      ) : connectionResults[project.id]?.error ? (
-                        <XCircle className="mr-2 h-3 w-3 text-red-500" />
-                      ) : (
-                        <Database className="mr-2 h-3 w-3" />
-                      )}
-                      Test Connection
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => navigate(`/subaccount/${subaccountId}/projects/${project.id}/blogs`)}
-                    >
-                      View Blogs
-                    </Button>
-                  </div>
-                </div>
-                {connectionResults[project.id]?.tables && (
-                  <div className="mt-4 p-3 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-2">Tables found:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {connectionResults[project.id].tables!.map((table) => (
-                        <span key={table.id} className="px-2 py-1 bg-background rounded text-xs">
-                          {table.name}
-                        </span>
-                      ))}
+            <Collapsible
+              key={project.id}
+              open={expandedProjects[project.id]}
+              onOpenChange={(open) => setExpandedProjects(prev => ({ ...prev, [project.id]: open }))}
+            >
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="flex items-center gap-2">
+                        <FolderOpen className="h-5 w-5" />
+                        {project.name}
+                      </CardTitle>
+                      <CardDescription className="mt-2">
+                        Airtable Base: <code className="bg-muted px-1 py-0.5 rounded text-xs">{project.airtable_base_id}</code>
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => testAirtableConnection(project.id, project.airtable_base_id)}
+                        disabled={testingConnection === project.id}
+                      >
+                        {testingConnection === project.id ? (
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        ) : connectionResults[project.id]?.success ? (
+                          <CheckCircle className="mr-2 h-3 w-3 text-green-500" />
+                        ) : connectionResults[project.id]?.error ? (
+                          <XCircle className="mr-2 h-3 w-3 text-red-500" />
+                        ) : (
+                          <Database className="mr-2 h-3 w-3" />
+                        )}
+                        Test Connection
+                      </Button>
+                      <CollapsibleTrigger asChild>
+                        <Button size="sm" variant="default">
+                          {expandedProjects[project.id] ? (
+                            <ChevronDown className="mr-2 h-3 w-3" />
+                          ) : (
+                            <ChevronRight className="mr-2 h-3 w-3" />
+                          )}
+                          View Articles
+                        </Button>
+                      </CollapsibleTrigger>
                     </div>
                   </div>
-                )}
-                {connectionResults[project.id]?.error && (
-                  <div className="mt-4 p-3 bg-destructive/10 rounded-lg">
-                    <p className="text-sm text-destructive">{connectionResults[project.id].error}</p>
+                  {connectionResults[project.id]?.tables && (
+                    <div className="mt-4 p-3 bg-muted rounded-lg">
+                      <p className="text-sm font-medium mb-2">Tables found:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {connectionResults[project.id].tables!.map((table) => (
+                          <span key={table.id} className="px-2 py-1 bg-background rounded text-xs">
+                            {table.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {connectionResults[project.id]?.error && (
+                    <div className="mt-4 p-3 bg-destructive/10 rounded-lg">
+                      <p className="text-sm text-destructive">{connectionResults[project.id].error}</p>
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Created: {new Date(project.created_at).toLocaleDateString()}
                   </div>
-                )}
-                <div className="text-xs text-muted-foreground mt-2">
-                  Created: {new Date(project.created_at).toLocaleDateString()}
-                </div>
-              </CardHeader>
-            </Card>
+                </CardHeader>
+                
+                <CollapsibleContent>
+                  <CardContent className="pt-0 border-t">
+                    <ArticlesTable 
+                      baseId={project.airtable_base_id} 
+                      isOpen={expandedProjects[project.id] || false}
+                    />
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           ))}
         </div>
       )}
