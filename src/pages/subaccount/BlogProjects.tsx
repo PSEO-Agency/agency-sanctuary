@@ -247,7 +247,19 @@ export default function BlogProjects() {
                     </div>
                   </div>
                   {connectionResults[project.id]?.tables && (
-                    <div className="mt-4 p-3 bg-muted rounded-lg">
+                    <div className="mt-4 p-3 bg-muted rounded-lg relative">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-1 right-1 h-6 w-6 p-0"
+                        onClick={() => setConnectionResults(prev => {
+                          const newResults = { ...prev };
+                          delete newResults[project.id];
+                          return newResults;
+                        })}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
                       <p className="text-sm font-medium mb-2">Tables found:</p>
                       <div className="flex flex-wrap gap-2">
                         {connectionResults[project.id].tables!.map((table) => (
