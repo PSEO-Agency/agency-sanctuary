@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Save, Send, Loader2, Upload, X } from "lucide-react";
 
 export default function BlogEditor() {
-  const { subaccountId, blogId } = useParams();
+  const { subaccountId, projectId, blogId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -53,7 +53,7 @@ export default function BlogEditor() {
     if (error) {
       console.error('Error fetching blog post:', error);
       toast.error("Failed to load blog post");
-      navigate(`/subaccount/${subaccountId}/blogs`);
+      navigate(`/subaccount/${subaccountId}/projects/${projectId}/blogs`);
     } else {
       setTitle(data.title);
       setContent(data.content);
@@ -143,6 +143,7 @@ export default function BlogEditor() {
     try {
       const postData = {
         subaccount_id: subaccountId,
+        project_id: projectId,
         title,
         content,
         excerpt: excerpt || content.substring(0, 150),
@@ -169,7 +170,7 @@ export default function BlogEditor() {
 
         if (error) throw error;
         toast.success("Draft saved successfully");
-        navigate(`/subaccount/${subaccountId}/blogs/${data.id}/edit`);
+        navigate(`/subaccount/${subaccountId}/projects/${projectId}/blogs/${data.id}/edit`);
       }
     } catch (error: any) {
       console.error('Save error:', error);
@@ -217,6 +218,7 @@ export default function BlogEditor() {
           .from('blog_posts')
           .insert({
             subaccount_id: subaccountId,
+            project_id: projectId,
             title,
             content,
             excerpt: excerpt || content.substring(0, 150),
@@ -267,7 +269,7 @@ export default function BlogEditor() {
         .eq('id', currentBlogId);
 
       toast.success("Published to WordPress successfully!");
-      navigate(`/subaccount/${subaccountId}/blogs`);
+      navigate(`/subaccount/${subaccountId}/projects/${projectId}/blogs`);
     } catch (error: any) {
       console.error('Publish error:', error);
       toast.error(error.message || "Failed to publish to WordPress");
@@ -291,11 +293,11 @@ export default function BlogEditor() {
         <div className="container flex h-14 items-center justify-between px-4">
           <Button
             variant="ghost"
-            onClick={() => navigate(`/subaccount/${subaccountId}/blogs`)}
+            onClick={() => navigate(`/subaccount/${subaccountId}/projects/${projectId}/blogs`)}
             className="gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+            Back to Blogs
           </Button>
           
           <div className="flex items-center gap-2">

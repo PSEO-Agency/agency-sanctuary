@@ -35,7 +35,7 @@ const App: React.FC = () => {
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/super-admin/*" element={<SuperAdmin />} />
                 <Route path="/agency/:agencyId/*" element={<Agency />} />
-                <Route path="/subaccount/:subaccountId/blogs/:blogId/edit" element={<BlogEditor />} />
+                <Route path="/subaccount/:subaccountId/projects/:projectId/blogs/:blogId/edit" element={<BlogEditor />} />
                 <Route path="/subaccount/:subaccountId/*" element={<Subaccount />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

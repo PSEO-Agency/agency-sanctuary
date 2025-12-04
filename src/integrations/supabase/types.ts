@@ -58,6 +58,7 @@ export type Database = {
           excerpt: string | null
           featured_image: string | null
           id: string
+          project_id: string | null
           published_at: string | null
           status: string
           subaccount_id: string
@@ -74,6 +75,7 @@ export type Database = {
           excerpt?: string | null
           featured_image?: string | null
           id?: string
+          project_id?: string | null
           published_at?: string | null
           status?: string
           subaccount_id: string
@@ -90,6 +92,7 @@ export type Database = {
           excerpt?: string | null
           featured_image?: string | null
           id?: string
+          project_id?: string | null
           published_at?: string | null
           status?: string
           subaccount_id?: string
@@ -101,7 +104,49 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "blog_posts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "blog_posts_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_projects: {
+        Row: {
+          airtable_base_id: string
+          created_at: string
+          id: string
+          name: string
+          subaccount_id: string
+          updated_at: string
+        }
+        Insert: {
+          airtable_base_id: string
+          created_at?: string
+          id?: string
+          name: string
+          subaccount_id: string
+          updated_at?: string
+        }
+        Update: {
+          airtable_base_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          subaccount_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_projects_subaccount_id_fkey"
             columns: ["subaccount_id"]
             isOneToOne: false
             referencedRelation: "subaccounts"

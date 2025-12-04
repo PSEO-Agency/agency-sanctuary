@@ -31,7 +31,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const contentMachineItems = [
     { title: "WordPress Integration", url: `/subaccount/${subaccountId}/wordpress`, icon: Wand2 },
-    { title: "Blogs", url: `/subaccount/${subaccountId}/blogs`, icon: FileText },
+    { title: "Projects", url: `/subaccount/${subaccountId}/projects`, icon: FolderKanban },
     { title: "Automation Builder", url: `/subaccount/${subaccountId}/automation`, icon: Cog },
   ];
 
