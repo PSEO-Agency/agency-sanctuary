@@ -19,21 +19,37 @@ interface BlogPost {
 }
 
 export default function Blogs() {
-  const { subaccountId } = useParams();
+  const { subaccountId, projectId } = useParams();
   const navigate = useNavigate();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectName, setProjectName] = useState("");
 
   useEffect(() => {
-    fetchPosts();
-  }, [subaccountId]);
+    fetchProjectAndPosts();
+  }, [subaccountId, projectId]);
 
-  const fetchPosts = async () => {
+  const fetchProjectAndPosts = async () => {
     setLoading(true);
+    
+    // Fetch project name
+    if (projectId) {
+      const { data: projectData } = await supabase
+        .from('blog_projects')
+        .select('name')
+        .eq('id', projectId)
+        .maybeSingle();
+      
+      if (projectData) {
+        setProjectName(projectData.name);
+      }
+    }
+
+    // Fetch posts for this project
     const { data, error } = await supabase
       .from('blog_posts')
       .select('*')
-      .eq('subaccount_id', subaccountId)
+      .eq('project_id', projectId)
       .order('created_at', { ascending: false });
     
     if (error) {
@@ -48,12 +64,22 @@ export default function Blogs() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+            <button 
+              onClick={() => navigate(`/subaccount/${subaccountId}/projects`)}
+              className="hover:text-foreground transition-colors"
+            >
+              Projects
+            </button>
+            <span>/</span>
+            <span>{projectName || 'Loading...'}</span>
+          </div>
           <h1 className="text-3xl font-bold">Blogs</h1>
           <p className="text-muted-foreground mt-2">
-            Create and manage blog posts for your WordPress site
+            Create and manage blog posts for this project
           </p>
         </div>
-        <Button onClick={() => navigate(`/subaccount/${subaccountId}/blogs/new/edit`)}>
+        <Button onClick={() => navigate(`/subaccount/${subaccountId}/projects/${projectId}/blogs/new/edit`)}>
           <Plus className="mr-2 h-4 w-4" />
           New Blog Post
         </Button>
@@ -72,7 +98,7 @@ export default function Blogs() {
               <p className="text-muted-foreground mb-4">
                 Create your first blog post to get started
               </p>
-              <Button onClick={() => navigate(`/subaccount/${subaccountId}/blogs/new/edit`)}>
+              <Button onClick={() => navigate(`/subaccount/${subaccountId}/projects/${projectId}/blogs/new/edit`)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Blog Post
               </Button>
@@ -102,7 +128,7 @@ export default function Blogs() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/subaccount/${subaccountId}/blogs/${post.id}/edit`)}
+                      onClick={() => navigate(`/subaccount/${subaccountId}/projects/${projectId}/blogs/${post.id}/edit`)}
                     >
                       <Edit className="mr-2 h-3 w-3" />
                       Edit
