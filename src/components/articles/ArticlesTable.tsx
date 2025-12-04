@@ -77,36 +77,43 @@ export function ArticlesTable({ baseId, isOpen }: ArticlesTableProps) {
   }
 
   return (
-    <div className="flex">
-      <div className={`flex-1 transition-all ${selectedArticle ? 'pr-0' : ''}`}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[300px]">Article Title</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created By</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="w-[60px]">Lang</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {articles.map((article) => (
-              <ArticleRow
-                key={article.id}
-                article={article}
-                onSelect={setSelectedArticle}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+    <div className="relative">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[300px]">Article Title</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Created By</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead className="w-[60px]">Lang</TableHead>
+            <TableHead className="w-[50px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {articles.map((article) => (
+            <ArticleRow
+              key={article.id}
+              article={article}
+              onSelect={setSelectedArticle}
+            />
+          ))}
+        </TableBody>
+      </Table>
       
+      {/* Overlay Side Panel */}
       {selectedArticle && (
-        <ArticleSidePanel
-          article={selectedArticle}
-          onClose={() => setSelectedArticle(null)}
-        />
+        <>
+          <div 
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setSelectedArticle(null)}
+          />
+          <div className="fixed top-0 right-0 h-full z-50">
+            <ArticleSidePanel
+              article={selectedArticle}
+              onClose={() => setSelectedArticle(null)}
+            />
+          </div>
+        </>
       )}
     </div>
   );
