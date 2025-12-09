@@ -81,14 +81,13 @@ serve(async (req) => {
       airtableFields['Name'] = fields.name;
     }
     
-    // Optional fields
+    // Optional fields - Language is typically a single select
     if (fields.language) {
       airtableFields['Language'] = fields.language;
     }
     
-    if (fields.status) {
-      airtableFields['Status'] = fields.status;
-    }
+    // Skip Status field - let Airtable use its default
+    // The field has specific options that may not match "Draft"
 
     // Map configuration to individual Airtable fields based on the table schema
     // These fields could be checkboxes OR single selects - handle both
