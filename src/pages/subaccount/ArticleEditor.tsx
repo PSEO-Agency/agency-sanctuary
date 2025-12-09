@@ -3,14 +3,29 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Loader2, Eye, Code, FileText, Settings } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Eye, Code, FileText, Settings, Sliders } from "lucide-react";
 import { toast } from "sonner";
 import { ArticleEditorHeader } from "@/components/articles/editor/ArticleEditorHeader";
 import { ArticleSEOPanel } from "@/components/articles/editor/ArticleSEOPanel";
 import { ArticleSectionsEditor } from "@/components/articles/editor/ArticleSectionsEditor";
 import { ArticleHTMLPreview } from "@/components/articles/editor/ArticleHTMLPreview";
 import { ArticleOutlinePanel } from "@/components/articles/editor/ArticleOutlinePanel";
+import { ArticleConfigPanel, type ArticleConfig } from "@/components/articles/editor/ArticleConfigPanel";
 import type { Article } from "@/components/articles/ArticleRow";
+
+const defaultConfig: ArticleConfig = {
+  approveEditSeoData: true,
+  approveOutline: true,
+  approveContent: true,
+  seoNlpResearch: true,
+  useTop10Serp: true,
+  topicResearch: false,
+  imageSelection: 'manual',
+  addExternalLinks: true,
+  externalLinksCount: 3,
+  addInternalLinks: true,
+  internalLinksCount: 3,
+};
 
 export default function ArticleEditor() {
   const { subaccountId, projectId, articleId } = useParams();
@@ -27,6 +42,8 @@ export default function ArticleEditor() {
   const [slug, setSlug] = useState("");
   const [content, setContent] = useState("");
   const [outline, setOutline] = useState("");
+  const [config, setConfig] = useState<ArticleConfig>(defaultConfig);
+  const [baseId, setBaseId] = useState<string>("");
 
   useEffect(() => {
     if (articleId && projectId) {
@@ -46,6 +63,8 @@ export default function ArticleEditor() {
 
       if (projectError) throw projectError;
 
+      setBaseId(project.airtable_base_id);
+
       // Fetch articles from Airtable
       const { data, error } = await supabase.functions.invoke('fetch-airtable-articles', {
         body: { baseId: project.airtable_base_id }
@@ -62,6 +81,17 @@ export default function ArticleEditor() {
           setSlug(foundArticle.slug || "");
           setContent(foundArticle.content || "");
           setOutline(foundArticle.outline || "");
+          // Parse config from article if it exists
+          if (foundArticle.config) {
+            try {
+              const parsedConfig = typeof foundArticle.config === 'string' 
+                ? JSON.parse(foundArticle.config) 
+                : foundArticle.config;
+              setConfig({ ...defaultConfig, ...parsedConfig });
+            } catch (e) {
+              console.log('Could not parse article config, using defaults');
+            }
+          }
         } else {
           toast.error("Article not found");
           navigate(`/subaccount/${subaccountId}/projects`);
@@ -75,13 +105,38 @@ export default function ArticleEditor() {
   };
 
   const handleSave = async () => {
+    if (!baseId || !articleId) {
+      toast.error("Missing required data to save");
+      return;
+    }
+    
     setSaving(true);
     try {
-      // For now, save locally - later integrate with Airtable update API
-      toast.success("Changes saved locally");
-      // TODO: Implement Airtable update via edge function
-    } catch (err) {
-      toast.error("Failed to save changes");
+      const { data, error } = await supabase.functions.invoke('update-airtable-article', {
+        body: {
+          baseId,
+          recordId: articleId,
+          fields: {
+            metaTitle,
+            metaDescription,
+            slug,
+            content,
+            outline,
+            config,
+          }
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data.success) {
+        toast.success("Changes saved to Airtable");
+      } else {
+        throw new Error(data.error || "Failed to save");
+      }
+    } catch (err: any) {
+      console.error("Error saving article:", err);
+      toast.error(err.message || "Failed to save changes");
     }
     setSaving(false);
   };
@@ -152,7 +207,7 @@ export default function ArticleEditor() {
         {/* Left Panel - SEO & Outline */}
         <div className="w-80 border-r bg-muted/30 flex flex-col">
           <Tabs defaultValue="seo" className="flex-1 flex flex-col">
-            <TabsList className="m-2 grid grid-cols-2">
+            <TabsList className="m-2 grid grid-cols-3">
               <TabsTrigger value="seo" className="text-xs">
                 <Settings className="h-3 w-3 mr-1" />
                 SEO
@@ -160,6 +215,10 @@ export default function ArticleEditor() {
               <TabsTrigger value="outline" className="text-xs">
                 <FileText className="h-3 w-3 mr-1" />
                 Outline
+              </TabsTrigger>
+              <TabsTrigger value="config" className="text-xs">
+                <Sliders className="h-3 w-3 mr-1" />
+                Config
               </TabsTrigger>
             </TabsList>
             
@@ -179,6 +238,13 @@ export default function ArticleEditor() {
               <ArticleOutlinePanel
                 outline={outline}
                 setOutline={setOutline}
+              />
+            </TabsContent>
+            
+            <TabsContent value="config" className="flex-1 m-0 overflow-auto">
+              <ArticleConfigPanel
+                config={config}
+                setConfig={setConfig}
               />
             </TabsContent>
           </Tabs>
