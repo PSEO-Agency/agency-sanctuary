@@ -28,8 +28,49 @@ serve(async (req) => {
       );
     }
 
-    // Fetch records from pSEO Pages table
-    const tableId = 'tbl3DQjpJaokdeFGn';
+    console.log(`Fetching articles from Airtable base: ${baseId}`);
+
+    // First, discover tables in the base to find "pSEO Pages" table
+    const metaResponse = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
+      headers: {
+        'Authorization': `Bearer ${airtableApiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!metaResponse.ok) {
+      const errorText = await metaResponse.text();
+      console.error('Airtable meta API error:', errorText);
+      return new Response(
+        JSON.stringify({ success: false, error: `Failed to fetch base metadata: ${metaResponse.status}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: metaResponse.status }
+      );
+    }
+
+    const metaData = await metaResponse.json();
+    
+    // Find the pSEO Pages table by name
+    const pSEOTable = metaData.tables.find((t: { name: string }) => 
+      t.name.toLowerCase().includes('pseo') || 
+      t.name.toLowerCase().includes('pages') ||
+      t.name.toLowerCase() === 'pseo pages'
+    );
+
+    if (!pSEOTable) {
+      console.log('Available tables:', metaData.tables.map((t: { name: string }) => t.name));
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Could not find pSEO Pages table in this base',
+          availableTables: metaData.tables.map((t: { name: string }) => t.name)
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      );
+    }
+
+    console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
+
+    // Fetch records from the discovered table
     const fields = [
       'Name',
       'Status',
@@ -49,9 +90,7 @@ serve(async (req) => {
     ];
 
     const fieldsParam = fields.map(f => `fields%5B%5D=${encodeURIComponent(f)}`).join('&');
-    const url = `https://api.airtable.com/v0/${baseId}/${tableId}?${fieldsParam}&maxRecords=100`;
-
-    console.log(`Fetching articles from Airtable base: ${baseId}`);
+    const url = `https://api.airtable.com/v0/${baseId}/${pSEOTable.id}?${fieldsParam}&maxRecords=100`;
 
     const response = await fetch(url, {
       headers: {
@@ -91,10 +130,10 @@ serve(async (req) => {
       html: record.fields['HTML'] || '',
     }));
 
-    console.log(`Successfully fetched ${articles.length} articles`);
+    console.log(`Successfully fetched ${articles.length} articles from ${pSEOTable.name}`);
 
     return new Response(
-      JSON.stringify({ success: true, articles }),
+      JSON.stringify({ success: true, articles, tableName: pSEOTable.name }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
