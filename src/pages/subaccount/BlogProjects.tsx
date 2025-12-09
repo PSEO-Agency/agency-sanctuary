@@ -285,6 +285,7 @@ export default function BlogProjects() {
                     <ArticlesTable 
                       baseId={project.airtable_base_id} 
                       isOpen={expandedProjects[project.id] || false}
+                      projectId={project.id}
                     />
                   </CardContent>
                 </CollapsibleContent>
