@@ -1,16 +1,21 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, FileText } from "lucide-react";
 import { ArticleRow, type Article } from "./ArticleRow";
 import { ArticleSidePanel } from "./ArticleSidePanel";
+import { Button } from "@/components/ui/button";
 
 interface ArticlesTableProps {
   baseId: string;
   isOpen: boolean;
+  projectId: string;
 }
 
-export function ArticlesTable({ baseId, isOpen }: ArticlesTableProps) {
+export function ArticlesTable({ baseId, isOpen, projectId }: ArticlesTableProps) {
+  const { subaccountId } = useParams();
+  const navigate = useNavigate();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +51,10 @@ export function ArticlesTable({ baseId, isOpen }: ArticlesTableProps) {
     }
     
     setLoading(false);
+  };
+
+  const handleOpenEditor = (article: Article) => {
+    navigate(`/subaccount/${subaccountId}/projects/${projectId}/articles/${article.id}`);
   };
 
   if (!isOpen) return null;
@@ -108,10 +117,20 @@ export function ArticlesTable({ baseId, isOpen }: ArticlesTableProps) {
             onClick={() => setSelectedArticle(null)}
           />
           <div className="fixed top-0 right-0 h-full z-50">
-            <ArticleSidePanel
-              article={selectedArticle}
-              onClose={() => setSelectedArticle(null)}
-            />
+            <div className="w-[400px] border-l bg-background h-full flex flex-col">
+              <ArticleSidePanel
+                article={selectedArticle}
+                onClose={() => setSelectedArticle(null)}
+              />
+              <div className="p-4 border-t">
+                <Button 
+                  className="w-full" 
+                  onClick={() => handleOpenEditor(selectedArticle)}
+                >
+                  Open Full Editor
+                </Button>
+              </div>
+            </div>
           </div>
         </>
       )}
