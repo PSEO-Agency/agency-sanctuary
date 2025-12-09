@@ -66,31 +66,49 @@ serve(async (req) => {
 
     console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
 
-    // Map our field names to Airtable field names
+    // Build a set of available field names in this table
+    const availableFields = new Set<string>();
+    if (pSEOTable.fields) {
+      for (const field of pSEOTable.fields) {
+        availableFields.add(field.name);
+      }
+    }
+    console.log('Available fields in table:', Array.from(availableFields).slice(0, 20), '...');
+
+    // Map our field names to Airtable field names - only include fields that exist
     const airtableFields: Record<string, any> = {};
+    const skippedFields: string[] = [];
+    
+    // Helper to safely add a field only if it exists in the table
+    const addFieldIfExists = (fieldName: string, value: any) => {
+      if (availableFields.has(fieldName)) {
+        airtableFields[fieldName] = value;
+      } else {
+        skippedFields.push(fieldName);
+      }
+    };
     
     // Required fields
     if (fields.name) {
-      airtableFields['Name'] = fields.name;
+      addFieldIfExists('Name', fields.name);
     }
     
     // Language is a singleSelect with choices: "Dutch", "English"
     if (fields.language) {
-      airtableFields['Language'] = fields.language;
+      addFieldIfExists('Language', fields.language);
     }
 
     // Map configuration to individual Airtable fields
-    // Based on schema: all these fields are singleSelect with "Yes"/"No" choices
     if (fields.config) {
       const config = fields.config;
       
       // Boolean fields -> "Yes" / "No" singleSelect
-      airtableFields['Approve SEO Data'] = config.approveEditSeoData ? 'Yes' : 'No';
-      airtableFields['Approve Outline'] = config.approveOutline ? 'Yes' : 'No';
-      airtableFields['Approve Content'] = config.approveContent ? 'Yes' : 'No';
-      airtableFields['NLP/SEO Research'] = config.seoNlpResearch ? 'Yes' : 'No';
-      airtableFields['Use Top 10 SERP'] = config.useTop10Serp ? 'Yes' : 'No';
-      airtableFields['Topic Research'] = config.topicResearch ? 'Yes' : 'No';
+      addFieldIfExists('Approve SEO Data', config.approveEditSeoData ? 'Yes' : 'No');
+      addFieldIfExists('Approve Outline', config.approveOutline ? 'Yes' : 'No');
+      addFieldIfExists('Approve Content', config.approveContent ? 'Yes' : 'No');
+      addFieldIfExists('NLP/SEO Research', config.seoNlpResearch ? 'Yes' : 'No');
+      addFieldIfExists('Use Top 10 SERP', config.useTop10Serp ? 'Yes' : 'No');
+      addFieldIfExists('Topic Research', config.topicResearch ? 'Yes' : 'No');
       
       // Image Selection is singleSelect: "Manual", "Dynamic", "Media Library", "API", "AI"
       if (config.imageSelection) {
@@ -101,33 +119,35 @@ serve(async (req) => {
           'api': 'API',
           'ai': 'AI',
         };
-        airtableFields['Image Selection'] = imageMap[config.imageSelection] || 'Manual';
+        addFieldIfExists('Image Selection', imageMap[config.imageSelection] || 'Manual');
       }
       
-      // Include Internal links is singleSelect: "And always include internal links." / "And never include internal links."
+      // Include Internal links is singleSelect
       if (config.addInternalLinks !== undefined) {
-        airtableFields['Include Internal links'] = config.addInternalLinks 
+        addFieldIfExists('Include Internal links', config.addInternalLinks 
           ? 'And always include internal links.' 
-          : 'And never include internal links.';
+          : 'And never include internal links.');
       }
       
-      // Include External Links is singleSelect: "And always include internal links." / "And never include internal links."
-      // (same wording as internal links in schema)
+      // Include External Links is singleSelect
       if (config.addExternalLinks !== undefined) {
-        airtableFields['Include External Links'] = config.addExternalLinks 
+        addFieldIfExists('Include External Links', config.addExternalLinks 
           ? 'And always include internal links.' 
-          : 'And never include internal links.';
+          : 'And never include internal links.');
       }
       
-      // Guidelines are richText fields
+      // Guidelines are richText fields - only add if they exist in the schema
       if (config.internalLinksCount !== undefined) {
-        airtableFields['Internal Links Guideline'] = `Include ${config.internalLinksCount} internal links.`;
+        addFieldIfExists('Internal Links Guideline', `Include ${config.internalLinksCount} internal links.\n`);
       }
       if (config.externalLinksCount !== undefined) {
-        airtableFields['External Links Guideline'] = `Include ${config.externalLinksCount} external links/citations.`;
+        addFieldIfExists('External Links Guideline', `Include ${config.externalLinksCount} external links/citations.\n`);
       }
     }
 
+    if (skippedFields.length > 0) {
+      console.log('Skipped fields (not in table schema):', skippedFields);
+    }
     console.log('Mapped Airtable fields:', airtableFields);
 
     // Create the record
