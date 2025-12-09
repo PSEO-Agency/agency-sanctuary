@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { Plus, FolderOpen, Loader2, CheckCircle, XCircle, Database, ChevronDown, ChevronRight } from "lucide-react";
 import { ArticlesTable } from "@/components/articles/ArticlesTable";
+import { CreateArticleDialog } from "@/components/articles/CreateArticleDialog";
 
 interface BlogProject {
   id: string;
@@ -234,6 +235,17 @@ export default function BlogProjects() {
                         )}
                         Test Connection
                       </Button>
+                      <CreateArticleDialog 
+                        baseId={project.airtable_base_id} 
+                        projectId={project.id}
+                        onArticleCreated={() => {
+                          // Refresh articles by toggling the project open
+                          setExpandedProjects(prev => ({ ...prev, [project.id]: false }));
+                          setTimeout(() => {
+                            setExpandedProjects(prev => ({ ...prev, [project.id]: true }));
+                          }, 100);
+                        }}
+                      />
                       <CollapsibleTrigger asChild>
                         <Button size="sm" variant="default">
                           {expandedProjects[project.id] ? (
