@@ -84,39 +84,42 @@ serve(async (req) => {
     }
 
     // Map configuration to individual Airtable fields based on the table schema
+    // NOTE: Airtable checkbox fields only accept `true` to check, omit to uncheck
     if (fields.config) {
       const config = fields.config;
       
-      // These fields match the Airtable table structure from the logs
-      if (config.approveEditSeoData !== undefined) {
-        airtableFields['Approve SEO Data'] = config.approveEditSeoData;
+      // Checkbox fields - only include if true (Airtable quirk)
+      if (config.approveEditSeoData === true) {
+        airtableFields['Approve SEO Data'] = true;
       }
-      if (config.approveOutline !== undefined) {
-        airtableFields['Approve Outline'] = config.approveOutline;
+      if (config.approveOutline === true) {
+        airtableFields['Approve Outline'] = true;
       }
-      if (config.approveContent !== undefined) {
-        airtableFields['Approve Content'] = config.approveContent;
+      if (config.approveContent === true) {
+        airtableFields['Approve Content'] = true;
       }
-      if (config.seoNlpResearch !== undefined) {
-        airtableFields['NLP/SEO Research'] = config.seoNlpResearch;
+      if (config.seoNlpResearch === true) {
+        airtableFields['NLP/SEO Research'] = true;
       }
-      if (config.useTop10Serp !== undefined) {
-        airtableFields['Use Top 10 SERP'] = config.useTop10Serp;
+      if (config.useTop10Serp === true) {
+        airtableFields['Use Top 10 SERP'] = true;
       }
-      if (config.topicResearch !== undefined) {
-        airtableFields['Topic Research'] = config.topicResearch;
+      if (config.topicResearch === true) {
+        airtableFields['Topic Research'] = true;
       }
+      if (config.addExternalLinks === true) {
+        airtableFields['Include External Links'] = true;
+      }
+      if (config.addInternalLinks === true) {
+        airtableFields['Include Internal links'] = true;
+      }
+      
+      // String/select fields
       if (config.imageSelection) {
         airtableFields['Image Selection'] = config.imageSelection;
       }
-      if (config.addExternalLinks !== undefined) {
-        airtableFields['Include External Links'] = config.addExternalLinks;
-      }
       if (config.externalLinksCount !== undefined) {
         airtableFields['External Links Guideline'] = String(config.externalLinksCount);
-      }
-      if (config.addInternalLinks !== undefined) {
-        airtableFields['Include Internal links'] = config.addInternalLinks;
       }
       if (config.internalLinksCount !== undefined) {
         airtableFields['Internal Links Guideline'] = String(config.internalLinksCount);
