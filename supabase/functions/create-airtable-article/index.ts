@@ -65,13 +65,6 @@ serve(async (req) => {
     }
 
     console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
-    
-    // Log field types to understand the schema
-    const fieldTypes = pSEOTable.fields?.reduce((acc: Record<string, string>, f: { name: string, type: string }) => {
-      acc[f.name] = f.type;
-      return acc;
-    }, {});
-    console.log('Field types:', fieldTypes);
 
     // Map our field names to Airtable field names
     const airtableFields: Record<string, any> = {};
@@ -81,65 +74,57 @@ serve(async (req) => {
       airtableFields['Name'] = fields.name;
     }
     
-    // Optional fields - Language is typically a single select
+    // Language is a singleSelect with choices: "Dutch", "English"
     if (fields.language) {
       airtableFields['Language'] = fields.language;
     }
-    
-    // Skip Status field - let Airtable use its default
-    // The field has specific options that may not match "Draft"
 
-    // Map configuration to individual Airtable fields based on the table schema
-    // These fields could be checkboxes OR single selects - handle both
+    // Map configuration to individual Airtable fields
+    // Based on schema: all these fields are singleSelect with "Yes"/"No" choices
     if (fields.config) {
       const config = fields.config;
       
-      // Helper to get correct value based on field type
-      const getBoolFieldValue = (fieldName: string, value: boolean) => {
-        const fieldType = fieldTypes?.[fieldName];
-        if (fieldType === 'checkbox') {
-          return value ? true : undefined; // Checkbox: true or omit
-        } else if (fieldType === 'singleSelect') {
-          return value ? 'Yes' : 'No'; // Single select: "Yes" or "No"
-        }
-        // Default: try as checkbox (only send if true)
-        return value ? true : undefined;
-      };
-
-      // Boolean/checkbox/select fields
-      const approveSeoval = getBoolFieldValue('Approve SEO Data', config.approveEditSeoData);
-      if (approveSeoval !== undefined) airtableFields['Approve SEO Data'] = approveSeoval;
+      // Boolean fields -> "Yes" / "No" singleSelect
+      airtableFields['Approve SEO Data'] = config.approveEditSeoData ? 'Yes' : 'No';
+      airtableFields['Approve Outline'] = config.approveOutline ? 'Yes' : 'No';
+      airtableFields['Approve Content'] = config.approveContent ? 'Yes' : 'No';
+      airtableFields['NLP/SEO Research'] = config.seoNlpResearch ? 'Yes' : 'No';
+      airtableFields['Use Top 10 SERP'] = config.useTop10Serp ? 'Yes' : 'No';
+      airtableFields['Topic Research'] = config.topicResearch ? 'Yes' : 'No';
       
-      const approveOutlineVal = getBoolFieldValue('Approve Outline', config.approveOutline);
-      if (approveOutlineVal !== undefined) airtableFields['Approve Outline'] = approveOutlineVal;
-      
-      const approveContentVal = getBoolFieldValue('Approve Content', config.approveContent);
-      if (approveContentVal !== undefined) airtableFields['Approve Content'] = approveContentVal;
-      
-      const nlpResearchVal = getBoolFieldValue('NLP/SEO Research', config.seoNlpResearch);
-      if (nlpResearchVal !== undefined) airtableFields['NLP/SEO Research'] = nlpResearchVal;
-      
-      const top10Val = getBoolFieldValue('Use Top 10 SERP', config.useTop10Serp);
-      if (top10Val !== undefined) airtableFields['Use Top 10 SERP'] = top10Val;
-      
-      const topicResearchVal = getBoolFieldValue('Topic Research', config.topicResearch);
-      if (topicResearchVal !== undefined) airtableFields['Topic Research'] = topicResearchVal;
-      
-      const extLinksVal = getBoolFieldValue('Include External Links', config.addExternalLinks);
-      if (extLinksVal !== undefined) airtableFields['Include External Links'] = extLinksVal;
-      
-      const intLinksVal = getBoolFieldValue('Include Internal links', config.addInternalLinks);
-      if (intLinksVal !== undefined) airtableFields['Include Internal links'] = intLinksVal;
-      
-      // String/select fields
+      // Image Selection is singleSelect: "Manual", "Dynamic", "Media Library", "API", "AI"
       if (config.imageSelection) {
-        airtableFields['Image Selection'] = config.imageSelection;
+        const imageMap: Record<string, string> = {
+          'manual': 'Manual',
+          'dynamic': 'Dynamic',
+          'media_library': 'Media Library',
+          'api': 'API',
+          'ai': 'AI',
+        };
+        airtableFields['Image Selection'] = imageMap[config.imageSelection] || 'Manual';
+      }
+      
+      // Include Internal links is singleSelect: "And always include internal links." / "And never include internal links."
+      if (config.addInternalLinks !== undefined) {
+        airtableFields['Include Internal links'] = config.addInternalLinks 
+          ? 'And always include internal links.' 
+          : 'And never include internal links.';
+      }
+      
+      // Include External Links is singleSelect: "And always include internal links." / "And never include internal links."
+      // (same wording as internal links in schema)
+      if (config.addExternalLinks !== undefined) {
+        airtableFields['Include External Links'] = config.addExternalLinks 
+          ? 'And always include internal links.' 
+          : 'And never include internal links.';
+      }
+      
+      // Guidelines are richText fields
+      if (config.internalLinksCount !== undefined) {
+        airtableFields['Internal Links Guideline'] = `Include ${config.internalLinksCount} internal links.`;
       }
       if (config.externalLinksCount !== undefined) {
-        airtableFields['External Links Guideline'] = String(config.externalLinksCount);
-      }
-      if (config.internalLinksCount !== undefined) {
-        airtableFields['Internal Links Guideline'] = String(config.internalLinksCount);
+        airtableFields['External Links Guideline'] = `Include ${config.externalLinksCount} external links/citations.`;
       }
     }
 
