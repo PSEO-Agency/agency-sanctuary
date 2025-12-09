@@ -112,6 +112,7 @@ serve(async (req) => {
         content: f['SEO Content'] || f['Content'] || '',
         outline: f['SEO Outline'] || f['Outline'] || '',
         html: f['HTML'] || '',
+        config: f['Configuration'] || null,
       };
     });
 
