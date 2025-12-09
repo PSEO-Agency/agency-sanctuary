@@ -69,28 +69,10 @@ serve(async (req) => {
     }
 
     console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
+    console.log(`Table fields:`, pSEOTable.fields?.map((f: { name: string }) => f.name));
 
-    // Fetch records from the discovered table
-    const fields = [
-      'Name',
-      'Status',
-      'Users',
-      'Created At',
-      'Language',
-      'Avg Content Score',
-      'Slug Manual',
-      'Meta title',
-      'Meta Description',
-      'Avg Word Count',
-      'Target Readability',
-      'Image URL',
-      'SEO Content',
-      'SEO Outline',
-      'HTML'
-    ];
-
-    const fieldsParam = fields.map(f => `fields%5B%5D=${encodeURIComponent(f)}`).join('&');
-    const url = `https://api.airtable.com/v0/${baseId}/${pSEOTable.id}?${fieldsParam}&maxRecords=100`;
+    // Fetch all records without specifying fields - let Airtable return what exists
+    const url = `https://api.airtable.com/v0/${baseId}/${pSEOTable.id}?maxRecords=100`;
 
     const response = await fetch(url, {
       headers: {
@@ -110,25 +92,28 @@ serve(async (req) => {
 
     const data = await response.json();
     
-    // Transform the records to a cleaner format
-    const articles = data.records.map((record: any) => ({
-      id: record.id,
-      name: record.fields['Name'] || 'Untitled',
-      status: record.fields['Status'] || 'Draft',
-      createdBy: record.fields['Users'] || null,
-      createdAt: record.fields['Created At'] || null,
-      language: record.fields['Language'] || 'English',
-      contentScore: record.fields['Avg Content Score'] || null,
-      slug: record.fields['Slug Manual'] || '',
-      metaTitle: record.fields['Meta title'] || '',
-      metaDescription: record.fields['Meta Description'] || '',
-      wordCount: record.fields['Avg Word Count'] || 0,
-      readability: record.fields['Target Readability'] || null,
-      imageUrl: record.fields['Image URL'] || null,
-      content: record.fields['SEO Content'] || '',
-      outline: record.fields['SEO Outline'] || '',
-      html: record.fields['HTML'] || '',
-    }));
+    // Transform the records - map available fields flexibly
+    const articles = data.records.map((record: any) => {
+      const f = record.fields;
+      return {
+        id: record.id,
+        name: f['Name'] || f['Title'] || 'Untitled',
+        status: f['Status'] || 'Draft',
+        createdBy: f['Users'] || f['Created By'] || f['Author'] || null,
+        createdAt: f['Created'] || f['Created Time'] || record.createdTime || null,
+        language: f['Language'] || 'English',
+        contentScore: f['Avg Content Score'] || f['Content Score'] || null,
+        slug: f['Slug Manual'] || f['Slug'] || '',
+        metaTitle: f['Meta title'] || f['Meta Title'] || '',
+        metaDescription: f['Meta Description'] || '',
+        wordCount: f['Avg Word Count'] || f['Word Count'] || 0,
+        readability: f['Target Readability'] || f['Readability'] || null,
+        imageUrl: f['Image URL'] || f['Featured Image'] || null,
+        content: f['SEO Content'] || f['Content'] || '',
+        outline: f['SEO Outline'] || f['Outline'] || '',
+        html: f['HTML'] || '',
+      };
+    });
 
     console.log(`Successfully fetched ${articles.length} articles from ${pSEOTable.name}`);
 
