@@ -160,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: 'agency_admin',
             agency_id: agencyData.id,
             onboarding_completed: false
-          })
+          } as any)
           .eq('id', data.user.id);
       }
     }
