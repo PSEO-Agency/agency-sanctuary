@@ -14,6 +14,7 @@ interface UserProfile {
   role: AppRole;
   agency_id: string | null;
   sub_account_id: string | null;
+  onboarding_completed?: boolean;
 }
 
 interface ImpersonationState {
@@ -29,10 +30,14 @@ interface AuthContextType {
   loading: boolean;
   impersonation: ImpersonationState | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   impersonateUser: (userId: string) => Promise<void>;
   stopImpersonation: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,13 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for stored impersonation state
     const storedImpersonation = localStorage.getItem('impersonation');
     if (storedImpersonation) {
       setImpersonation(JSON.parse(storedImpersonation));
     }
 
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
@@ -68,7 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -100,10 +102,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchUserProfile(user.id);
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
+    });
+
+    if (error) throw error;
+  };
+
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth`,
+      },
     });
 
     if (error) throw error;
@@ -117,13 +136,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: {
           full_name: fullName,
         },
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${window.location.origin}/auth`,
       },
     });
     
     if (error) throw error;
     
-    // Create agency for new user
     if (data.user) {
       const { data: agencyData } = await supabase
         .from('agencies')
@@ -140,7 +158,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from('profiles')
           .update({
             role: 'agency_admin',
-            agency_id: agencyData.id
+            agency_id: agencyData.id,
+            onboarding_completed: false
           })
           .eq('id', data.user.id);
       }
@@ -149,8 +168,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     toast.success("Account created! Please check your email to verify your account.");
   };
 
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth?mode=reset`,
+    });
+
+    if (error) throw error;
+    toast.success("Password reset email sent! Check your inbox.");
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) throw error;
+    toast.success("Password updated successfully!");
+  };
+
   const signOut = async () => {
-    // Clear impersonation state
     localStorage.removeItem('impersonation');
     setImpersonation(null);
     
@@ -163,7 +199,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const impersonateUser = async (targetUserId: string) => {
     if (!profile) return;
 
-    // Store original user info
     const impersonationState: ImpersonationState = {
       originalUserId: profile.id,
       originalRole: profile.role,
@@ -173,7 +208,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('impersonation', JSON.stringify(impersonationState));
     setImpersonation(impersonationState);
 
-    // Fetch the target user's profile
     const { data: targetProfile } = await supabase
       .from("profiles")
       .select("*")
@@ -184,7 +218,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(targetProfile);
       toast.success(`Now viewing as ${targetProfile.email}`);
       
-      // Navigate to appropriate portal
       switch (targetProfile.role) {
         case "super_admin":
           navigate("/super-admin");
@@ -202,7 +235,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const stopImpersonation = async () => {
     if (!impersonation) return;
 
-    // Restore original user
     const { data: originalProfile } = await supabase
       .from("profiles")
       .select("*")
@@ -215,7 +247,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setImpersonation(null);
       toast.success("Returned to your account");
       
-      // Navigate back to original portal
       switch (originalProfile.role) {
         case "super_admin":
           navigate("/super-admin");
@@ -236,10 +267,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         impersonation,
         signIn,
+        signInWithGoogle,
         signUp,
         signOut,
+        resetPassword,
+        updatePassword,
         impersonateUser,
         stopImpersonation,
+        refreshProfile,
       }}
     >
       {children}

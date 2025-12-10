@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
 import SuperAdmin from "./pages/SuperAdmin";
 import Agency from "./pages/Agency";
 import Subaccount from "./pages/Subaccount";
@@ -34,6 +35,7 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<Navigate to="/auth" replace />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/super-admin/*" element={<SuperAdmin />} />
                 <Route path="/agency/:agencyId/*" element={<Agency />} />
                 <Route path="/subaccount/:subaccountId/projects/:projectId/blogs/:blogId/edit" element={<BlogEditor />} />
