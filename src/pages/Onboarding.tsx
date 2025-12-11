@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Building2, Globe, Phone, Users, MapPin, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { Loader2, Building2, Globe, Phone, Users, MapPin, ArrowRight, ArrowLeft, Check, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OnboardingData {
@@ -62,8 +62,16 @@ export default function Onboarding() {
     country: "",
   });
 
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, signOut } = useAuth();
   const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      toast.error("Failed to sign out");
+    }
+  };
 
   const updateData = (key: keyof OnboardingData, value: string) => {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -311,10 +319,19 @@ export default function Onboarding() {
 
       <Card className="w-full max-w-lg relative z-10 shadow-xl border-border/50 backdrop-blur-sm">
         <CardHeader className="pb-4">
-          <div className="flex items-center justify-center mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="w-10" /> {/* Spacer */}
             <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
               <span className="text-primary-foreground font-bold text-xl">P</span>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
           
           {/* Progress Steps */}
