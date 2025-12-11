@@ -95,36 +95,84 @@ export default function Onboarding() {
   };
 
   const handleComplete = async () => {
-    if (!user || !profile?.agency_id) return;
+    if (!user) {
+      toast.error("You must be logged in to complete onboarding");
+      return;
+    }
 
     setLoading(true);
     try {
-      // Update agency with business settings
-      await supabase
-        .from("agencies")
-        .update({
-          settings: {
-            industry: data.industry,
-            website: data.website,
-            phone: data.phone,
-            company_size: data.companySize,
-            address: data.address,
-            city: data.city,
-            country: data.country,
-          },
-        })
-        .eq("id", profile.agency_id);
+      let agencyId = profile?.agency_id;
 
-      // Mark onboarding as complete
-      await supabase
-        .from("profiles")
-        .update({ onboarding_completed: true } as any)
-        .eq("id", user.id);
+      // If user doesn't have an agency (e.g., Google OAuth signup), create one
+      if (!agencyId) {
+        const companyName = user.user_metadata?.full_name 
+          ? `${user.user_metadata.full_name}'s Agency` 
+          : "My Agency";
+        const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+        const { data: agencyData, error: agencyError } = await supabase
+          .from("agencies")
+          .insert({
+            name: companyName,
+            slug: `${slug}-${Date.now()}`,
+            owner_user_id: user.id,
+            settings: {
+              industry: data.industry,
+              website: data.website,
+              phone: data.phone,
+              company_size: data.companySize,
+              address: data.address,
+              city: data.city,
+              country: data.country,
+            },
+          })
+          .select()
+          .single();
+
+        if (agencyError) throw agencyError;
+        agencyId = agencyData.id;
+
+        // Update profile with agency_id and role
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({
+            agency_id: agencyId,
+            role: 'agency_admin',
+            onboarding_completed: true
+          } as any)
+          .eq("id", user.id);
+
+        if (profileError) throw profileError;
+      } else {
+        // Update existing agency with business settings
+        await supabase
+          .from("agencies")
+          .update({
+            settings: {
+              industry: data.industry,
+              website: data.website,
+              phone: data.phone,
+              company_size: data.companySize,
+              address: data.address,
+              city: data.city,
+              country: data.country,
+            },
+          })
+          .eq("id", agencyId);
+
+        // Mark onboarding as complete
+        await supabase
+          .from("profiles")
+          .update({ onboarding_completed: true } as any)
+          .eq("id", user.id);
+      }
 
       await refreshProfile();
       toast.success("Welcome to PSEO Builder!");
-      navigate(`/agency/${profile.agency_id}`);
+      navigate(`/agency/${agencyId}`);
     } catch (error: any) {
+      console.error("Onboarding error:", error);
       toast.error(error.message || "Failed to complete onboarding");
     } finally {
       setLoading(false);
