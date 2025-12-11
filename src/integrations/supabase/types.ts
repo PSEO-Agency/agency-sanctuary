@@ -254,6 +254,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_user_agency: {
+        Args: {
+          _agency_name: string
+          _agency_slug: string
+          _settings?: Json
+          _user_id: string
+        }
+        Returns: string
+      }
       user_agency_id: { Args: { _user_id: string }; Returns: string }
       user_has_role: {
         Args: {

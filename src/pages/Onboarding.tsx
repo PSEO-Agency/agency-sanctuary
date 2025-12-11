@@ -112,20 +112,19 @@ export default function Onboarding() {
     try {
       let agencyId = profile?.agency_id;
 
-      // If user doesn't have an agency (e.g., Google OAuth signup), create one
+      // If user doesn't have an agency, create one using the security definer function
       if (!agencyId) {
         const companyName = user.user_metadata?.full_name 
           ? `${user.user_metadata.full_name}'s Agency` 
           : "My Agency";
         const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-        const { data: agencyData, error: agencyError } = await supabase
-          .from("agencies")
-          .insert({
-            name: companyName,
-            slug: `${slug}-${Date.now()}`,
-            owner_user_id: user.id,
-            settings: {
+        const { data: newAgencyId, error: agencyError } = await supabase
+          .rpc('create_user_agency', {
+            _user_id: user.id,
+            _agency_name: companyName,
+            _agency_slug: `${slug}-${Date.now()}`,
+            _settings: {
               industry: data.industry,
               website: data.website,
               phone: data.phone,
@@ -134,24 +133,16 @@ export default function Onboarding() {
               city: data.city,
               country: data.country,
             },
-          })
-          .select()
-          .single();
+          });
 
         if (agencyError) throw agencyError;
-        agencyId = agencyData.id;
+        agencyId = newAgencyId;
 
-        // Update profile with agency_id and role
-        const { error: profileError } = await supabase
+        // Mark onboarding as complete
+        await supabase
           .from("profiles")
-          .update({
-            agency_id: agencyId,
-            role: 'agency_admin',
-            onboarding_completed: true
-          } as any)
+          .update({ onboarding_completed: true } as any)
           .eq("id", user.id);
-
-        if (profileError) throw profileError;
       } else {
         // Update existing agency with business settings
         await supabase
