@@ -142,30 +142,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (error) throw error;
     
-    if (data.user) {
-      const { data: agencyData } = await supabase
-        .from('agencies')
-        .insert({
-          name: `${fullName}'s Agency`,
-          slug: `${fullName.toLowerCase().replace(/\s+/g, '-')}-agency-${Date.now()}`,
-          owner_user_id: data.user.id
-        })
-        .select()
-        .single();
-      
-      if (agencyData) {
-        await supabase
-          .from('profiles')
-          .update({
-            role: 'agency_admin',
-            agency_id: agencyData.id,
-            onboarding_completed: false
-          } as any)
-          .eq('id', data.user.id);
-      }
-    }
+    // Don't create agency here - it will be created during onboarding
+    // The profile is created automatically via the database trigger
     
-    toast.success("Account created! Please check your email to verify your account.");
+    toast.success("Account created! You can now sign in.");
   };
 
   const resetPassword = async (email: string) => {
