@@ -1,7 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AgencySidebar } from "@/components/AgencySidebar";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
-import { Bell, User, Search } from "lucide-react";
+import { Bell, User, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import logo from "@/assets/logo.png";
 
 interface AgencyLayoutProps {
@@ -20,7 +21,8 @@ interface AgencyLayoutProps {
 }
 
 export function AgencyLayout({ children, agencyId }: AgencyLayoutProps) {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <SidebarProvider>
@@ -58,6 +60,15 @@ export function AgencyLayout({ children, agencyId }: AgencyLayoutProps) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {profile?.role === 'super_admin' && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate('/super-admin')}>
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                      Back to Super Admin
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => signOut()}>Sign Out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

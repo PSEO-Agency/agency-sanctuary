@@ -18,11 +18,12 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
       if (!user) {
         navigate("/auth");
       } else if (requiredRole && profile?.role !== requiredRole) {
+        // Super admin has access to all portals - don't redirect
+        if (profile?.role === 'super_admin') {
+          return;
+        }
         // Redirect to appropriate portal based on role
         switch (profile?.role) {
-          case "super_admin":
-            navigate("/super-admin");
-            break;
           case "agency_admin":
             navigate(`/agency/${profile.agency_id}`);
             break;
