@@ -263,6 +263,14 @@ export type Database = {
         }
         Returns: string
       }
+      create_user_subaccount: {
+        Args: {
+          _business_name: string
+          _business_settings?: Json
+          _user_id: string
+        }
+        Returns: string
+      }
       user_agency_id: { Args: { _user_id: string }; Returns: string }
       user_has_role: {
         Args: {

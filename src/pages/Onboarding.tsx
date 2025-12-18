@@ -12,6 +12,7 @@ import { Loader2, Building2, Globe, Phone, Users, MapPin, ArrowRight, ArrowLeft,
 import { cn } from "@/lib/utils";
 
 interface OnboardingData {
+  businessName: string;
   industry: string;
   website: string;
   phone: string;
@@ -44,8 +45,8 @@ const companySizes = [
 ];
 
 const steps = [
-  { id: 1, title: "Industry", icon: Building2 },
-  { id: 2, title: "Company", icon: Globe },
+  { id: 1, title: "Business", icon: Building2 },
+  { id: 2, title: "Details", icon: Globe },
   { id: 3, title: "Location", icon: MapPin },
 ];
 
@@ -53,6 +54,7 @@ export default function Onboarding() {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<OnboardingData>({
+    businessName: "",
     industry: "",
     website: "",
     phone: "",
@@ -80,7 +82,7 @@ export default function Onboarding() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return data.industry !== "";
+        return data.businessName.trim() !== "" && data.industry !== "";
       case 2:
         return data.companySize !== "";
       case 3:
@@ -110,66 +112,30 @@ export default function Onboarding() {
 
     setLoading(true);
     try {
-      let agencyId = profile?.agency_id;
+      const businessName = data.businessName.trim() || 
+        (user.user_metadata?.full_name ? `${user.user_metadata.full_name}'s Business` : "My Business");
 
-      // If user doesn't have an agency, create one using the security definer function
-      if (!agencyId) {
-        const companyName = user.user_metadata?.full_name 
-          ? `${user.user_metadata.full_name}'s Agency` 
-          : "My Agency";
-        const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const { data: subaccountId, error } = await supabase
+        .rpc('create_user_subaccount', {
+          _user_id: user.id,
+          _business_name: businessName,
+          _business_settings: {
+            industry: data.industry,
+            website: data.website,
+            phone: data.phone,
+            company_size: data.companySize,
+            address: data.address,
+            city: data.city,
+            country: data.country,
+            email: user.email,
+          },
+        });
 
-        const { data: newAgencyId, error: agencyError } = await supabase
-          .rpc('create_user_agency', {
-            _user_id: user.id,
-            _agency_name: companyName,
-            _agency_slug: `${slug}-${Date.now()}`,
-            _settings: {
-              industry: data.industry,
-              website: data.website,
-              phone: data.phone,
-              company_size: data.companySize,
-              address: data.address,
-              city: data.city,
-              country: data.country,
-            },
-          });
-
-        if (agencyError) throw agencyError;
-        agencyId = newAgencyId;
-
-        // Mark onboarding as complete
-        await supabase
-          .from("profiles")
-          .update({ onboarding_completed: true } as any)
-          .eq("id", user.id);
-      } else {
-        // Update existing agency with business settings
-        await supabase
-          .from("agencies")
-          .update({
-            settings: {
-              industry: data.industry,
-              website: data.website,
-              phone: data.phone,
-              company_size: data.companySize,
-              address: data.address,
-              city: data.city,
-              country: data.country,
-            },
-          })
-          .eq("id", agencyId);
-
-        // Mark onboarding as complete
-        await supabase
-          .from("profiles")
-          .update({ onboarding_completed: true } as any)
-          .eq("id", user.id);
-      }
+      if (error) throw error;
 
       await refreshProfile();
       toast.success("Welcome to PSEO Builder!");
-      navigate(`/agency/${agencyId}`);
+      navigate(`/subaccount/${subaccountId}/launchpad`);
     } catch (error: any) {
       console.error("Onboarding error:", error);
       toast.error(error.message || "Failed to complete onboarding");
@@ -183,6 +149,20 @@ export default function Onboarding() {
       case 1:
         return (
           <div className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="businessName">Business name</Label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="businessName"
+                  type="text"
+                  placeholder="Your business name"
+                  value={data.businessName}
+                  onChange={(e) => updateData("businessName", e.target.value)}
+                  className="pl-10 h-12"
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="industry">What industry are you in?</Label>
               <Select value={data.industry} onValueChange={(v) => updateData("industry", v)}>
