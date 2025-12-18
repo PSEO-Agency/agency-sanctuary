@@ -48,7 +48,7 @@ export default function Auth() {
           navigate("/super-admin");
           break;
         case "sub_account_user":
-          navigate(`/subaccount/${profile.sub_account_id}/dashboard`);
+          navigate(`/subaccount/${profile.sub_account_id}/launchpad`);
           break;
         case "agency_admin":
         default:
