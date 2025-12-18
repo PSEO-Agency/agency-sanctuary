@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.test-wordpress-connection]
 verify_jwt = true
+
+[functions.create-pseo-project]
+verify_jwt = true

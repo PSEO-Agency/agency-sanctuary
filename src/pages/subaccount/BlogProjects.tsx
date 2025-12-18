@@ -31,11 +31,11 @@ export default function BlogProjects() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
-  const [newAirtableBaseId, setNewAirtableBaseId] = useState("");
   const [creating, setCreating] = useState(false);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
   const [connectionResults, setConnectionResults] = useState<Record<string, { success: boolean; tables?: AirtableTable[]; error?: string }>>({});
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+  
   useEffect(() => {
     fetchProjects();
   }, [subaccountId]);
@@ -58,31 +58,45 @@ export default function BlogProjects() {
   };
 
   const handleCreateProject = async () => {
-    if (!newProjectName.trim() || !newAirtableBaseId.trim()) {
-      toast.error('Please fill in all fields');
+    if (!newProjectName.trim()) {
+      toast.error('Please enter a project name');
       return;
     }
 
     setCreating(true);
-    const { data, error } = await supabase
-      .from('blog_projects')
-      .insert({
-        subaccount_id: subaccountId,
-        name: newProjectName.trim(),
-        airtable_base_id: newAirtableBaseId.trim(),
-      })
-      .select()
-      .single();
+    try {
+      // Call the PSEO webhook to create a project and get the Airtable base ID
+      const { data: pseoData, error: pseoError } = await supabase.functions.invoke('create-pseo-project', {
+        body: { name: newProjectName.trim() }
+      });
 
-    if (error) {
+      if (pseoError || !pseoData?.success) {
+        throw new Error(pseoData?.error || pseoError?.message || 'Failed to create PSEO project');
+      }
+
+      // Create the project in our database with the returned Airtable base ID
+      const { data, error } = await supabase
+        .from('blog_projects')
+        .insert({
+          subaccount_id: subaccountId,
+          name: newProjectName.trim(),
+          airtable_base_id: pseoData.id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving project:', error);
+        toast.error('Failed to save project');
+      } else {
+        toast.success('Project created successfully');
+        setProjects([data, ...projects]);
+        setDialogOpen(false);
+        setNewProjectName("");
+      }
+    } catch (error: any) {
       console.error('Error creating project:', error);
-      toast.error('Failed to create project');
-    } else {
-      toast.success('Project created successfully');
-      setProjects([data, ...projects]);
-      setDialogOpen(false);
-      setNewProjectName("");
-      setNewAirtableBaseId("");
+      toast.error(error.message || 'Failed to create project');
     }
     setCreating(false);
   };
@@ -149,17 +163,8 @@ export default function BlogProjects() {
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="airtableBaseId">Airtable Base ID</Label>
-                <Input
-                  id="airtableBaseId"
-                  placeholder="appXXXXXXXXXXXXXX"
-                  value={newAirtableBaseId}
-                  onChange={(e) => setNewAirtableBaseId(e.target.value)}
-                />
                 <p className="text-xs text-muted-foreground">
-                  Find this in your Airtable base URL: airtable.com/appXXXXXXXX
+                  An Airtable base will be automatically created for this project.
                 </p>
               </div>
               <Button onClick={handleCreateProject} disabled={creating} className="w-full">
