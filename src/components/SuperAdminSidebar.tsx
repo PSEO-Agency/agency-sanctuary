@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard } from "lucide-react";
+import { Building2, LayoutDashboard, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -15,6 +15,7 @@ import {
 const menuItems = [
   { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
   { title: "Agencies", url: "/super-admin/agencies", icon: Building2 },
+  { title: "Settings", url: "/super-admin/settings", icon: Settings },
 ];
 
 export function SuperAdminSidebar() {
