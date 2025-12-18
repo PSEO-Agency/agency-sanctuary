@@ -1,7 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { SubaccountSidebar } from "@/components/SubaccountSidebar";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, User, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import logo from "@/assets/logo.png";
 
 interface SubaccountLayoutProps {
@@ -21,7 +22,8 @@ interface SubaccountLayoutProps {
 }
 
 export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutProps) {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <SidebarProvider>
@@ -59,7 +61,7 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
                   <User className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 z-50 bg-background">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium">My Account</p>
@@ -67,6 +69,15 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {profile?.role === 'super_admin' && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate('/super-admin')}>
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                      Back to Super Admin
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem>Profile Settings</DropdownMenuItem>
                 <DropdownMenuItem>Billing</DropdownMenuItem>
                 <DropdownMenuSeparator />
