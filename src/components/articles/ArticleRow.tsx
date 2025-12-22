@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { ChevronRight, User } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export interface Article {
   id: string;
@@ -25,24 +25,21 @@ export interface Article {
 interface ArticleRowProps {
   article: Article;
   onSelect: (article: Article) => void;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  viewMode?: "simple" | "full";
 }
 
-const getStatusColor = (status: string) => {
+const getStatusVariant = (status: string) => {
   const statusLower = status.toLowerCase();
-  if (statusLower.includes('published')) return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100';
-  if (statusLower.includes('ready') || statusLower.includes('complete')) return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100';
-  if (statusLower.includes('generate') || statusLower.includes('processing')) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100';
-  return 'bg-muted text-muted-foreground';
+  if (statusLower.includes('published')) return { dot: 'bg-green-500', text: 'text-green-700 bg-green-50' };
+  if (statusLower.includes('generated') || statusLower.includes('ready') || statusLower.includes('complete')) return { dot: 'bg-green-500', text: 'text-green-700 bg-green-50' };
+  if (statusLower.includes('draft')) return { dot: 'bg-gray-400', text: 'text-gray-600 bg-gray-100' };
+  if (statusLower.includes('processing') || statusLower.includes('generate')) return { dot: 'bg-yellow-500', text: 'text-yellow-700 bg-yellow-50' };
+  return { dot: 'bg-gray-400', text: 'text-gray-600 bg-gray-100' };
 };
 
-const getLanguageFlag = (language: string) => {
-  const lang = language.toLowerCase();
-  if (lang === 'dutch' || lang === 'nl') return '🇳🇱';
-  if (lang === 'english' || lang === 'en') return '🇬🇧';
-  return '🌐';
-};
-
-export function ArticleRow({ article, onSelect }: ArticleRowProps) {
+export function ArticleRow({ article, onSelect, isSelected, onToggleSelect, viewMode = "simple" }: ArticleRowProps) {
   const formattedDate = article.createdAt 
     ? new Date(article.createdAt).toLocaleDateString('en-US', { 
         month: 'short', 
@@ -51,37 +48,47 @@ export function ArticleRow({ article, onSelect }: ArticleRowProps) {
       })
     : '-';
 
+  const statusStyle = getStatusVariant(article.status);
+  const keyword = article.slug?.replace(/-/g, ' ') || '-';
+  const creatorInitial = article.createdBy?.[0]?.charAt(0)?.toUpperCase() || 'A';
+
   return (
     <TableRow 
-      className="cursor-pointer hover:bg-muted/50 transition-colors"
+      className="cursor-pointer hover:bg-muted/50 transition-colors h-12"
       onClick={() => onSelect(article)}
     >
-      <TableCell className="font-medium max-w-[300px] truncate">
+      <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
+        <Checkbox 
+          checked={isSelected}
+          onCheckedChange={onToggleSelect}
+        />
+      </TableCell>
+      <TableCell className="py-2 font-medium text-sm max-w-[280px] truncate">
         {article.name}
       </TableCell>
-      <TableCell>
-        <Badge variant="secondary" className={getStatusColor(article.status)}>
+      <TableCell className="py-2 text-sm text-muted-foreground max-w-[180px] truncate">
+        {keyword}
+      </TableCell>
+      <TableCell className="py-2">
+        <Badge variant="secondary" className={`${statusStyle.text} font-normal text-xs gap-1.5 px-2 py-0.5`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
           {article.status}
         </Badge>
       </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <User className="h-3 w-3" />
-          <span className="text-sm">-</span>
+      <TableCell className="py-2">
+        <div className="flex items-center gap-2">
+          <Avatar className="h-6 w-6">
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+              {creatorInitial}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-sm text-muted-foreground">
+            {article.createdBy?.[0] || 'Admin'}
+          </span>
         </div>
       </TableCell>
-      <TableCell className="text-muted-foreground text-sm">
+      <TableCell className="py-2 text-sm text-muted-foreground">
         {formattedDate}
-      </TableCell>
-      <TableCell>
-        <span className="text-lg" title={article.language}>
-          {getLanguageFlag(article.language)}
-        </span>
-      </TableCell>
-      <TableCell>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-          <ChevronRight className="h-4 w-4" />
-        </Button>
       </TableCell>
     </TableRow>
   );

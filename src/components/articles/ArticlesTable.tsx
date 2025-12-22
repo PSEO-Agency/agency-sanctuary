@@ -6,14 +6,25 @@ import { Loader2, FileText } from "lucide-react";
 import { ArticleRow, type Article } from "./ArticleRow";
 import { ArticleSidePanel } from "./ArticleSidePanel";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ArticlesTableProps {
   baseId: string;
   isOpen: boolean;
   projectId: string;
+  searchQuery?: string;
+  statusFilter?: string;
+  viewMode?: "simple" | "full";
 }
 
-export function ArticlesTable({ baseId, isOpen, projectId }: ArticlesTableProps) {
+export function ArticlesTable({ 
+  baseId, 
+  isOpen, 
+  projectId, 
+  searchQuery = "", 
+  statusFilter = "all",
+  viewMode = "simple" 
+}: ArticlesTableProps) {
   const { subaccountId } = useParams();
   const navigate = useNavigate();
   const [articles, setArticles] = useState<Article[]>([]);
@@ -21,6 +32,7 @@ export function ArticlesTable({ baseId, isOpen, projectId }: ArticlesTableProps)
   const [error, setError] = useState<string | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen && !hasFetched) {
@@ -57,6 +69,36 @@ export function ArticlesTable({ baseId, isOpen, projectId }: ArticlesTableProps)
     navigate(`/subaccount/${subaccountId}/projects/${projectId}/articles/${article.id}`);
   };
 
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredArticles.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredArticles.map(a => a.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  // Filter articles
+  const filteredArticles = articles.filter(article => {
+    const matchesSearch = searchQuery === "" || 
+      article.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      article.slug?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || 
+      article.status.toLowerCase().includes(statusFilter.toLowerCase());
+    
+    return matchesSearch && matchesStatus;
+  });
+
   if (!isOpen) return null;
 
   if (loading) {
@@ -89,21 +131,29 @@ export function ArticlesTable({ baseId, isOpen, projectId }: ArticlesTableProps)
     <div className="relative">
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead className="w-[300px]">Article Title</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Created By</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead className="w-[60px]">Lang</TableHead>
-            <TableHead className="w-[50px]"></TableHead>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-[40px] py-2">
+              <Checkbox 
+                checked={selectedIds.size === filteredArticles.length && filteredArticles.length > 0}
+                onCheckedChange={toggleSelectAll}
+              />
+            </TableHead>
+            <TableHead className="py-2 text-xs font-medium text-muted-foreground">Article</TableHead>
+            <TableHead className="py-2 text-xs font-medium text-muted-foreground">Keyword</TableHead>
+            <TableHead className="py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
+            <TableHead className="py-2 text-xs font-medium text-muted-foreground">Created by</TableHead>
+            <TableHead className="py-2 text-xs font-medium text-muted-foreground">Created</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {articles.map((article) => (
+          {filteredArticles.map((article) => (
             <ArticleRow
               key={article.id}
               article={article}
               onSelect={setSelectedArticle}
+              isSelected={selectedIds.has(article.id)}
+              onToggleSelect={() => toggleSelect(article.id)}
+              viewMode={viewMode}
             />
           ))}
         </TableBody>

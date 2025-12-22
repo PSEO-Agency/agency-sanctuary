@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -12,8 +13,10 @@ export default function SuperAdminSettings() {
   const [stripePublishableKey, setStripePublishableKey] = useState("");
   const [stripeSecretKey, setStripeSecretKey] = useState("");
   const [showSecretKey, setShowSecretKey] = useState(false);
+  const [showPseoBuilder, setShowPseoBuilder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingFeatures, setSavingFeatures] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -24,7 +27,7 @@ export default function SuperAdminSettings() {
       const { data, error } = await supabase
         .from("platform_settings")
         .select("key, value")
-        .in("key", ["stripe_publishable_key", "stripe_secret_key"]);
+        .in("key", ["stripe_publishable_key", "stripe_secret_key", "show_pseo_builder"]);
 
       if (error) throw error;
 
@@ -33,6 +36,8 @@ export default function SuperAdminSettings() {
           setStripePublishableKey(setting.value || "");
         } else if (setting.key === "stripe_secret_key") {
           setStripeSecretKey(setting.value || "");
+        } else if (setting.key === "show_pseo_builder") {
+          setShowPseoBuilder(setting.value === "true");
         }
       });
     } catch (error) {
@@ -46,7 +51,6 @@ export default function SuperAdminSettings() {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      // Upsert both keys
       const settings = [
         { key: "stripe_publishable_key", value: stripePublishableKey },
         { key: "stripe_secret_key", value: stripeSecretKey },
@@ -69,12 +73,33 @@ export default function SuperAdminSettings() {
     }
   };
 
+  const saveFeatureSettings = async (key: string, value: boolean) => {
+    setSavingFeatures(true);
+    try {
+      const { error } = await supabase
+        .from("platform_settings")
+        .upsert({ key, value: String(value) }, { onConflict: "key" });
+
+      if (error) throw error;
+      toast.success("Feature setting saved");
+    } catch (error) {
+      console.error("Error saving feature setting:", error);
+      toast.error("Failed to save setting");
+    } finally {
+      setSavingFeatures(false);
+    }
+  };
+
+  const handlePseoToggle = (checked: boolean) => {
+    setShowPseoBuilder(checked);
+    saveFeatureSettings("show_pseo_builder", checked);
+  };
+
   const testConnection = async () => {
     if (!stripePublishableKey || !stripeSecretKey) {
       toast.error("Please enter both Stripe keys first");
       return;
     }
-    // Placeholder for Stripe connection test
     toast.info("Stripe connection test will be implemented with Edge Function");
   };
 
@@ -96,6 +121,7 @@ export default function SuperAdminSettings() {
       <Tabs defaultValue="billing" className="space-y-4">
         <TabsList>
           <TabsTrigger value="billing">Billing</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
           <TabsTrigger value="platform">Platform</TabsTrigger>
         </TabsList>
 
@@ -158,6 +184,32 @@ export default function SuperAdminSettings() {
                 <Button variant="outline" onClick={testConnection}>
                   Test Connection
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="features" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Feature Flags</CardTitle>
+              <CardDescription>
+                Enable or disable features for all subaccounts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Show pSEO Builder Section</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Display the pSEO Builder section in subaccount sidebars
+                  </p>
+                </div>
+                <Switch
+                  checked={showPseoBuilder}
+                  onCheckedChange={handlePseoToggle}
+                  disabled={savingFeatures}
+                />
               </div>
             </CardContent>
           </Card>
