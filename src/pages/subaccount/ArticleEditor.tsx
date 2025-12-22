@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ChevronRight, 
   Copy, 
@@ -10,14 +10,39 @@ import {
   Send, 
   Loader2,
   ChevronDown,
-  HelpCircle
+  HelpCircle,
+  Check
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { RichTextEditor } from "@/components/RichTextEditor";
 import type { Article } from "@/components/articles/ArticleRow";
+
+// Convert markdown-like content to HTML for preview
+const convertContentToHTML = (content: string): string => {
+  if (!content) return '';
+  
+  return content
+    .split('\n\n')
+    .map(block => {
+      const trimmed = block.trim();
+      if (!trimmed) return '';
+      
+      // Headers
+      if (trimmed.startsWith('## ')) {
+        return `<h2 class="text-2xl font-bold mt-8 mb-4">${trimmed.slice(3)}</h2>`;
+      }
+      if (trimmed.startsWith('### ')) {
+        return `<h3 class="text-xl font-semibold mt-6 mb-3">${trimmed.slice(4)}</h3>`;
+      }
+      
+      // Regular paragraph
+      return `<p class="text-base leading-relaxed mb-4 text-muted-foreground">${trimmed}</p>`;
+    })
+    .filter(Boolean)
+    .join('');
+};
 
 const getStatusStyle = (status: string) => {
   const statusLower = status.toLowerCase();
@@ -229,51 +254,41 @@ export default function ArticleEditor() {
           {/* Editor Content */}
           <div className="p-6">
             {activeTab === "editor" && (
-              <div className="max-w-4xl mx-auto space-y-6">
+              <div className="max-w-3xl mx-auto">
                 {/* Featured Image */}
                 {article.imageUrl && (
-                  <div className="rounded-lg overflow-hidden">
+                  <div className="rounded-lg overflow-hidden mb-8">
                     <img 
                       src={article.imageUrl} 
                       alt={article.name}
-                      className="w-full h-64 object-cover"
+                      className="w-full h-72 object-cover"
                     />
                   </div>
                 )}
 
                 {/* Title */}
-                <h1 className="text-3xl font-bold">{article.name}</h1>
+                <h1 className="text-3xl font-bold text-foreground mb-4">{article.name}</h1>
 
-                {/* Description */}
+                {/* Meta Description */}
                 {article.metaDescription && (
-                  <p className="text-lg text-muted-foreground leading-relaxed">
+                  <p className="text-base text-muted-foreground leading-relaxed mb-6">
                     {article.metaDescription}
                   </p>
                 )}
 
-                {/* Content */}
-                <div className="border-t pt-6">
-                  <RichTextEditor
-                    content={content}
-                    onChange={setContent}
-                    placeholder="Start writing your article content..."
-                  />
-                </div>
+                {/* Separator */}
+                <div className="border-t my-8" />
 
-                {/* Save Button */}
-                <div className="flex justify-end pt-4">
-                  <Button onClick={handleSave} disabled={saving}>
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : null}
-                    {saving ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
+                {/* Content - rendered as clean preview */}
+                <article 
+                  className="prose prose-slate max-w-none"
+                  dangerouslySetInnerHTML={{ __html: convertContentToHTML(content) }}
+                />
               </div>
             )}
 
             {activeTab === "brief" && (
-              <div className="max-w-4xl mx-auto">
+              <div className="max-w-3xl mx-auto">
                 <div className="bg-muted/30 rounded-lg p-8 text-center">
                   <p className="text-muted-foreground">Content brief coming soon...</p>
                 </div>
@@ -396,7 +411,7 @@ export default function ArticleEditor() {
             {/* Saved indicator */}
             <div className="border-t pt-4 mt-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="text-green-600">✓</span>
+                <Check className="h-4 w-4 text-green-600" />
                 Saved
               </div>
             </div>
