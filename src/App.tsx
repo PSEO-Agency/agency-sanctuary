@@ -36,7 +36,6 @@ function App() {
               <Route path="/super-admin/*" element={<SuperAdmin />} />
               <Route path="/agency/:agencyId/*" element={<Agency />} />
               <Route path="/subaccount/:subaccountId/projects/:projectId/blogs/:blogId/edit" element={<BlogEditor />} />
-              <Route path="/subaccount/:subaccountId/projects/:projectId/articles/:articleId" element={<Subaccount />} />
               <Route path="/subaccount/:subaccountId/*" element={<Subaccount />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
