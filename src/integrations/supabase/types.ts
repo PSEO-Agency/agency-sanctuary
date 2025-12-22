@@ -232,6 +232,57 @@ export type Database = {
           },
         ]
       }
+      subaccount_subscriptions: {
+        Row: {
+          articles_used: number | null
+          billing_period_end: string | null
+          billing_period_start: string | null
+          created_at: string | null
+          id: string
+          other_credits: number | null
+          plan_id: string
+          subaccount_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          articles_used?: number | null
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          created_at?: string | null
+          id?: string
+          other_credits?: number | null
+          plan_id: string
+          subaccount_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          articles_used?: number | null
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          created_at?: string | null
+          id?: string
+          other_credits?: number | null
+          plan_id?: string
+          subaccount_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subaccount_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subaccount_subscriptions_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: true
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subaccounts: {
         Row: {
           agency_id: string
@@ -272,6 +323,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_plans: {
+        Row: {
+          article_limit: number
+          can_publish: boolean | null
+          created_at: string | null
+          id: string
+          name: string
+          price_monthly: number | null
+        }
+        Insert: {
+          article_limit: number
+          can_publish?: boolean | null
+          created_at?: string | null
+          id?: string
+          name: string
+          price_monthly?: number | null
+        }
+        Update: {
+          article_limit?: number
+          can_publish?: boolean | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          price_monthly?: number | null
+        }
+        Relationships: []
       }
     }
     Views: {
