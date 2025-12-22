@@ -170,9 +170,9 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const getMenuItemClassName = (isActive: boolean) => {
     if (isActive) {
-      return "bg-primary/10 text-sidebar-foreground font-medium";
+      return "bg-primary/10 text-sidebar-foreground font-medium hover:bg-primary/10";
     }
-    return "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground";
+    return "text-sidebar-foreground/70 hover:bg-primary/10 hover:text-sidebar-foreground";
   };
 
   const getIconClassName = (isActive: boolean) => {
