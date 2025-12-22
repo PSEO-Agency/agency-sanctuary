@@ -11,6 +11,7 @@ import WordPress from "./subaccount/WordPress";
 import Automation from "./subaccount/Automation";
 import Launchpad from "./subaccount/Launchpad";
 import Settings from "./subaccount/Settings";
+import ArticleEditor from "./subaccount/ArticleEditor";
 
 export default function Subaccount() {
   const { subaccountId } = useParams();
@@ -34,6 +35,7 @@ export default function Subaccount() {
               <Route path="wordpress" element={<WordPress />} />
               <Route path="projects" element={<BlogProjects />} />
               <Route path="projects/:projectId/blogs" element={<Blogs />} />
+              <Route path="projects/:projectId/articles/:articleId" element={<ArticleEditor />} />
               <Route path="automation" element={<Automation />} />
               <Route path="dashboard" element={<SubaccountDashboard />} />
               <Route path="campaigns" element={<Campaigns />} />

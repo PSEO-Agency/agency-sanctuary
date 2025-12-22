@@ -4,8 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, FileText } from "lucide-react";
 import { ArticleRow, type Article } from "./ArticleRow";
-import { ArticleSidePanel } from "./ArticleSidePanel";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface ArticlesTableProps {
@@ -30,7 +28,6 @@ export function ArticlesTable({
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -150,7 +147,7 @@ export function ArticlesTable({
             <ArticleRow
               key={article.id}
               article={article}
-              onSelect={setSelectedArticle}
+              onSelect={handleOpenEditor}
               isSelected={selectedIds.has(article.id)}
               onToggleSelect={() => toggleSelect(article.id)}
               viewMode={viewMode}
@@ -158,32 +155,6 @@ export function ArticlesTable({
           ))}
         </TableBody>
       </Table>
-      
-      {/* Overlay Side Panel */}
-      {selectedArticle && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setSelectedArticle(null)}
-          />
-          <div className="fixed top-0 right-0 h-full z-50">
-            <div className="w-[400px] border-l bg-background h-full flex flex-col">
-              <ArticleSidePanel
-                article={selectedArticle}
-                onClose={() => setSelectedArticle(null)}
-              />
-              <div className="p-4 border-t">
-                <Button 
-                  className="w-full" 
-                  onClick={() => handleOpenEditor(selectedArticle)}
-                >
-                  Open Full Editor
-                </Button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }

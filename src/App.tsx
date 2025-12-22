@@ -10,7 +10,6 @@ import SuperAdmin from "./pages/SuperAdmin";
 import Agency from "./pages/Agency";
 import Subaccount from "./pages/Subaccount";
 import BlogEditor from "./pages/subaccount/BlogEditor";
-import ArticleEditor from "./pages/subaccount/ArticleEditor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -37,7 +36,7 @@ function App() {
               <Route path="/super-admin/*" element={<SuperAdmin />} />
               <Route path="/agency/:agencyId/*" element={<Agency />} />
               <Route path="/subaccount/:subaccountId/projects/:projectId/blogs/:blogId/edit" element={<BlogEditor />} />
-              <Route path="/subaccount/:subaccountId/projects/:projectId/articles/:articleId" element={<ArticleEditor />} />
+              <Route path="/subaccount/:subaccountId/projects/:projectId/articles/:articleId" element={<Subaccount />} />
               <Route path="/subaccount/:subaccountId/*" element={<Subaccount />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

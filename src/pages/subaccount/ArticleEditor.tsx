@@ -1,30 +1,40 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Loader2, Eye, Code, FileText, Settings, Sliders } from "lucide-react";
+import { 
+  ChevronRight, 
+  Copy, 
+  RefreshCw, 
+  Send, 
+  Loader2,
+  ChevronDown,
+  HelpCircle
+} from "lucide-react";
 import { toast } from "sonner";
-import { ArticleEditorHeader } from "@/components/articles/editor/ArticleEditorHeader";
-import { ArticleSEOPanel } from "@/components/articles/editor/ArticleSEOPanel";
-import { ArticleSectionsEditor } from "@/components/articles/editor/ArticleSectionsEditor";
-import { ArticleHTMLPreview } from "@/components/articles/editor/ArticleHTMLPreview";
-import { ArticleOutlinePanel } from "@/components/articles/editor/ArticleOutlinePanel";
-import { ArticleConfigPanel, type ArticleConfig } from "@/components/articles/editor/ArticleConfigPanel";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import type { Article } from "@/components/articles/ArticleRow";
 
-const defaultConfig: ArticleConfig = {
-  approveEditSeoData: true,
-  approveOutline: true,
-  approveContent: true,
-  seoNlpResearch: true,
-  useTop10Serp: true,
-  topicResearch: false,
-  imageSelection: 'manual',
-  addExternalLinks: true,
-  externalLinksCount: 3,
-  addInternalLinks: true,
-  internalLinksCount: 3,
+const getStatusStyle = (status: string) => {
+  const statusLower = status.toLowerCase();
+  if (statusLower.includes('published')) return { dot: 'bg-green-500', text: 'text-green-700' };
+  if (statusLower.includes('generated') || statusLower.includes('ready') || statusLower.includes('complete')) return { dot: 'bg-green-500', text: 'text-green-700' };
+  if (statusLower.includes('draft')) return { dot: 'bg-gray-400', text: 'text-gray-600' };
+  if (statusLower.includes('processing') || statusLower.includes('generate')) return { dot: 'bg-yellow-500', text: 'text-yellow-700' };
+  return { dot: 'bg-gray-400', text: 'text-gray-600' };
+};
+
+const getScoreGrade = (score: number | null) => {
+  if (!score) return { grade: '-', color: 'text-muted-foreground', bg: 'bg-muted' };
+  if (score >= 90) return { grade: 'A+', color: 'text-green-600', bg: 'border-green-500' };
+  if (score >= 80) return { grade: 'A', color: 'text-green-600', bg: 'border-green-500' };
+  if (score >= 70) return { grade: 'B', color: 'text-blue-600', bg: 'border-blue-500' };
+  if (score >= 60) return { grade: 'C', color: 'text-yellow-600', bg: 'border-yellow-500' };
+  return { grade: 'D', color: 'text-red-600', bg: 'border-red-500' };
 };
 
 export default function ArticleEditor() {
@@ -34,16 +44,16 @@ export default function ArticleEditor() {
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("content");
+  const [activeTab, setActiveTab] = useState("editor");
   
   // Editable fields
-  const [metaTitle, setMetaTitle] = useState("");
-  const [metaDescription, setMetaDescription] = useState("");
-  const [slug, setSlug] = useState("");
   const [content, setContent] = useState("");
-  const [outline, setOutline] = useState("");
-  const [config, setConfig] = useState<ArticleConfig>(defaultConfig);
   const [baseId, setBaseId] = useState<string>("");
+  
+  // Collapsible states
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [statsOpen, setStatsOpen] = useState(true);
+  const [contentOpen, setContentOpen] = useState(true);
 
   useEffect(() => {
     if (articleId && projectId) {
@@ -54,7 +64,6 @@ export default function ArticleEditor() {
   const fetchArticle = async () => {
     setLoading(true);
     try {
-      // First get the project to get the base ID
       const { data: project, error: projectError } = await supabase
         .from('blog_projects')
         .select('airtable_base_id')
@@ -65,7 +74,6 @@ export default function ArticleEditor() {
 
       setBaseId(project.airtable_base_id);
 
-      // Fetch articles from Airtable
       const { data, error } = await supabase.functions.invoke('fetch-airtable-articles', {
         body: { baseId: project.airtable_base_id }
       });
@@ -76,22 +84,7 @@ export default function ArticleEditor() {
         const foundArticle = data.articles.find((a: Article) => a.id === articleId);
         if (foundArticle) {
           setArticle(foundArticle);
-          setMetaTitle(foundArticle.metaTitle || "");
-          setMetaDescription(foundArticle.metaDescription || "");
-          setSlug(foundArticle.slug || "");
           setContent(foundArticle.content || "");
-          setOutline(foundArticle.outline || "");
-          // Parse config from article if it exists
-          if (foundArticle.config) {
-            try {
-              const parsedConfig = typeof foundArticle.config === 'string' 
-                ? JSON.parse(foundArticle.config) 
-                : foundArticle.config;
-              setConfig({ ...defaultConfig, ...parsedConfig });
-            } catch (e) {
-              console.log('Could not parse article config, using defaults');
-            }
-          }
         } else {
           toast.error("Article not found");
           navigate(`/subaccount/${subaccountId}/projects`);
@@ -116,21 +109,14 @@ export default function ArticleEditor() {
         body: {
           baseId,
           recordId: articleId,
-          fields: {
-            metaTitle,
-            metaDescription,
-            slug,
-            content,
-            outline,
-            config,
-          }
+          fields: { content }
         }
       });
 
       if (error) throw error;
       
       if (data.success) {
-        toast.success("Changes saved to Airtable");
+        toast.success("Changes saved");
       } else {
         throw new Error(data.error || "Failed to save");
       }
@@ -141,13 +127,9 @@ export default function ArticleEditor() {
     setSaving(false);
   };
 
-  const handleBack = () => {
-    navigate(`/subaccount/${subaccountId}/projects`);
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center justify-center h-[60vh]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
           <p className="text-muted-foreground mt-2">Loading article...</p>
@@ -158,11 +140,14 @@ export default function ArticleEditor() {
 
   if (!article) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center justify-center h-[60vh]">
         <div className="text-center">
           <p className="text-muted-foreground">Article not found</p>
-          <Button onClick={handleBack} variant="outline" className="mt-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
+          <Button 
+            onClick={() => navigate(`/subaccount/${subaccountId}/projects`)} 
+            variant="outline" 
+            className="mt-4"
+          >
             Back to Projects
           </Button>
         </div>
@@ -170,134 +155,252 @@ export default function ArticleEditor() {
     );
   }
 
+  const statusStyle = getStatusStyle(article.status);
+  const scoreInfo = getScoreGrade(article.contentScore);
+  const creatorInitial = article.createdBy?.[0]?.charAt(0)?.toUpperCase() || 'A';
+  
+  const formattedDate = article.createdAt 
+    ? new Date(article.createdAt).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+      })
+    : '-';
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top Navigation Bar */}
-      <div className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div className="h-4 w-px bg-border" />
-            <h1 className="font-semibold truncate max-w-[400px]">{article.name}</h1>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Save Changes
-            </Button>
-          </div>
+    <div className="h-full flex flex-col -m-6">
+      {/* Top Header Bar */}
+      <div className="border-b bg-background px-6 py-3 flex items-center justify-between">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm">
+          <Link 
+            to={`/subaccount/${subaccountId}/projects`}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Articles
+          </Link>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium truncate max-w-[400px]">{article.name}</span>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-2">
+            <Copy className="h-4 w-4" />
+            Copy
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Regenerate
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+          <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90">
+            <Send className="h-4 w-4" />
+            Publish
+          </Button>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex h-[calc(100vh-56px)]">
-        {/* Left Panel - SEO & Outline */}
-        <div className="w-80 border-r bg-muted/30 flex flex-col">
-          <Tabs defaultValue="seo" className="flex-1 flex flex-col">
-            <TabsList className="m-2 grid grid-cols-3">
-              <TabsTrigger value="seo" className="text-xs">
-                <Settings className="h-3 w-3 mr-1" />
-                SEO
-              </TabsTrigger>
-              <TabsTrigger value="outline" className="text-xs">
-                <FileText className="h-3 w-3 mr-1" />
-                Outline
-              </TabsTrigger>
-              <TabsTrigger value="config" className="text-xs">
-                <Sliders className="h-3 w-3 mr-1" />
-                Config
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="seo" className="flex-1 m-0 overflow-auto">
-              <ArticleSEOPanel
-                article={article}
-                metaTitle={metaTitle}
-                setMetaTitle={setMetaTitle}
-                metaDescription={metaDescription}
-                setMetaDescription={setMetaDescription}
-                slug={slug}
-                setSlug={setSlug}
-              />
-            </TabsContent>
-            
-            <TabsContent value="outline" className="flex-1 m-0 overflow-auto">
-              <ArticleOutlinePanel
-                outline={outline}
-                setOutline={setOutline}
-              />
-            </TabsContent>
-            
-            <TabsContent value="config" className="flex-1 m-0 overflow-auto">
-              <ArticleConfigPanel
-                config={config}
-                setConfig={setConfig}
-              />
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Center Panel - Content Editor */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b px-4 py-2 bg-background">
-              <TabsList>
-                <TabsTrigger value="content" className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  Content
+      <div className="flex flex-1 overflow-hidden">
+        {/* Center Content */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Tabs */}
+          <div className="border-b px-6 pt-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="bg-transparent p-0 h-auto gap-4">
+                <TabsTrigger 
+                  value="editor" 
+                  className="px-4 py-2 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  Editor
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="gap-2">
-                  <Eye className="h-4 w-4" />
-                  Preview
-                </TabsTrigger>
-                <TabsTrigger value="html" className="gap-2">
-                  <Code className="h-4 w-4" />
-                  HTML
+                <TabsTrigger 
+                  value="brief" 
+                  className="px-4 py-2 rounded-full text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  Content brief
                 </TabsTrigger>
               </TabsList>
-            </div>
-            
-            <TabsContent value="content" className="flex-1 m-0 overflow-auto">
-              <ArticleSectionsEditor
-                content={content}
-                setContent={setContent}
-              />
-            </TabsContent>
-            
-            <TabsContent value="preview" className="flex-1 m-0 overflow-auto bg-white">
-              <ArticleHTMLPreview
-                html={article.html}
-                content={content}
-                metaTitle={metaTitle}
-              />
-            </TabsContent>
-            
-            <TabsContent value="html" className="flex-1 m-0 overflow-auto">
-              <div className="p-4">
-                <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm font-mono whitespace-pre-wrap">
-                  {article.html || "<p>No HTML content available</p>"}
-                </pre>
+            </Tabs>
+          </div>
+
+          {/* Editor Content */}
+          <div className="p-6">
+            {activeTab === "editor" && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* Featured Image */}
+                {article.imageUrl && (
+                  <div className="rounded-lg overflow-hidden">
+                    <img 
+                      src={article.imageUrl} 
+                      alt={article.name}
+                      className="w-full h-64 object-cover"
+                    />
+                  </div>
+                )}
+
+                {/* Title */}
+                <h1 className="text-3xl font-bold">{article.name}</h1>
+
+                {/* Description */}
+                {article.metaDescription && (
+                  <p className="text-lg text-muted-foreground leading-relaxed">
+                    {article.metaDescription}
+                  </p>
+                )}
+
+                {/* Content */}
+                <div className="border-t pt-6">
+                  <RichTextEditor
+                    content={content}
+                    onChange={setContent}
+                    placeholder="Start writing your article content..."
+                  />
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end pt-4">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
+                    {saving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            )}
+
+            {activeTab === "brief" && (
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-muted/30 rounded-lg p-8 text-center">
+                  <p className="text-muted-foreground">Content brief coming soon...</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right Panel - Stats */}
-        <div className="w-64 border-l bg-muted/30 p-4 overflow-auto">
-          <ArticleEditorHeader article={article} />
+        {/* Right Sidebar */}
+        <div className="w-72 border-l bg-background overflow-y-auto">
+          <div className="p-4 space-y-4">
+            {/* Content Grade */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                Content Grade
+                <HelpCircle className="h-3.5 w-3.5" />
+              </div>
+              <div className={`w-10 h-10 rounded-lg border-2 ${scoreInfo.bg} flex items-center justify-center`}>
+                <span className={`text-lg font-bold ${scoreInfo.color}`}>
+                  {scoreInfo.grade}
+                </span>
+              </div>
+            </div>
+
+            {/* Details Section */}
+            <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sm font-medium">
+                Details
+                <ChevronDown className={`h-4 w-4 transition-transform ${detailsOpen ? '' : '-rotate-90'}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                {/* Status */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Status</span>
+                  <Badge variant="secondary" className={`${statusStyle.text} font-normal gap-1.5`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+                    {article.status}
+                  </Badge>
+                </div>
+
+                {/* Created by */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Created by</span>
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                      {creatorInitial}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+
+                {/* Created */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Created</span>
+                  <Badge variant="outline" className="font-normal">
+                    {formattedDate}
+                  </Badge>
+                </div>
+
+                {/* Generated */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Generated</span>
+                  <Badge variant="outline" className="font-normal">
+                    {formattedDate}
+                  </Badge>
+                </div>
+
+                {/* Updated */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Updated</span>
+                  <Badge variant="outline" className="font-normal text-primary">
+                    {formattedDate}
+                  </Badge>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Stats Section */}
+            <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sm font-medium border-t pt-4">
+                Stats
+                <ChevronDown className={`h-4 w-4 transition-transform ${statsOpen ? '' : '-rotate-90'}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Word Count</span>
+                  <span className="font-medium">{article.wordCount?.toLocaleString() || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Readability</span>
+                  <span className="font-medium">{article.readability || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Language</span>
+                  <span className="font-medium">{article.language}</span>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Article Content Section */}
+            <Collapsible open={contentOpen} onOpenChange={setContentOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sm font-medium border-t pt-4">
+                Article Content
+                <ChevronDown className={`h-4 w-4 transition-transform ${contentOpen ? '' : '-rotate-90'}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="text-sm text-muted-foreground">
+                  {article.outline ? (
+                    <div className="space-y-1">
+                      {article.outline.split('\n').slice(0, 5).map((line, i) => (
+                        <p key={i} className="truncate">{line}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>No outline available</p>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Saved indicator */}
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="text-green-600">✓</span>
+                Saved
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
