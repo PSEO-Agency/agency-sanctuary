@@ -140,7 +140,7 @@ export default function BillingSettings() {
                 <CardDescription>
                   {subscription.plan.priceMonthly === 0 
                     ? "Free" 
-                    : `$${subscription.plan.priceMonthly}/month`}
+                    : `€${subscription.plan.priceMonthly}/month`}
                 </CardDescription>
               </div>
             </div>
@@ -205,7 +205,7 @@ export default function BillingSettings() {
                   <div className="mb-4">
                     <h3 className="text-lg font-semibold">{plan.name}</h3>
                     <p className="text-2xl font-bold">
-                      {plan.priceMonthly === 0 ? "Free" : `$${plan.priceMonthly}`}
+                      {plan.priceMonthly === 0 ? "Free" : `€${plan.priceMonthly}`}
                       {plan.priceMonthly > 0 && (
                         <span className="text-sm font-normal text-muted-foreground">/month</span>
                       )}
