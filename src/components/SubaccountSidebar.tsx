@@ -59,6 +59,14 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const fetchSubscription = async () => {
     try {
+      // Get actual article count from blog_posts
+      const { count: articleCount } = await supabase
+        .from("blog_posts")
+        .select("*", { count: "exact", head: true })
+        .eq("subaccount_id", subaccountId);
+
+      const actualArticlesUsed = articleCount || 0;
+
       // First check if subscription exists
       const { data: existingSubscription } = await supabase
         .from("subaccount_subscriptions")
@@ -82,7 +90,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
         if (plan) {
           setSubscription({
             planName: plan.name,
-            articlesUsed: existingSubscription.articles_used,
+            articlesUsed: actualArticlesUsed,
             articleLimit: plan.article_limit,
             otherCredits: existingSubscription.other_credits,
             billingPeriodEnd: new Date(existingSubscription.billing_period_end),
@@ -109,7 +117,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
           if (!error && newSubscription) {
             setSubscription({
               planName: basicPlan.name,
-              articlesUsed: 0,
+              articlesUsed: actualArticlesUsed,
               articleLimit: basicPlan.article_limit,
               otherCredits: 5,
               billingPeriodEnd: new Date(newSubscription.billing_period_end),
