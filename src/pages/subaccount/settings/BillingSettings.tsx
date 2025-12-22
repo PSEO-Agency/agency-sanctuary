@@ -1,11 +1,16 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Check, X, Zap, FileText } from "lucide-react";
+import { Check, X, Zap, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+// Stripe price mapping
+const STRIPE_PRICES = {
+  pro: "price_1Sh6DdRt14NKHEUMlCqYb7mA", // €495/month Pro Plan
+};
 
 interface PlanDetails {
   id: string;
@@ -24,13 +29,22 @@ interface SubscriptionDetails {
 
 export default function BillingSettings() {
   const { subaccountId } = useParams();
+  const [searchParams] = useSearchParams();
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
   const [plans, setPlans] = useState<PlanDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [upgrading, setUpgrading] = useState(false);
 
   useEffect(() => {
     fetchData();
-  }, [subaccountId]);
+    
+    // Check for success/canceled params
+    if (searchParams.get("success") === "true") {
+      toast.success("Subscription activated successfully!");
+    } else if (searchParams.get("canceled") === "true") {
+      toast.info("Checkout was canceled");
+    }
+  }, [subaccountId, searchParams]);
 
   const fetchData = async () => {
     try {
@@ -86,20 +100,47 @@ export default function BillingSettings() {
     }
   };
 
-  const handleUpgrade = async (planId: string) => {
+  const handleUpgrade = async (plan: PlanDetails) => {
+    if (plan.name === "Free") {
+      // For downgrading to free, just update the database
+      try {
+        const { error } = await supabase
+          .from("subaccount_subscriptions")
+          .update({ plan_id: plan.id })
+          .eq("subaccount_id", subaccountId);
+
+        if (error) throw error;
+        toast.success("Downgraded to Free plan");
+        fetchData();
+      } catch (error) {
+        console.error("Error downgrading:", error);
+        toast.error("Failed to downgrade plan");
+      }
+      return;
+    }
+
+    // For Pro plan, redirect to Stripe checkout
+    setUpgrading(true);
     try {
-      const { error } = await supabase
-        .from("subaccount_subscriptions")
-        .update({ plan_id: planId })
-        .eq("subaccount_id", subaccountId);
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: {
+          priceId: STRIPE_PRICES.pro,
+          subaccountId,
+        },
+      });
 
       if (error) throw error;
 
-      toast.success("Plan upgraded successfully!");
-      fetchData();
-    } catch (error) {
-      console.error("Error upgrading plan:", error);
-      toast.error("Failed to upgrade plan");
+      if (data?.url) {
+        window.open(data.url, "_blank");
+      } else {
+        throw new Error("No checkout URL returned");
+      }
+    } catch (error: any) {
+      console.error("Error creating checkout:", error);
+      toast.error(error.message || "Failed to start checkout");
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -248,16 +289,21 @@ export default function BillingSettings() {
                     </Button>
                   ) : isUpgrade ? (
                     <Button 
-                      onClick={() => handleUpgrade(plan.id)} 
+                      onClick={() => handleUpgrade(plan)} 
                       className="w-full"
+                      disabled={upgrading}
                     >
-                      <Zap className="h-4 w-4 mr-2" />
+                      {upgrading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Zap className="h-4 w-4 mr-2" />
+                      )}
                       Upgrade to {plan.name}
                     </Button>
                   ) : (
                     <Button 
                       variant="outline" 
-                      onClick={() => handleUpgrade(plan.id)}
+                      onClick={() => handleUpgrade(plan)}
                       className="w-full"
                     >
                       Downgrade to {plan.name}
