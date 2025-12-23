@@ -44,19 +44,11 @@ const LANGUAGES = [
   { value: 'Swedish', label: 'Swedish' },
 ];
 
-// Language engine options from Airtable schema
-const LANGUAGE_ENGINES = [
-  { value: 'Dutch (Netherlands)', label: 'Dutch (Netherlands)' },
-  { value: 'English (United Kingdom)', label: 'English (United Kingdom)' },
-  { value: 'English (United States)', label: 'English (United States)' },
-  { value: 'French (France)', label: 'French (France)' },
-  { value: 'German (Germany)', label: 'German (Germany)' },
-  { value: 'Italian (Italy)', label: 'Italian (Italy)' },
-  { value: 'Polish (Poland)', label: 'Polish (Poland)' },
-  { value: 'Portuguese (Brazil)', label: 'Portuguese (Brazil)' },
-  { value: 'Portuguese (Portugal)', label: 'Portuguese (Portugal)' },
-  { value: 'Spanish (Spain)', label: 'Spanish (Spain)' },
-];
+// Language engine options - will be fetched dynamically from Airtable
+interface FieldOption {
+  value: string;
+  label: string;
+}
 
 export default function BlogProjects() {
   const { subaccountId } = useParams();
@@ -68,18 +60,67 @@ export default function BlogProjects() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectLanguage, setNewProjectLanguage] = useState("English");
-  const [newProjectLanguageEngine, setNewProjectLanguageEngine] = useState("English (United States)");
+  const [newProjectLanguageEngine, setNewProjectLanguageEngine] = useState("");
   const [creating, setCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"simple" | "full">("simple");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [languageEngineOptions, setLanguageEngineOptions] = useState<FieldOption[]>([]);
+  const [loadingFieldOptions, setLoadingFieldOptions] = useState(false);
   
   const STORAGE_KEY = `selected_project_${subaccountId}`;
 
   useEffect(() => {
     fetchSubaccountAndProjects();
   }, [subaccountId]);
+
+  // Fetch field options from Airtable when dialog opens
+  useEffect(() => {
+    if (dialogOpen && subaccount?.airtable_base_id && languageEngineOptions.length === 0) {
+      fetchFieldOptions();
+    }
+  }, [dialogOpen, subaccount?.airtable_base_id]);
+
+  const fetchFieldOptions = async () => {
+    if (!subaccount?.airtable_base_id) return;
+    
+    setLoadingFieldOptions(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-airtable-field-options', {
+        body: { 
+          baseId: subaccount.airtable_base_id,
+          tableName: 'Projects'
+        }
+      });
+
+      if (error || !data?.success) {
+        console.error('Failed to fetch field options:', error || data?.error);
+        return;
+      }
+
+      // Find the Language Engine field (might be named differently)
+      const fieldOptions = data.fieldOptions;
+      const engineField = Object.keys(fieldOptions).find(
+        key => key.toLowerCase().includes('language') && key.toLowerCase().includes('engine')
+      ) || Object.keys(fieldOptions).find(key => key.toLowerCase().includes('engine'));
+
+      if (engineField && fieldOptions[engineField]?.choices) {
+        const options = fieldOptions[engineField].choices.map((c: { name: string }) => ({
+          value: c.name,
+          label: c.name
+        }));
+        setLanguageEngineOptions(options);
+        // Set default if not already set
+        if (!newProjectLanguageEngine && options.length > 0) {
+          setNewProjectLanguageEngine(options[0].value);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching field options:', err);
+    }
+    setLoadingFieldOptions(false);
+  };
 
   const fetchSubaccountAndProjects = async () => {
     setLoading(true);
@@ -283,12 +324,16 @@ export default function BlogProjects() {
                 
                 <div className="space-y-2">
                   <Label htmlFor="languageEngine">Language Engine</Label>
-                  <Select value={newProjectLanguageEngine} onValueChange={setNewProjectLanguageEngine}>
+                  <Select 
+                    value={newProjectLanguageEngine} 
+                    onValueChange={setNewProjectLanguageEngine}
+                    disabled={loadingFieldOptions}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select language engine" />
+                      <SelectValue placeholder={loadingFieldOptions ? "Loading..." : "Select language engine"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {LANGUAGE_ENGINES.map((engine) => (
+                      {languageEngineOptions.map((engine) => (
                         <SelectItem key={engine.value} value={engine.value}>
                           {engine.label}
                         </SelectItem>
