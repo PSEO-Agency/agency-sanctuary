@@ -17,7 +17,6 @@ interface BlogProject {
   name: string;
   airtable_base_id: string;
   created_at: string;
-  articleCount?: number;
 }
 
 export default function BlogProjects() {
@@ -53,21 +52,10 @@ export default function BlogProjects() {
       return;
     }
 
-    // Fetch article counts for each project
-    const projectsWithCounts = await Promise.all(
-      (data || []).map(async (project) => {
-        const { count } = await supabase
-          .from('blog_posts')
-          .select('*', { count: 'exact', head: true })
-          .eq('project_id', project.id);
-        return { ...project, articleCount: count || 0 };
-      })
-    );
-
-    setProjects(projectsWithCounts);
+    setProjects(data || []);
     // Auto-select first project
-    if (projectsWithCounts.length > 0) {
-      setActiveProject(projectsWithCounts[0]);
+    if (data && data.length > 0) {
+      setActiveProject(data[0]);
     }
     setLoading(false);
   };
@@ -147,12 +135,7 @@ export default function BlogProjects() {
               <SelectContent>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
-                    <span className="flex items-center justify-between w-full gap-2">
-                      {project.name}
-                      <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                        {project.articleCount}
-                      </span>
-                    </span>
+                    {project.name}
                   </SelectItem>
                 ))}
               </SelectContent>
