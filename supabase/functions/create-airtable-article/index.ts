@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { baseId, fields } = await req.json();
+    const { baseId, fields, projectRecordId } = await req.json();
     
     if (!baseId) {
       return new Response(
@@ -30,6 +30,7 @@ serve(async (req) => {
 
     console.log(`Creating new article in base ${baseId}`);
     console.log('Fields:', fields);
+    console.log('Project Record ID:', projectRecordId);
 
     // First, discover tables in the base to find "pSEO Pages" table
     const metaResponse = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
@@ -143,6 +144,12 @@ serve(async (req) => {
       if (config.externalLinksCount !== undefined) {
         addFieldIfExists('External Links Guideline', `Include ${config.externalLinksCount} external links/citations.\n`);
       }
+    }
+
+    // Link to project using the Project field (linkedRecord type)
+    // In Airtable, linked records are passed as an array of record IDs
+    if (projectRecordId) {
+      addFieldIfExists('Project', [projectRecordId]);
     }
 
     if (skippedFields.length > 0) {

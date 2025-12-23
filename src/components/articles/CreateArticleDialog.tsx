@@ -80,10 +80,11 @@ export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArti
 
     setCreating(true);
     try {
-      // Create article in Airtable
+      // Create article in Airtable with project link
       const { data, error } = await supabase.functions.invoke('create-airtable-article', {
         body: {
           baseId,
+          projectRecordId,
           fields: {
             name: topic.trim(),
             language,
