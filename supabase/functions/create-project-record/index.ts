@@ -74,20 +74,45 @@ serve(async (req) => {
       [primaryFieldName]: name,
     };
 
-    // Try to find Type field if it exists
+    // Try to find Type field if it exists and has valid options
     const typeField = projectsTable.fields.find((f: any) => 
-      f.name.toLowerCase() === 'type' || f.name === 'Type'
+      (f.name.toLowerCase() === 'type' || f.name === 'Type') && 
+      (f.type === 'singleSelect' || f.type === 'multipleSelects')
     );
-    if (typeField) {
-      fields[typeField.name] = "Content";
+    if (typeField && typeField.options?.choices) {
+      // Check if "Content" is a valid option
+      const contentOption = typeField.options.choices.find((c: any) => 
+        c.name.toLowerCase() === 'content'
+      );
+      if (contentOption) {
+        fields[typeField.name] = contentOption.name;
+        console.log(`Setting Type to: ${contentOption.name}`);
+      } else {
+        // Use the first available option if Content doesn't exist
+        const firstOption = typeField.options.choices[0];
+        if (firstOption) {
+          fields[typeField.name] = firstOption.name;
+          console.log(`Content not available, using first option: ${firstOption.name}`);
+        }
+      }
     }
 
-    // Try to find Language field if it exists
+    // Try to find Language field if it exists and validate option
     const languageField = projectsTable.fields.find((f: any) => 
       f.name.toLowerCase() === 'language' || f.name === 'Language'
     );
     if (language && languageField) {
-      fields[languageField.name] = language;
+      if (languageField.type === 'singleSelect' && languageField.options?.choices) {
+        const languageOption = languageField.options.choices.find((c: any) => 
+          c.name.toLowerCase() === language.toLowerCase()
+        );
+        if (languageOption) {
+          fields[languageField.name] = languageOption.name;
+        }
+      } else {
+        // Text field, just set the value
+        fields[languageField.name] = language;
+      }
     }
     
     // Try to find Language engine field if it exists
@@ -95,7 +120,16 @@ serve(async (req) => {
       f.name.toLowerCase().includes('language') && f.name.toLowerCase().includes('engine')
     );
     if (languageEngine && engineField) {
-      fields[engineField.name] = languageEngine;
+      if (engineField.type === 'singleSelect' && engineField.options?.choices) {
+        const engineOption = engineField.options.choices.find((c: any) => 
+          c.name.toLowerCase() === languageEngine.toLowerCase()
+        );
+        if (engineOption) {
+          fields[engineField.name] = engineOption.name;
+        }
+      } else {
+        fields[engineField.name] = languageEngine;
+      }
     }
 
     console.log('Creating record with fields:', fields);
