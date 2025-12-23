@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,6 +16,15 @@ interface ArticlesTableProps {
   viewMode?: "simple" | "full";
 }
 
+// Processing statuses that should trigger auto-refresh
+const PROCESSING_STATUSES = ['start research', 'researched', 'generate outline', 'outlined', 'generate article'];
+
+const hasProcessingArticles = (articles: Article[]): boolean => {
+  return articles.some(article => 
+    PROCESSING_STATUSES.includes(article.status.toLowerCase())
+  );
+};
+
 export function ArticlesTable({ 
   baseId, 
   isOpen, 
@@ -32,6 +41,7 @@ export function ArticlesTable({
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Reset and refetch when baseId or projectRecordId changes
   useEffect(() => {
@@ -46,8 +56,10 @@ export function ArticlesTable({
     }
   }, [isOpen, hasFetched, baseId, projectRecordId]);
 
-  const fetchArticles = async () => {
-    setLoading(true);
+  const fetchArticles = useCallback(async (isPolling = false) => {
+    if (!isPolling) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -68,8 +80,36 @@ export function ArticlesTable({
       setError(err.message || 'Failed to fetch articles');
     }
     
-    setLoading(false);
-  };
+    if (!isPolling) {
+      setLoading(false);
+    }
+  }, [baseId, projectRecordId]);
+
+  // Auto-refresh polling when articles are in processing state
+  useEffect(() => {
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    // Only poll if there are processing articles
+    if (isOpen && hasFetched && hasProcessingArticles(articles)) {
+      console.log('Starting auto-refresh polling for processing articles...');
+      pollingIntervalRef.current = setInterval(() => {
+        console.log('Polling for article status updates...');
+        fetchArticles(true);
+      }, 10000); // Poll every 10 seconds
+    }
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isOpen, hasFetched, articles, fetchArticles]);
 
   const handleOpenEditor = (article: Article) => {
     navigate(`/subaccount/${subaccountId}/projects/${projectId}/articles/${article.id}`);
