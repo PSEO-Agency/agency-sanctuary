@@ -74,15 +74,10 @@ serve(async (req) => {
     console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
     console.log(`Table fields:`, pSEOTable.fields?.map((f: { name: string }) => f.name));
 
-    // Build URL with optional project filter
+    // Build URL - fetch all records first
     let url = `https://api.airtable.com/v0/${baseId}/${pSEOTable.id}?maxRecords=100`;
     
-    // If projectRecordId is provided, filter by linked Projects field
-    if (projectRecordId) {
-      const filterFormula = encodeURIComponent(`FIND("${projectRecordId}", ARRAYJOIN({Projects}, ","))`);
-      url += `&filterByFormula=${filterFormula}`;
-      console.log(`Applying filter for project: ${projectRecordId}`);
-    }
+    console.log(`Fetching from URL (no filter, will filter in-memory): ${url}`);
 
     const response = await fetch(url, {
       headers: {
@@ -102,8 +97,25 @@ serve(async (req) => {
 
     const data = await response.json();
     
-    // Transform the records - map available fields flexibly
-    const articles = data.records.map((record: any) => {
+    // Filter by projectRecordId in-memory if provided
+    let filteredRecords = data.records;
+    if (projectRecordId) {
+      console.log(`Filtering ${data.records.length} records for project: ${projectRecordId}`);
+      filteredRecords = data.records.filter((record: any) => {
+        const projects = record.fields['Projects'];
+        // Projects is an array of linked record IDs
+        if (Array.isArray(projects)) {
+          const matches = projects.includes(projectRecordId);
+          if (matches) console.log(`Record ${record.id} matches project ${projectRecordId}`);
+          return matches;
+        }
+        return false;
+      });
+      console.log(`After filtering: ${filteredRecords.length} records match`);
+    }
+    
+    // Transform the filtered records - map available fields flexibly
+    const articles = filteredRecords.map((record: any) => {
       const f = record.fields;
       return {
         id: record.id,
