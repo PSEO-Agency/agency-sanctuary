@@ -41,7 +41,7 @@ export function SuperAdminSidebar() {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
                       asChild 
-                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                      className={isActive ? "bg-primary/10 text-primary" : "text-sidebar-foreground hover:bg-primary/10"}
                     >
                       <NavLink to={item.url} end>
                         <item.icon className="h-5 w-5" />
@@ -74,7 +74,7 @@ export function SuperAdminSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton 
               asChild 
-              className={location.pathname === "/super-admin/settings" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+              className={location.pathname === "/super-admin/settings" ? "bg-primary/10 text-primary" : "text-sidebar-foreground hover:bg-primary/10"}
             >
               <NavLink to="/super-admin/settings">
                 <Settings className="h-5 w-5" />
