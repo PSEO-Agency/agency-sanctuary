@@ -49,7 +49,7 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
                       asChild 
-                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                      className={isActive ? "bg-primary/10 text-primary" : "text-sidebar-foreground hover:bg-primary/10"}
                     >
                       <NavLink to={item.url} end>
                         <item.icon className="h-5 w-5" />
@@ -70,8 +70,8 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
             <SidebarMenuButton 
               asChild 
               className={location.pathname === `/agency/${agencyId}/settings` 
-                ? "bg-sidebar-accent text-sidebar-accent-foreground" 
-                : "text-sidebar-foreground hover:bg-sidebar-primary/10"}
+                ? "bg-primary/10 text-primary" 
+                : "text-sidebar-foreground hover:bg-primary/10"}
             >
               <NavLink to={`/agency/${agencyId}/settings`} end>
                 <Settings className="h-5 w-5" />
