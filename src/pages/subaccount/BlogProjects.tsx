@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Loader2, Search, Filter, LayoutList, LayoutGrid } from "lucide-react";
+import { Plus, Loader2, Search, Filter, LayoutList, LayoutGrid, ChevronDown } from "lucide-react";
 import { ArticlesTable } from "@/components/articles/ArticlesTable";
 import { CreateArticleDialog } from "@/components/articles/CreateArticleDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -116,10 +117,27 @@ export default function BlogProjects() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">Articles</h1>
-          {activeProject && (
-            <p className="text-sm text-muted-foreground">{activeProject.name}</p>
+          {projects.length > 0 && (
+            <Select 
+              value={activeProject?.id || ""} 
+              onValueChange={(value) => {
+                const project = projects.find(p => p.id === value);
+                if (project) setActiveProject(project);
+              }}
+            >
+              <SelectTrigger className="w-[200px] h-9">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </div>
         <div className="flex items-center gap-2">
