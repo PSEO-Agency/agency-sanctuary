@@ -65,7 +65,29 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
+    console.log(`Found pSEO Pages table: ${pSEOTable.name} (${pSEOTable.id})`);
+
+    // Find the Projects table to get its ID for linked record field discovery
+    const projectsTable = metaData.tables.find((t: { name: string }) => 
+      t.name.toLowerCase() === 'projects'
+    );
+    const projectsTableId = projectsTable?.id;
+    console.log(`Found Projects table: ${projectsTable?.name} (${projectsTableId})`);
+
+    // Find the linked record field that links pSEO Pages to Projects table
+    let projectLinkFieldName: string | null = null;
+    if (pSEOTable.fields && projectsTableId) {
+      const projectLinkField = pSEOTable.fields.find((f: any) => 
+        f.type === 'multipleRecordLinks' && 
+        f.options?.linkedTableId === projectsTableId
+      );
+      if (projectLinkField) {
+        projectLinkFieldName = projectLinkField.name;
+        console.log(`Found project link field: "${projectLinkFieldName}" (links to Projects table)`);
+      } else {
+        console.log('No linked record field found that connects to Projects table');
+      }
+    }
 
     // Build a set of available field names in this table
     const availableFields = new Set<string>();
@@ -74,7 +96,7 @@ serve(async (req) => {
         availableFields.add(field.name);
       }
     }
-    console.log('Available fields in table:', Array.from(availableFields).slice(0, 20), '...');
+    console.log('Available fields in pSEO Pages:', Array.from(availableFields).join(', '));
 
     // Map our field names to Airtable field names - only include fields that exist
     const airtableFields: Record<string, any> = {};
@@ -146,10 +168,13 @@ serve(async (req) => {
       }
     }
 
-    // Link to project using the Project field (linkedRecord type)
+    // Link to project using the dynamically discovered linked record field
     // In Airtable, linked records are passed as an array of record IDs
-    if (projectRecordId) {
-      addFieldIfExists('Project', [projectRecordId]);
+    if (projectRecordId && projectLinkFieldName) {
+      airtableFields[projectLinkFieldName] = [projectRecordId];
+      console.log(`Linking article to project using field: "${projectLinkFieldName}" with record ID: ${projectRecordId}`);
+    } else if (projectRecordId) {
+      console.log('Warning: Could not link article to project - no link field found');
     }
 
     if (skippedFields.length > 0) {
