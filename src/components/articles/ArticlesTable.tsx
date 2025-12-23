@@ -10,6 +10,7 @@ interface ArticlesTableProps {
   baseId: string;
   isOpen: boolean;
   projectId: string;
+  projectRecordId?: string | null;
   searchQuery?: string;
   statusFilter?: string;
   viewMode?: "simple" | "full";
@@ -18,7 +19,8 @@ interface ArticlesTableProps {
 export function ArticlesTable({ 
   baseId, 
   isOpen, 
-  projectId, 
+  projectId,
+  projectRecordId, 
   searchQuery = "", 
   statusFilter = "all",
   viewMode = "simple" 

@@ -81,26 +81,33 @@ export default function ArticleEditor() {
   const [contentOpen, setContentOpen] = useState(true);
 
   useEffect(() => {
-    if (articleId && projectId) {
+    if (articleId && projectId && subaccountId) {
       fetchArticle();
     }
-  }, [articleId, projectId]);
+  }, [articleId, projectId, subaccountId]);
 
   const fetchArticle = async () => {
     setLoading(true);
     try {
-      const { data: project, error: projectError } = await supabase
-        .from('blog_projects')
+      // Fetch subaccount to get the airtable_base_id
+      const { data: subaccount, error: subaccountError } = await supabase
+        .from('subaccounts')
         .select('airtable_base_id')
-        .eq('id', projectId)
+        .eq('id', subaccountId)
         .single();
 
-      if (projectError) throw projectError;
+      if (subaccountError) throw subaccountError;
+      
+      if (!subaccount.airtable_base_id) {
+        toast.error("No Airtable base configured for this subaccount");
+        navigate(`/subaccount/${subaccountId}/projects`);
+        return;
+      }
 
-      setBaseId(project.airtable_base_id);
+      setBaseId(subaccount.airtable_base_id);
 
       const { data, error } = await supabase.functions.invoke('fetch-airtable-articles', {
-        body: { baseId: project.airtable_base_id }
+        body: { baseId: subaccount.airtable_base_id }
       });
 
       if (error) throw error;

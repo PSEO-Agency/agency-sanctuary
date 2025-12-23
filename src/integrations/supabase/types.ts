@@ -121,26 +121,35 @@ export type Database = {
       }
       blog_projects: {
         Row: {
-          airtable_base_id: string
+          airtable_record_id: string | null
           created_at: string
           id: string
+          language: string | null
+          language_engine: string | null
           name: string
+          project_type: string | null
           subaccount_id: string
           updated_at: string
         }
         Insert: {
-          airtable_base_id: string
+          airtable_record_id?: string | null
           created_at?: string
           id?: string
+          language?: string | null
+          language_engine?: string | null
           name: string
+          project_type?: string | null
           subaccount_id: string
           updated_at?: string
         }
         Update: {
-          airtable_base_id?: string
+          airtable_record_id?: string | null
           created_at?: string
           id?: string
+          language?: string | null
+          language_engine?: string | null
           name?: string
+          project_type?: string | null
           subaccount_id?: string
           updated_at?: string
         }
@@ -286,6 +295,7 @@ export type Database = {
       subaccounts: {
         Row: {
           agency_id: string
+          airtable_base_id: string | null
           business_settings: Json | null
           created_at: string
           id: string
@@ -296,6 +306,7 @@ export type Database = {
         }
         Insert: {
           agency_id: string
+          airtable_base_id?: string | null
           business_settings?: Json | null
           created_at?: string
           id?: string
@@ -306,6 +317,7 @@ export type Database = {
         }
         Update: {
           agency_id?: string
+          airtable_base_id?: string | null
           business_settings?: Json | null
           created_at?: string
           id?: string
