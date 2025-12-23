@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, LogIn, Search, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, LogIn, Search, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ export default function Subaccounts() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [retryingSetup, setRetryingSetup] = useState<string | null>(null);
   const [newSubaccount, setNewSubaccount] = useState({ 
     name: "",
     businessDetails: {} as BusinessDetails
@@ -107,26 +108,24 @@ export default function Subaccounts() {
       
       toast.success("Sub-account created successfully");
       
-      // Trigger Airtable base setup in background
+      // Trigger base setup in background
       try {
-        console.log("Setting up Airtable base for subaccount:", newSub.id);
-        const { data: airtableResult, error: airtableError } = await supabase.functions.invoke('setup-subaccount-airtable', {
+        console.log("Setting up base for subaccount:", newSub.id);
+        const { data: setupResult, error: setupError } = await supabase.functions.invoke('setup-subaccount-airtable', {
           body: {
             subaccountId: newSub.id,
             subaccountName: newSub.name,
           }
         });
         
-        if (airtableError) {
-          console.error("Airtable setup error:", airtableError);
-          toast.warning("Sub-account created, but Airtable setup may be pending.");
-        } else if (airtableResult?.pending) {
-          toast.info("Airtable base setup has been queued.");
-        } else if (airtableResult?.baseId) {
-          toast.success("Airtable base configured successfully!");
+        if (setupError) {
+          console.error("Setup error:", setupError);
+          toast.warning("Sub-account created. You can retry setup from the list.");
+        } else if (setupResult?.baseId) {
+          toast.success("Sub-account configured successfully!");
         }
-      } catch (airtableErr) {
-        console.error("Airtable setup failed:", airtableErr);
+      } catch (setupErr) {
+        console.error("Setup failed:", setupErr);
         // Don't fail the whole operation, just log it
       }
       
@@ -152,6 +151,37 @@ export default function Subaccounts() {
 
   const handleSwitchToSubaccount = (subaccountId: string) => {
     navigate(`/subaccount/${subaccountId}/launchpad`);
+  };
+
+  const handleRetrySetup = async (subaccount: Subaccount) => {
+    try {
+      setRetryingSetup(subaccount.id);
+      
+      const { data: setupResult, error: setupError } = await supabase.functions.invoke('setup-subaccount-airtable', {
+        body: {
+          subaccountId: subaccount.id,
+          subaccountName: subaccount.name,
+        }
+      });
+      
+      if (setupError) {
+        console.error("Setup error:", setupError);
+        toast.error("Setup failed. Please try again.");
+        return;
+      }
+      
+      if (setupResult?.baseId) {
+        toast.success("Setup completed successfully!");
+        fetchSubaccounts();
+      } else {
+        toast.error("Setup failed. Please contact support.");
+      }
+    } catch (error) {
+      console.error("Retry setup failed:", error);
+      toast.error("Setup failed. Please try again.");
+    } finally {
+      setRetryingSetup(null);
+    }
   };
 
   const handleLoginAs = async (subaccountId: string) => {
@@ -398,6 +428,21 @@ export default function Subaccounts() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {!subaccount.airtable_base_id && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleRetrySetup(subaccount)}
+                            disabled={retryingSetup === subaccount.id}
+                          >
+                            {retryingSetup === subaccount.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            Retry Setup
+                          </Button>
+                        )}
                         <Button 
                           variant="default" 
                           size="sm"
