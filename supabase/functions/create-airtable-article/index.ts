@@ -98,6 +98,11 @@ serve(async (req) => {
     }
     console.log('Available fields in pSEO Pages:', Array.from(availableFields).join(', '));
 
+    // Set initial status to "Start Research" to trigger the pipeline
+    if (availableFields.has('Status')) {
+      // Will be added below in the mapping section
+    }
+
     // Map our field names to Airtable field names - only include fields that exist
     const airtableFields: Record<string, any> = {};
     const skippedFields: string[] = [];
@@ -115,6 +120,9 @@ serve(async (req) => {
     if (fields.name) {
       addFieldIfExists('Name', fields.name);
     }
+    
+    // Set status to "Start Research" to trigger the processing pipeline
+    addFieldIfExists('Status', 'Start Research');
     
     // Language is a singleSelect with choices: "Dutch", "English"
     if (fields.language) {

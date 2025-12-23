@@ -23,3 +23,24 @@ verify_jwt = true
 
 [functions.get-airtable-field-options]
 verify_jwt = true
+
+[functions.get-article-status]
+verify_jwt = true
+
+[functions.create-airtable-article]
+verify_jwt = true
+
+[functions.fetch-airtable-articles]
+verify_jwt = true
+
+[functions.update-airtable-article]
+verify_jwt = true
+
+[functions.trigger-n8n-workflow]
+verify_jwt = true
+
+[functions.test-airtable-connection]
+verify_jwt = true
+
+[functions.invite-team-member]
+verify_jwt = true
