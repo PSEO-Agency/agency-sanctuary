@@ -28,6 +28,7 @@ export interface NewArticleConfig {
 interface CreateArticleDialogProps {
   baseId: string;
   projectId: string;
+  projectRecordId?: string | null;
   onArticleCreated: () => void;
 }
 
@@ -55,7 +56,7 @@ const LANGUAGES = [
   { value: 'Portuguese', label: 'Portuguese' },
 ];
 
-export function CreateArticleDialog({ baseId, projectId, onArticleCreated }: CreateArticleDialogProps) {
+export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArticleCreated }: CreateArticleDialogProps) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [triggerWorkflow, setTriggerWorkflow] = useState(true);
