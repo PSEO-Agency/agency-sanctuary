@@ -136,7 +136,7 @@ export default function BlogProjects() {
     }
 
     if (!subaccount?.airtable_base_id) {
-      toast.error('No Airtable base configured for this subaccount. Please contact support.');
+      toast.error('Project setup is pending. Please contact support.');
       return;
     }
 
@@ -316,11 +316,11 @@ export default function BlogProjects() {
         </div>
       </div>
 
-      {/* No Airtable Base Warning */}
+      {/* Pending Setup Warning */}
       {!hasAirtableBase && (
         <div className="text-center py-12 border rounded-lg bg-muted/30">
-          <p className="text-muted-foreground mb-2">No Airtable base configured for this subaccount.</p>
-          <p className="text-sm text-muted-foreground">Please contact support to set up your Airtable integration.</p>
+          <p className="text-muted-foreground mb-2">Your account setup is still in progress.</p>
+          <p className="text-sm text-muted-foreground">Please contact support if this persists.</p>
         </div>
       )}
 
