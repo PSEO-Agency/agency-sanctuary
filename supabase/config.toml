@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.create-checkout]
 verify_jwt = true
+
+[functions.fetch-airtable-schema]
+verify_jwt = false
