@@ -63,6 +63,17 @@ serve(async (req) => {
 
     console.log(`Found Projects table: ${projectsTable.id}`);
 
+    // Log all fields for debugging
+    console.log('Available fields in Projects table:');
+    projectsTable.fields.forEach((f: any) => {
+      if (f.type === 'singleSelect' || f.type === 'multipleSelects') {
+        const options = f.options?.choices?.map((c: any) => c.name).join(', ') || 'no options';
+        console.log(`  - ${f.name} (${f.type}): [${options}]`);
+      } else {
+        console.log(`  - ${f.name} (${f.type})`);
+      }
+    });
+
     // Find the primary field (usually the first field or has primaryFieldId)
     const primaryField = projectsTable.fields.find((f: any) => f.id === projectsTable.primaryFieldId);
     const primaryFieldName = primaryField?.name || 'Name';
