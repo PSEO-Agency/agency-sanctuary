@@ -3,6 +3,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { SuperAdminLayout } from "@/components/layout/SuperAdminLayout";
 import SuperAdminDashboard from "./super-admin/Dashboard";
 import Agencies from "./super-admin/Agencies";
+import Subaccounts from "./super-admin/Subaccounts";
 import SuperAdminSettings from "./super-admin/Settings";
 
 export default function SuperAdmin() {
@@ -12,6 +13,7 @@ export default function SuperAdmin() {
         <Routes>
           <Route path="/" element={<SuperAdminDashboard />} />
           <Route path="/agencies" element={<Agencies />} />
+          <Route path="/subaccounts" element={<Subaccounts />} />
           <Route path="/settings" element={<SuperAdminSettings />} />
           <Route path="*" element={<Navigate to="/super-admin" replace />} />
         </Routes>

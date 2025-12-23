@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard, Settings, Building } from "lucide-react";
+import { Building2, LayoutDashboard, Settings, Building, Users } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const menuItems = [
   { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
   { title: "Agencies", url: "/super-admin/agencies", icon: Building2 },
+  { title: "Subaccounts", url: "/super-admin/subaccounts", icon: Users },
 ];
 
 export function SuperAdminSidebar() {

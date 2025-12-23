@@ -6,12 +6,18 @@ import { toast } from "sonner";
 
 type AppRole = "super_admin" | "agency_admin" | "sub_account_user";
 
+interface UserRole {
+  role: AppRole;
+  context_id: string | null;
+  context_type: "agency" | "subaccount" | "platform" | null;
+}
+
 interface UserProfile {
   id: string;
   email: string;
   full_name: string | null;
   avatar_url: string | null;
-  role: AppRole;
+  role: AppRole; // Primary role (from profiles table for backwards compatibility)
   agency_id: string | null;
   sub_account_id: string | null;
   onboarding_completed?: boolean;
@@ -27,6 +33,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
+  roles: UserRole[]; // All user roles from user_roles table
   loading: boolean;
   impersonation: ImpersonationState | null;
   signIn: (email: string, password: string) => Promise<void>;
@@ -38,6 +45,7 @@ interface AuthContextType {
   impersonateUser: (userId: string) => Promise<void>;
   stopImpersonation: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  hasRole: (role: AppRole) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [impersonation, setImpersonation] = useState<ImpersonationState | null>(null);
   const navigate = useNavigate();
@@ -64,9 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setTimeout(() => {
             fetchUserProfile(session.user.id);
+            fetchUserRoles(session.user.id);
           }, 0);
         } else {
           setProfile(null);
+          setRoles([]);
         }
       }
     );
@@ -76,7 +87,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        Promise.all([
+          fetchUserProfile(session.user.id),
+          fetchUserRoles(session.user.id)
+        ]).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
@@ -97,9 +111,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(data);
     } catch (error) {
       console.error("Error fetching user profile:", error);
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const fetchUserRoles = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role, context_id, context_type")
+        .eq("user_id", userId);
+
+      if (error) throw error;
+      // Cast to UserRole[] since the context_type is a constrained enum in DB
+      setRoles((data as UserRole[]) || []);
+    } catch (error) {
+      console.error("Error fetching user roles:", error);
+    }
+  };
+
+  const hasRole = (role: AppRole): boolean => {
+    return roles.some(r => r.role === role);
   };
 
   const refreshProfile = async () => {
@@ -244,6 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         session,
         profile,
+        roles,
         loading,
         impersonation,
         signIn,
@@ -255,6 +287,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         impersonateUser,
         stopImpersonation,
         refreshProfile,
+        hasRole,
       }}
     >
       {children}

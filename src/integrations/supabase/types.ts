@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_main: boolean | null
           logo_url: string | null
           name: string
           owner_user_id: string | null
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_main?: boolean | null
           logo_url?: string | null
           name: string
           owner_user_id?: string | null
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_main?: boolean | null
           logo_url?: string | null
           name?: string
           owner_user_id?: string | null
@@ -49,6 +52,56 @@ export type Database = {
           white_label_config?: Json | null
         }
         Relationships: []
+      }
+      agency_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string | null
+          email: string | null
+          expires_at: string
+          id: string
+          invite_type: string
+          inviting_user_id: string
+          status: string | null
+          target_agency_id: string | null
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string | null
+          email?: string | null
+          expires_at: string
+          id?: string
+          invite_type: string
+          inviting_user_id: string
+          status?: string | null
+          target_agency_id?: string | null
+          token: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string | null
+          email?: string | null
+          expires_at?: string
+          id?: string
+          invite_type?: string
+          inviting_user_id?: string
+          status?: string | null
+          target_agency_id?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_invites_target_agency_id_fkey"
+            columns: ["target_agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       blog_posts: {
         Row: {
@@ -363,6 +416,94 @@ export type Database = {
         }
         Relationships: []
       }
+      transfer_requests: {
+        Row: {
+          created_at: string | null
+          from_agency_id: string
+          id: string
+          notes: string | null
+          requested_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string | null
+          subaccount_id: string
+          to_agency_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          from_agency_id: string
+          id?: string
+          notes?: string | null
+          requested_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string | null
+          subaccount_id: string
+          to_agency_id: string
+        }
+        Update: {
+          created_at?: string | null
+          from_agency_id?: string
+          id?: string
+          notes?: string | null
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string | null
+          subaccount_id?: string
+          to_agency_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_requests_from_agency_id_fkey"
+            columns: ["from_agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_requests_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_requests_to_agency_id_fkey"
+            columns: ["to_agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          context_id: string | null
+          context_type: string | null
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          context_id?: string | null
+          context_type?: string | null
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          context_id?: string | null
+          context_type?: string | null
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -384,6 +525,15 @@ export type Database = {
           _user_id: string
         }
         Returns: string
+      }
+      get_user_agency_id: { Args: { _user_id: string }; Returns: string }
+      get_user_subaccount_id: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       user_agency_id: { Args: { _user_id: string }; Returns: string }
       user_has_role: {
