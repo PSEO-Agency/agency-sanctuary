@@ -126,21 +126,28 @@ serve(async (req) => {
       }
     }
     
-    // Try to find Language engine field if it exists
+    // Try to find Engine field if it exists (can be named "Engine" or "Language Engine")
     const engineField = projectsTable.fields.find((f: any) => 
-      f.name.toLowerCase().includes('language') && f.name.toLowerCase().includes('engine')
+      f.name.toLowerCase() === 'engine' || 
+      (f.name.toLowerCase().includes('language') && f.name.toLowerCase().includes('engine'))
     );
     if (languageEngine && engineField) {
+      console.log(`Found Engine field: ${engineField.name}, setting value: ${languageEngine}`);
       if (engineField.type === 'singleSelect' && engineField.options?.choices) {
         const engineOption = engineField.options.choices.find((c: any) => 
           c.name.toLowerCase() === languageEngine.toLowerCase()
         );
         if (engineOption) {
           fields[engineField.name] = engineOption.name;
+          console.log(`Matched engine option: ${engineOption.name}`);
+        } else {
+          console.log(`No exact match for "${languageEngine}", available: ${engineField.options.choices.map((c: any) => c.name).join(', ')}`);
         }
       } else {
         fields[engineField.name] = languageEngine;
       }
+    } else if (languageEngine) {
+      console.log(`Engine field not found, languageEngine value: ${languageEngine}`);
     }
 
     console.log('Creating record with fields:', fields);

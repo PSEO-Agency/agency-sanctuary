@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { baseId } = await req.json();
+    const { baseId, projectRecordId } = await req.json();
     
     if (!baseId) {
       return new Response(
@@ -19,6 +19,9 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
+    
+    console.log(`Filtering by projectRecordId: ${projectRecordId || 'none'}`);
+    
 
     const airtableApiKey = Deno.env.get('AIRTABLE_API_KEY');
     if (!airtableApiKey) {
@@ -71,8 +74,15 @@ serve(async (req) => {
     console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
     console.log(`Table fields:`, pSEOTable.fields?.map((f: { name: string }) => f.name));
 
-    // Fetch all records without specifying fields - let Airtable return what exists
-    const url = `https://api.airtable.com/v0/${baseId}/${pSEOTable.id}?maxRecords=100`;
+    // Build URL with optional project filter
+    let url = `https://api.airtable.com/v0/${baseId}/${pSEOTable.id}?maxRecords=100`;
+    
+    // If projectRecordId is provided, filter by linked Projects field
+    if (projectRecordId) {
+      const filterFormula = encodeURIComponent(`FIND("${projectRecordId}", ARRAYJOIN({Projects}, ","))`);
+      url += `&filterByFormula=${filterFormula}`;
+      console.log(`Applying filter for project: ${projectRecordId}`);
+    }
 
     const response = await fetch(url, {
       headers: {
