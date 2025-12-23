@@ -114,7 +114,6 @@ export default function Subaccounts() {
           body: {
             subaccountId: newSub.id,
             subaccountName: newSub.name,
-            locationId: newSub.location_id,
           }
         });
         

@@ -13,12 +13,12 @@ serve(async (req) => {
   }
 
   try {
-    const { subaccountId, subaccountName, locationId } = await req.json();
+    const { subaccountId, subaccountName } = await req.json();
     
-    if (!subaccountId || !subaccountName || !locationId) {
-      console.error('Missing required fields:', { subaccountId, subaccountName, locationId });
+    if (!subaccountId || !subaccountName) {
+      console.error('Missing required fields:', { subaccountId, subaccountName });
       return new Response(
-        JSON.stringify({ error: 'subaccountId, subaccountName, and locationId are required' }),
+        JSON.stringify({ error: 'subaccountId and subaccountName are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -34,68 +34,69 @@ serve(async (req) => {
       );
     }
 
-    // Call the PSEO API to create/duplicate an Airtable base for this subaccount
-    // The PSEO API should handle creating a duplicate of the template base
-    const pseoWebhookUrl = Deno.env.get('PSEO_WEBHOOK_URL') || 'https://api.pseo.ai/v1/create-client-base';
+    // Call the PSEO API to create an Airtable base for this subaccount
+    const pseoApiUrl = 'https://n8n.virtualmin.programmaticseobuilder.com/webhook/pb/v1/projects';
     
-    console.log(`Calling PSEO webhook: ${pseoWebhookUrl}`);
+    console.log(`Calling PSEO API: ${pseoApiUrl}`);
     
-    const webhookResponse = await fetch(pseoWebhookUrl, {
+    const webhookResponse = await fetch(pseoApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${pseoApiKey}`,
+        'X-PSEO-API-KEY': pseoApiKey,
       },
       body: JSON.stringify({
-        subaccountId,
-        subaccountName,
-        locationId,
-        timestamp: new Date().toISOString(),
+        name: subaccountName,
       }),
     });
 
     if (!webhookResponse.ok) {
       const errorText = await webhookResponse.text();
-      console.error('PSEO webhook error:', webhookResponse.status, errorText);
-      
-      // If webhook fails, we might have a fallback or manual setup process
-      // For now, return success but note that base creation is pending
+      console.error('PSEO API error:', webhookResponse.status, errorText);
       return new Response(
         JSON.stringify({ 
-          success: true,
-          pending: true,
-          message: 'Subaccount created. Airtable base setup has been queued.',
+          error: `PSEO API error: ${webhookResponse.status}`,
+          details: errorText,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const webhookData = await webhookResponse.json();
-    console.log('PSEO webhook response:', webhookData);
+    const data = await webhookResponse.json();
+    console.log('PSEO API response:', data);
 
-    // If the webhook returns a base ID, update the subaccount
-    if (webhookData.baseId) {
+    // The API returns 'id' as the Airtable base ID
+    if (data.id) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
       const { error: updateError } = await supabase
         .from('subaccounts')
-        .update({ airtable_base_id: webhookData.baseId })
+        .update({ airtable_base_id: data.id })
         .eq('id', subaccountId);
 
       if (updateError) {
         console.error('Failed to update subaccount with base ID:', updateError);
-      } else {
-        console.log(`Updated subaccount ${subaccountId} with base ID: ${webhookData.baseId}`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            baseId: data.id,
+            warning: 'Airtable base created but failed to update subaccount record',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+      
+      console.log(`Updated subaccount ${subaccountId} with base ID: ${data.id}`);
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        baseId: webhookData.baseId || null,
-        message: webhookData.message || 'Airtable base setup initiated',
+        baseId: data.id || null,
+        name: data.name,
+        message: 'Airtable base created successfully',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
