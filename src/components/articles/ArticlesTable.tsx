@@ -31,6 +31,13 @@ export function ArticlesTable({
   const [hasFetched, setHasFetched] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Reset and refetch when baseId changes
+  useEffect(() => {
+    setHasFetched(false);
+    setArticles([]);
+    setSelectedIds(new Set());
+  }, [baseId]);
+
   useEffect(() => {
     if (isOpen && !hasFetched) {
       fetchArticles();

@@ -33,6 +33,8 @@ export default function BlogProjects() {
   const [viewMode, setViewMode] = useState<"simple" | "full">("simple");
   const [refreshKey, setRefreshKey] = useState(0);
   
+  const STORAGE_KEY = `selected_project_${subaccountId}`;
+
   useEffect(() => {
     fetchProjects();
   }, [subaccountId]);
@@ -53,8 +55,15 @@ export default function BlogProjects() {
     }
 
     setProjects(data || []);
-    // Auto-select first project
-    if (data && data.length > 0) {
+    
+    // Try to restore previously selected project from localStorage
+    const savedProjectId = localStorage.getItem(STORAGE_KEY);
+    const savedProject = data?.find(p => p.id === savedProjectId);
+    
+    if (savedProject) {
+      setActiveProject(savedProject);
+    } else if (data && data.length > 0) {
+      // Fallback to first project
       setActiveProject(data[0]);
     }
     setLoading(false);
@@ -126,7 +135,10 @@ export default function BlogProjects() {
               value={activeProject?.id || ""} 
               onValueChange={(value) => {
                 const project = projects.find(p => p.id === value);
-                if (project) setActiveProject(project);
+                if (project) {
+                  setActiveProject(project);
+                  localStorage.setItem(STORAGE_KEY, project.id);
+                }
               }}
             >
               <SelectTrigger className="w-[200px] h-9">
