@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.create-project-record]
 verify_jwt = true
+
+[functions.setup-subaccount-airtable]
+verify_jwt = true

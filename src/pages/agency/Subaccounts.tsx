@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,17 +21,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, LogIn, Search } from "lucide-react";
+import { Plus, LogIn, Search, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 
 interface Subaccount {
   id: string;
   name: string;
   location_id: string;
   created_at: string;
+  airtable_base_id: string | null;
 }
 
 interface BusinessDetails {
@@ -48,10 +50,12 @@ interface BusinessDetails {
 
 export default function Subaccounts() {
   const { agencyId } = useParams();
+  const navigate = useNavigate();
   const [subaccounts, setSubaccounts] = useState<Subaccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [newSubaccount, setNewSubaccount] = useState({ 
     name: "",
     businessDetails: {} as BusinessDetails
@@ -68,7 +72,7 @@ export default function Subaccounts() {
     try {
       const { data, error } = await supabase
         .from("subaccounts")
-        .select("*")
+        .select("id, name, location_id, created_at, airtable_base_id")
         .eq("agency_id", agencyId)
         .order("created_at", { ascending: false });
 
@@ -86,17 +90,47 @@ export default function Subaccounts() {
     if (!agencyId) return;
 
     try {
-      const { error } = await supabase
+      setCreating(true);
+      
+      // Create the subaccount
+      const { data: newSub, error } = await supabase
         .from("subaccounts")
         .insert([{
           agency_id: agencyId,
           name: newSubaccount.name,
           business_settings: newSubaccount.businessDetails as Record<string, any>
-        }]);
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
       
       toast.success("Sub-account created successfully");
+      
+      // Trigger Airtable base setup in background
+      try {
+        console.log("Setting up Airtable base for subaccount:", newSub.id);
+        const { data: airtableResult, error: airtableError } = await supabase.functions.invoke('setup-subaccount-airtable', {
+          body: {
+            subaccountId: newSub.id,
+            subaccountName: newSub.name,
+            locationId: newSub.location_id,
+          }
+        });
+        
+        if (airtableError) {
+          console.error("Airtable setup error:", airtableError);
+          toast.warning("Sub-account created, but Airtable setup may be pending.");
+        } else if (airtableResult?.pending) {
+          toast.info("Airtable base setup has been queued.");
+        } else if (airtableResult?.baseId) {
+          toast.success("Airtable base configured successfully!");
+        }
+      } catch (airtableErr) {
+        console.error("Airtable setup failed:", airtableErr);
+        // Don't fail the whole operation, just log it
+      }
+      
       setIsCreateOpen(false);
       setNewSubaccount({ 
         name: "",
@@ -105,6 +139,8 @@ export default function Subaccounts() {
       fetchSubaccounts();
     } catch (error: any) {
       toast.error(error.message || "Failed to create sub-account");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -113,6 +149,10 @@ export default function Subaccounts() {
       ...prev,
       businessDetails: { ...prev.businessDetails, [field]: value }
     }));
+  };
+
+  const handleSwitchToSubaccount = (subaccountId: string) => {
+    navigate(`/subaccount/${subaccountId}/launchpad`);
   };
 
   const handleLoginAs = async (subaccountId: string) => {
@@ -284,9 +324,16 @@ export default function Subaccounts() {
               <Button 
                 onClick={handleCreateSubaccount} 
                 className="w-full"
-                disabled={!newSubaccount.name.trim()}
+                disabled={!newSubaccount.name.trim() || creating}
               >
-                Create Sub-account
+                {creating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Sub-account"
+                )}
               </Button>
             </div>
           </DialogContent>
@@ -313,6 +360,7 @@ export default function Subaccounts() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Location ID</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -320,13 +368,13 @@ export default function Subaccounts() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
+                  <TableCell colSpan={5} className="text-center">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : filteredSubaccounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
+                  <TableCell colSpan={5} className="text-center">
                     No sub-accounts found
                   </TableCell>
                 </TableRow>
@@ -334,12 +382,31 @@ export default function Subaccounts() {
                 filteredSubaccounts.map((subaccount) => (
                   <TableRow key={subaccount.id}>
                     <TableCell className="font-medium">{subaccount.name}</TableCell>
-                    <TableCell>{subaccount.location_id}</TableCell>
+                    <TableCell className="font-mono text-sm">{subaccount.location_id}</TableCell>
+                    <TableCell>
+                      {subaccount.airtable_base_id ? (
+                        <Badge variant="default" className="bg-green-500/20 text-green-600 border-green-500/30">
+                          Ready
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
+                          Pending Setup
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {new Date(subaccount.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => handleSwitchToSubaccount(subaccount.id)}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Switch To
+                        </Button>
                         <Button variant="outline" size="sm">
                           Manage
                         </Button>
