@@ -99,7 +99,7 @@ export default function ArticleEditor() {
       if (subaccountError) throw subaccountError;
       
       if (!subaccount.airtable_base_id) {
-        toast.error("No Airtable base configured for this subaccount");
+        toast.error("Account setup is still in progress");
         navigate(`/subaccount/${subaccountId}/projects`);
         return;
       }
