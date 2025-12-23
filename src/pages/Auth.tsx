@@ -37,16 +37,19 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && profile) {
-      // Check if onboarding is completed
+      // Super admins skip onboarding and go directly to super admin dashboard
+      if (profile.role === "super_admin") {
+        navigate("/super-admin");
+        return;
+      }
+      
+      // For other roles, check if onboarding is completed
       if (!profile.onboarding_completed) {
         navigate("/onboarding");
         return;
       }
       
       switch (profile.role) {
-        case "super_admin":
-          navigate("/super-admin");
-          break;
         case "sub_account_user":
           navigate(`/subaccount/${profile.sub_account_id}/launchpad`);
           break;
