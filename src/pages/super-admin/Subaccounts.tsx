@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Search, ArrowRightLeft, Eye, Trash2, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DeleteSubaccountDialog } from "@/components/DeleteSubaccountDialog";
 
 interface Subaccount {
   id: string;
@@ -62,6 +63,10 @@ export default function Subaccounts() {
   const [selectedSubaccount, setSelectedSubaccount] = useState<Subaccount | null>(null);
   const [targetAgencyId, setTargetAgencyId] = useState<string>("");
   const [transferring, setTransferring] = useState(false);
+  
+  // Delete dialog state
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [subaccountToDelete, setSubaccountToDelete] = useState<Subaccount | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -130,6 +135,11 @@ export default function Subaccounts() {
     } finally {
       setTransferring(false);
     }
+  };
+
+  const handleDeleteClick = (subaccount: Subaccount) => {
+    setSubaccountToDelete(subaccount);
+    setIsDeleteOpen(true);
   };
 
   const filteredSubaccounts = subaccounts.filter(sub => {
@@ -237,6 +247,14 @@ export default function Subaccounts() {
                           <ArrowRightLeft className="h-4 w-4 mr-1" />
                           Transfer
                         </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => handleDeleteClick(subaccount)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -297,6 +315,14 @@ export default function Subaccounts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteSubaccountDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        subaccount={subaccountToDelete}
+        onDeleted={fetchData}
+      />
     </div>
   );
 }
