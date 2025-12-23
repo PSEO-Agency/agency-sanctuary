@@ -33,18 +33,18 @@ export function ArticlesTable({
   const [hasFetched, setHasFetched] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Reset and refetch when baseId changes
+  // Reset and refetch when baseId or projectRecordId changes
   useEffect(() => {
     setHasFetched(false);
     setArticles([]);
     setSelectedIds(new Set());
-  }, [baseId]);
+  }, [baseId, projectRecordId]);
 
   useEffect(() => {
     if (isOpen && !hasFetched) {
       fetchArticles();
     }
-  }, [isOpen, hasFetched, baseId]);
+  }, [isOpen, hasFetched, baseId, projectRecordId]);
 
   const fetchArticles = async () => {
     setLoading(true);
@@ -52,7 +52,7 @@ export function ArticlesTable({
     
     try {
       const { data, error } = await supabase.functions.invoke('fetch-airtable-articles', {
-        body: { baseId }
+        body: { baseId, projectRecordId }
       });
 
       if (error) throw error;
