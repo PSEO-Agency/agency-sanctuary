@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Loader2, Settings2, Search, Link, Image, CheckCircle, Globe, Sparkles } from "lucide-react";
+import { ArticleStatusTracker } from "./ArticleStatusTracker";
 
 export interface NewArticleConfig {
   approveEditSeoData: boolean;
@@ -57,9 +59,15 @@ const LANGUAGES = [
 ];
 
 export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArticleCreated }: CreateArticleDialogProps) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [triggerWorkflow, setTriggerWorkflow] = useState(true);
+  
+  // Status tracker state
+  const [showStatusTracker, setShowStatusTracker] = useState(false);
+  const [createdArticleId, setCreatedArticleId] = useState<string | null>(null);
+  const [createdArticleName, setCreatedArticleName] = useState<string>("");
   
   // Article basic info
   const [topic, setTopic] = useState("");
@@ -99,13 +107,18 @@ export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArti
       if (data.success) {
         toast.success("Article created successfully!");
         
+        // Store article info for status tracker
+        const articleId = data.record?.id;
+        setCreatedArticleId(articleId);
+        setCreatedArticleName(topic.trim());
+        
         // Optionally trigger n8n workflow
-        if (triggerWorkflow && data.record?.id) {
+        if (triggerWorkflow && articleId) {
           try {
             await supabase.functions.invoke('trigger-n8n-workflow', {
               body: {
                 projectId,
-                articleId: data.record.id,
+                articleId: articleId,
                 action: 'start_pipeline',
                 data: {
                   topic: topic.trim(),
@@ -124,6 +137,11 @@ export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArti
         setOpen(false);
         resetForm();
         onArticleCreated();
+        
+        // Show status tracker after article is created
+        if (articleId) {
+          setShowStatusTracker(true);
+        }
       } else {
         throw new Error(data.error || "Failed to create article");
       }
@@ -139,9 +157,19 @@ export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArti
     setLanguage("English");
     setConfig(defaultConfig);
     setTriggerWorkflow(true);
+    setCreatedArticleId(null);
+    setCreatedArticleName("");
+  };
+
+  const handleViewArticle = () => {
+    if (createdArticleId) {
+      setShowStatusTracker(false);
+      navigate(`/subaccount/${projectId}/article/${createdArticleId}`);
+    }
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
@@ -430,5 +458,17 @@ export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArti
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Status Tracker Modal */}
+    <ArticleStatusTracker
+      open={showStatusTracker}
+      onOpenChange={setShowStatusTracker}
+      baseId={baseId}
+      recordId={createdArticleId || ""}
+      articleName={createdArticleName}
+      projectId={projectId}
+      onViewArticle={handleViewArticle}
+    />
+    </>
   );
 }
