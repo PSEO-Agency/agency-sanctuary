@@ -10,32 +10,38 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, hasRole } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
         navigate("/auth");
-      } else if (requiredRole && profile?.role !== requiredRole) {
-        // Super admin has access to all portals - don't redirect
-        if (profile?.role === 'super_admin') {
-          return;
-        }
-        // Redirect to appropriate portal based on role
-        switch (profile?.role) {
-          case "agency_admin":
-            navigate(`/agency/${profile.agency_id}`);
-            break;
-          case "sub_account_user":
-            navigate(`/subaccount/${profile.sub_account_id}/dashboard`);
-            break;
-          default:
-            navigate("/auth");
+      } else if (requiredRole) {
+        // Check if user has the required role from user_roles table
+        const hasRequiredRole = hasRole(requiredRole);
+        // Super admin has access to all portals
+        const isSuperAdmin = hasRole('super_admin');
+        
+        if (!hasRequiredRole && !isSuperAdmin) {
+          // Redirect to appropriate portal based on primary role from profile
+          switch (profile?.role) {
+            case "super_admin":
+              navigate("/super-admin");
+              break;
+            case "agency_admin":
+              navigate(`/agency/${profile.agency_id}`);
+              break;
+            case "sub_account_user":
+              navigate(`/subaccount/${profile.sub_account_id}/dashboard`);
+              break;
+            default:
+              navigate("/auth");
+          }
         }
       }
     }
-  }, [user, profile, loading, requiredRole, navigate]);
+  }, [user, profile, loading, requiredRole, navigate, hasRole]);
 
   if (loading) {
     return (
