@@ -21,12 +21,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, LogIn, Search, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Plus, LogIn, Search, ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { DeleteSubaccountDialog } from "@/components/DeleteSubaccountDialog";
 
 interface Subaccount {
   id: string;
@@ -62,6 +63,10 @@ export default function Subaccounts() {
     businessDetails: {} as BusinessDetails
   });
   const { impersonateUser } = useAuth();
+  
+  // Delete dialog state
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [subaccountToDelete, setSubaccountToDelete] = useState<Subaccount | null>(null);
 
   useEffect(() => {
     fetchSubaccounts();
@@ -201,6 +206,11 @@ export default function Subaccounts() {
     } catch (error) {
       toast.error("Failed to impersonate user");
     }
+  };
+
+  const handleDeleteClick = (subaccount: Subaccount) => {
+    setSubaccountToDelete(subaccount);
+    setIsDeleteOpen(true);
   };
 
   const filteredSubaccounts = subaccounts.filter(subaccount =>
@@ -462,6 +472,14 @@ export default function Subaccounts() {
                           <LogIn className="mr-2 h-4 w-4" />
                           Login As
                         </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteClick(subaccount)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -471,6 +489,14 @@ export default function Subaccounts() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteSubaccountDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        subaccount={subaccountToDelete}
+        onDeleted={fetchSubaccounts}
+      />
     </div>
   );
 }
