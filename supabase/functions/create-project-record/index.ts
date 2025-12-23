@@ -63,17 +63,39 @@ serve(async (req) => {
 
     console.log(`Found Projects table: ${projectsTable.id}`);
 
-    // Build the fields object for the record
+    // Find the primary field (usually the first field or has primaryFieldId)
+    const primaryField = projectsTable.fields.find((f: any) => f.id === projectsTable.primaryFieldId);
+    const primaryFieldName = primaryField?.name || 'Name';
+    
+    console.log(`Primary field name: ${primaryFieldName}`);
+
+    // Build the fields object for the record using dynamic field names
     const fields: Record<string, any> = {
-      "Project": name,
-      "Type": "Content",
+      [primaryFieldName]: name,
     };
 
-    if (language) {
-      fields["Language"] = language;
+    // Try to find Type field if it exists
+    const typeField = projectsTable.fields.find((f: any) => 
+      f.name.toLowerCase() === 'type' || f.name === 'Type'
+    );
+    if (typeField) {
+      fields[typeField.name] = "Content";
     }
-    if (languageEngine) {
-      fields["Language engine"] = languageEngine;
+
+    // Try to find Language field if it exists
+    const languageField = projectsTable.fields.find((f: any) => 
+      f.name.toLowerCase() === 'language' || f.name === 'Language'
+    );
+    if (language && languageField) {
+      fields[languageField.name] = language;
+    }
+    
+    // Try to find Language engine field if it exists
+    const engineField = projectsTable.fields.find((f: any) => 
+      f.name.toLowerCase().includes('language') && f.name.toLowerCase().includes('engine')
+    );
+    if (languageEngine && engineField) {
+      fields[engineField.name] = languageEngine;
     }
 
     console.log('Creating record with fields:', fields);
