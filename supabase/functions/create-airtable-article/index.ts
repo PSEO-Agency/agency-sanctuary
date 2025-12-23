@@ -98,11 +98,6 @@ serve(async (req) => {
     }
     console.log('Available fields in pSEO Pages:', Array.from(availableFields).join(', '));
 
-    // Set initial status to "Start Research" to trigger the pipeline
-    if (availableFields.has('Status')) {
-      // Will be added below in the mapping section
-    }
-
     // Map our field names to Airtable field names - only include fields that exist
     const airtableFields: Record<string, any> = {};
     const skippedFields: string[] = [];
@@ -121,8 +116,7 @@ serve(async (req) => {
       addFieldIfExists('Name', fields.name);
     }
     
-    // Set status to "Start Research" to trigger the processing pipeline
-    addFieldIfExists('Status', 'Start Research');
+    // NOTE: Do NOT set Status on creation - we'll update it after to trigger automation
     
     // Language is a singleSelect with choices: "Dutch", "English"
     if (fields.language) {
@@ -190,7 +184,8 @@ serve(async (req) => {
     }
     console.log('Mapped Airtable fields:', airtableFields);
 
-    // Create the record
+    // Step 1: Create the record WITHOUT status
+    console.log('Step 1: Creating record without status...');
     const createResponse = await fetch(`https://api.airtable.com/v0/${baseId}/${pSEOTable.id}`, {
       method: 'POST',
       headers: {
@@ -211,6 +206,42 @@ serve(async (req) => {
 
     const createdRecord = await createResponse.json();
     console.log('Successfully created record:', createdRecord.id);
+
+    // Step 2: Update the status to "Start Research" to trigger automation
+    if (availableFields.has('Status')) {
+      console.log('Step 2: Updating status to "Start Research" to trigger automation...');
+      const updateResponse = await fetch(`https://api.airtable.com/v0/${baseId}/${pSEOTable.id}/${createdRecord.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${airtableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fields: { Status: 'Start Research' } }),
+      });
+
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        console.error('Airtable status update error:', errorText);
+        // Record was created, but status update failed - still return success with warning
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            record: createdRecord, 
+            warning: 'Record created but status update failed',
+            statusUpdateError: errorText 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const updatedRecord = await updateResponse.json();
+      console.log('Successfully updated status to Start Research');
+      
+      return new Response(
+        JSON.stringify({ success: true, record: updatedRecord }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     return new Response(
       JSON.stringify({ success: true, record: createdRecord }),
