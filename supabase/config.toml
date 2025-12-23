@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.setup-subaccount-airtable]
 verify_jwt = true
+
+[functions.get-airtable-field-options]
+verify_jwt = true
