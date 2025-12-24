@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Search, ArrowRightLeft, Eye, Trash2, Building2 } from "lucide-react";
+import { Search, ArrowRightLeft, Eye, Trash2, Building2, ArrowUpCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DeleteSubaccountDialog } from "@/components/DeleteSubaccountDialog";
@@ -51,6 +51,12 @@ interface Agency {
   is_main: boolean;
 }
 
+interface SubaccountUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+}
+
 export default function Subaccounts() {
   const [subaccounts, setSubaccounts] = useState<Subaccount[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
@@ -68,6 +74,15 @@ export default function Subaccounts() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [subaccountToDelete, setSubaccountToDelete] = useState<Subaccount | null>(null);
 
+  // Upgrade dialog state
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const [upgradeSubaccount, setUpgradeSubaccount] = useState<Subaccount | null>(null);
+  const [upgradeUser, setUpgradeUser] = useState<SubaccountUser | null>(null);
+  const [upgradeAgencyName, setUpgradeAgencyName] = useState("");
+  const [upgradeAgencySlug, setUpgradeAgencySlug] = useState("");
+  const [upgrading, setUpgrading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -76,7 +91,6 @@ export default function Subaccounts() {
     try {
       setLoading(true);
       
-      // Fetch subaccounts with agency info
       const { data: subaccountsData, error: subaccountsError } = await supabase
         .from("subaccounts")
         .select(`
@@ -87,7 +101,6 @@ export default function Subaccounts() {
 
       if (subaccountsError) throw subaccountsError;
       
-      // Fetch all agencies for filter and transfer
       const { data: agenciesData, error: agenciesError } = await supabase
         .from("agencies")
         .select("id, name, is_main")
@@ -117,7 +130,6 @@ export default function Subaccounts() {
     try {
       setTransferring(true);
       
-      // Direct transfer by super admin - update subaccount's agency_id
       const { error } = await supabase
         .from("subaccounts")
         .update({ agency_id: targetAgencyId })
@@ -140,6 +152,68 @@ export default function Subaccounts() {
   const handleDeleteClick = (subaccount: Subaccount) => {
     setSubaccountToDelete(subaccount);
     setIsDeleteOpen(true);
+  };
+
+  const handleUpgradeClick = async (subaccount: Subaccount) => {
+    setUpgradeSubaccount(subaccount);
+    setUpgradeAgencyName("");
+    setUpgradeAgencySlug("");
+    setUpgradeUser(null);
+    setIsUpgradeOpen(true);
+    
+    // Find the owner of this subaccount
+    setLoadingUsers(true);
+    try {
+      const { data: users, error } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .eq("sub_account_id", subaccount.id)
+        .limit(1);
+      
+      if (error) throw error;
+      if (users && users.length > 0) {
+        setUpgradeUser(users[0]);
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  };
+
+  const handleUpgrade = async () => {
+    if (!upgradeSubaccount || !upgradeUser || !upgradeAgencyName || !upgradeAgencySlug) return;
+    
+    try {
+      setUpgrading(true);
+      
+      const { data, error } = await supabase.functions.invoke("upgrade-to-agency", {
+        body: {
+          userId: upgradeUser.id,
+          agencyName: upgradeAgencyName,
+          agencySlug: upgradeAgencySlug,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      toast.success(`User upgraded to agency "${upgradeAgencyName}" successfully!`);
+      setIsUpgradeOpen(false);
+      fetchData();
+    } catch (error: any) {
+      console.error("Upgrade error:", error);
+      toast.error(error.message || "Failed to upgrade user");
+    } finally {
+      setUpgrading(false);
+    }
   };
 
   const filteredSubaccounts = subaccounts.filter(sub => {
@@ -248,6 +322,14 @@ export default function Subaccounts() {
                           Transfer
                         </Button>
                         <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleUpgradeClick(subaccount)}
+                        >
+                          <ArrowUpCircle className="h-4 w-4 mr-1" />
+                          Upgrade
+                        </Button>
+                        <Button 
                           variant="destructive" 
                           size="sm"
                           onClick={() => handleDeleteClick(subaccount)}
@@ -311,6 +393,86 @@ export default function Subaccounts() {
               disabled={!targetAgencyId || transferring}
             >
               {transferring ? "Transferring..." : "Transfer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upgrade to Agency Dialog */}
+      <Dialog open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upgrade to Agency</DialogTitle>
+            <DialogDescription>
+              Create a new agency for the owner of "{upgradeSubaccount?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {loadingUsers ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : !upgradeUser ? (
+              <div className="text-center py-4 text-muted-foreground">
+                No user found for this subaccount
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>User to Upgrade</Label>
+                  <div className="p-3 bg-muted rounded-md">
+                    <p className="font-medium">{upgradeUser.full_name || "No name"}</p>
+                    <p className="text-sm text-muted-foreground">{upgradeUser.email}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="agencyName">New Agency Name</Label>
+                  <Input
+                    id="agencyName"
+                    value={upgradeAgencyName}
+                    onChange={(e) => {
+                      setUpgradeAgencyName(e.target.value);
+                      setUpgradeAgencySlug(generateSlug(e.target.value));
+                    }}
+                    placeholder="User's Agency"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="agencySlug">Agency Slug</Label>
+                  <Input
+                    id="agencySlug"
+                    value={upgradeAgencySlug}
+                    onChange={(e) => setUpgradeAgencySlug(e.target.value)}
+                    placeholder="users-agency"
+                  />
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  The user will become an agency admin while retaining access to their original subaccount.
+                </p>
+              </>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUpgradeOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpgrade} 
+              disabled={!upgradeUser || !upgradeAgencyName || !upgradeAgencySlug || upgrading}
+            >
+              {upgrading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Upgrading...
+                </>
+              ) : (
+                "Upgrade to Agency"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
