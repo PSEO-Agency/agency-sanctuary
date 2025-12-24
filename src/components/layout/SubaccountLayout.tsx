@@ -37,17 +37,17 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
             <img src={logo} alt="PSEO Builder" className="h-8" />
           </div>
           
-          {/* Search Bar */}
-          <div className="flex-1 max-w-xl">
-            <div className="relative">
+          {/* Search Bar - Hidden on mobile */}
+          <div className="hidden md:flex flex-1 max-w-xl">
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input type="search" placeholder="Search..." className="pl-10" />
             </div>
           </div>
 
           {/* Right Side Actions */}
-          <div className="flex items-center gap-4 ml-auto">
-            <div className="px-4 py-2 bg-success/10 text-success rounded-full font-medium text-sm">
+          <div className="flex items-center gap-2 md:gap-4 ml-auto">
+            <div className="px-3 md:px-4 py-2 bg-success/10 text-success rounded-full font-medium text-sm whitespace-nowrap">
               50 credits
             </div>
 
