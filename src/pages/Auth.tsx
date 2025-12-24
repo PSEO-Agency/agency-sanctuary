@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,12 +22,15 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
-  const { signIn, signUp, signInWithGoogle, resetPassword, updatePassword, user, profile } = useAuth();
+  const { signIn, signUp, signInWithGoogle, resetPassword, updatePassword, user, profile, loading } = useAuth();
   const navigate = useNavigate();
+  
+  // Prevent redirect loops
+  const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
     if (searchParams.get("mode") === "reset") {
@@ -36,30 +39,45 @@ export default function Auth() {
   }, [searchParams]);
 
   useEffect(() => {
+    // Don't redirect while still loading auth state
+    if (loading) return;
+    
+    // Prevent multiple redirects
+    if (hasRedirectedRef.current) return;
+    
     if (user && profile) {
+      hasRedirectedRef.current = true;
+      
       // Super admins skip onboarding and go directly to super admin dashboard
       if (profile.role === "super_admin") {
-        navigate("/super-admin");
+        navigate("/super-admin", { replace: true });
         return;
       }
       
       // For other roles, check if onboarding is completed
       if (!profile.onboarding_completed) {
-        navigate("/onboarding");
+        navigate("/onboarding", { replace: true });
         return;
       }
       
       switch (profile.role) {
         case "sub_account_user":
-          navigate(`/subaccount/${profile.sub_account_id}/launchpad`);
+          navigate(`/subaccount/${profile.sub_account_id}/launchpad`, { replace: true });
           break;
         case "agency_admin":
         default:
-          navigate(`/agency/${profile.agency_id}`);
+          navigate(`/agency/${profile.agency_id}`, { replace: true });
           break;
       }
     }
-  }, [user, profile, navigate]);
+  }, [user, profile, loading, navigate]);
+
+  // Reset redirect flag when user signs out
+  useEffect(() => {
+    if (!user && !loading) {
+      hasRedirectedRef.current = false;
+    }
+  }, [user, loading]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -99,7 +117,7 @@ export default function Auth() {
     
     if (mode !== "forgot" && !validateForm()) return;
     
-    setLoading(true);
+    setFormLoading(true);
 
     try {
       switch (mode) {
@@ -122,7 +140,7 @@ export default function Auth() {
     } catch (error: any) {
       toast.error(error.message || "An error occurred");
     } finally {
-      setLoading(false);
+      setFormLoading(false);
     }
   };
 
@@ -154,8 +172,8 @@ export default function Auth() {
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
+            <Button type="submit" className="w-full" disabled={formLoading}>
+              {formLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Sending...
@@ -218,8 +236,8 @@ export default function Auth() {
               </div>
               {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
+            <Button type="submit" className="w-full" disabled={formLoading}>
+              {formLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Updating...
@@ -302,8 +320,8 @@ export default function Auth() {
               </div>
               {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
+            <Button type="submit" className="w-full" disabled={formLoading}>
+              {formLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Please wait
@@ -380,6 +398,15 @@ export default function Auth() {
         return "Sign in to your account to continue";
     }
   };
+
+  // Show loading spinner while checking auth state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-secondary/30 via-background to-primary/5">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-secondary/30 via-background to-primary/5">
