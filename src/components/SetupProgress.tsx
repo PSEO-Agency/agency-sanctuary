@@ -249,7 +249,7 @@ export function SetupProgress({ subaccountId, subaccountName, onSetupComplete }:
       </div>
       
       <p className="text-xs text-muted-foreground mt-3">
-        {status === 'in_progress' && 'Creating your Airtable workspace...'}
+        {status === 'in_progress' && 'Creating your workspace...'}
         {status === 'retrying' && 'Reconnecting to setup service...'}
         {status === 'checking' && 'Verifying configuration...'}
       </p>
