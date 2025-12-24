@@ -22,7 +22,7 @@ interface SubaccountLayoutProps {
 }
 
 export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutProps) {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, hasRole } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -69,7 +69,7 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {profile?.role === 'super_admin' && (
+                {hasRole('super_admin') && (
                   <>
                     <DropdownMenuItem onClick={() => navigate('/super-admin')}>
                       <ShieldCheck className="h-4 w-4 mr-2" />
