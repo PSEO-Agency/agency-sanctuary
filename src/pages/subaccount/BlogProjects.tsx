@@ -11,6 +11,7 @@ import { Plus, Loader2, Search, Filter, LayoutList, LayoutGrid } from "lucide-re
 import { ArticlesTable } from "@/components/articles/ArticlesTable";
 import { CreateArticleDialog } from "@/components/articles/CreateArticleDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SetupProgress } from "@/components/SetupProgress";
 
 interface BlogProject {
   id: string;
@@ -24,6 +25,7 @@ interface BlogProject {
 
 interface Subaccount {
   id: string;
+  name: string;
   airtable_base_id: string | null;
 }
 
@@ -128,7 +130,7 @@ export default function BlogProjects() {
     // Fetch subaccount to get the airtable_base_id
     const { data: subaccountData, error: subaccountError } = await supabase
       .from('subaccounts')
-      .select('id, airtable_base_id')
+      .select('id, name, airtable_base_id')
       .eq('id', subaccountId)
       .single();
     
@@ -361,12 +363,13 @@ export default function BlogProjects() {
         </div>
       </div>
 
-      {/* Pending Setup Warning */}
-      {!hasAirtableBase && (
-        <div className="text-center py-12 border rounded-lg bg-muted/30">
-          <p className="text-muted-foreground mb-2">Your account setup is still in progress.</p>
-          <p className="text-sm text-muted-foreground">Please contact support if this persists.</p>
-        </div>
+      {/* Setup Progress */}
+      {!hasAirtableBase && subaccount && (
+        <SetupProgress 
+          subaccountId={subaccountId!}
+          subaccountName={subaccount.name}
+          onSetupComplete={fetchSubaccountAndProjects}
+        />
       )}
 
       {/* Filter Bar */}
