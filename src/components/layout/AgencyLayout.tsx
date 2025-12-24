@@ -21,7 +21,7 @@ interface AgencyLayoutProps {
 }
 
 export function AgencyLayout({ children, agencyId }: AgencyLayoutProps) {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, hasRole } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -60,7 +60,7 @@ export function AgencyLayout({ children, agencyId }: AgencyLayoutProps) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {profile?.role === 'super_admin' && (
+                {hasRole('super_admin') && (
                   <>
                     <DropdownMenuItem onClick={() => navigate('/super-admin')}>
                       <ShieldCheck className="h-4 w-4 mr-2" />
