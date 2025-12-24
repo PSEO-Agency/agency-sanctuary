@@ -44,3 +44,27 @@ verify_jwt = true
 
 [functions.invite-team-member]
 verify_jwt = true
+
+[functions.create-agency-invite]
+verify_jwt = true
+
+[functions.accept-agency-invite]
+verify_jwt = false
+
+[functions.invite-subaccount-client]
+verify_jwt = true
+
+[functions.accept-subaccount-invite]
+verify_jwt = false
+
+[functions.upgrade-to-agency]
+verify_jwt = true
+
+[functions.create-transfer-request]
+verify_jwt = true
+
+[functions.handle-transfer-request]
+verify_jwt = true
+
+[functions.invite-agency-member]
+verify_jwt = true

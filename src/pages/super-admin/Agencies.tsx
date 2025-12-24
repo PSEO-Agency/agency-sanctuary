@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, LogIn, Search } from "lucide-react";
+import { Plus, LogIn, Search, Link, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -32,16 +32,32 @@ interface Agency {
   owner_user_id: string | null;
 }
 
+interface Invite {
+  id: string;
+  token: string;
+  email: string | null;
+  status: string;
+  expires_at: string;
+  created_at: string;
+}
+
 export default function Agencies() {
   const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [newAgency, setNewAgency] = useState({ name: "", slug: "" });
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [generatedLink, setGeneratedLink] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const { impersonateUser } = useAuth();
 
   useEffect(() => {
     fetchAgencies();
+    fetchInvites();
   }, []);
 
   const fetchAgencies = async () => {
@@ -58,6 +74,22 @@ export default function Agencies() {
       toast.error("Failed to fetch agencies");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInvites = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("agency_invites")
+        .select("*")
+        .eq("invite_type", "agency")
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setInvites(data || []);
+    } catch (error) {
+      console.error("Error fetching invites:", error);
     }
   };
 
@@ -78,9 +110,35 @@ export default function Agencies() {
     }
   };
 
+  const handleGenerateInvite = async () => {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-agency-invite", {
+        body: { email: inviteEmail || undefined },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setGeneratedLink(data.inviteUrl);
+      toast.success("Invite link generated!");
+      fetchInvites();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to generate invite");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    await navigator.clipboard.writeText(generatedLink);
+    setCopied(true);
+    toast.success("Link copied to clipboard!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleLoginAs = async (agencyId: string) => {
     try {
-      // Find the agency owner or any admin user for this agency
       const { data: users } = await supabase
         .from("profiles")
         .select("id")
@@ -113,45 +171,95 @@ export default function Agencies() {
           </p>
         </div>
         
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Agency
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Agency</DialogTitle>
-              <DialogDescription>
-                Add a new agency to the system
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Agency Name</Label>
-                <Input
-                  id="name"
-                  value={newAgency.name}
-                  onChange={(e) => setNewAgency({ ...newAgency, name: e.target.value })}
-                  placeholder="Acme Agency"
-                />
+        <div className="flex gap-2">
+          <Dialog open={isInviteOpen} onOpenChange={(open) => { setIsInviteOpen(open); if (!open) { setGeneratedLink(""); setInviteEmail(""); } }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Link className="mr-2 h-4 w-4" />
+                Generate Invite Link
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Generate Agency Invite Link</DialogTitle>
+                <DialogDescription>
+                  Create an invite link for a new agency owner to sign up
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="inviteEmail">Email (optional)</Label>
+                  <Input
+                    id="inviteEmail"
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="agency@example.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    If provided, only this email can use the invite link
+                  </p>
+                </div>
+                
+                {generatedLink ? (
+                  <div className="space-y-2">
+                    <Label>Invite Link</Label>
+                    <div className="flex gap-2">
+                      <Input value={generatedLink} readOnly className="text-xs" />
+                      <Button onClick={copyToClipboard} size="icon" variant="outline">
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button onClick={handleGenerateInvite} className="w-full" disabled={generating}>
+                    {generating ? "Generating..." : "Generate Link"}
+                  </Button>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="slug">Slug (unique identifier)</Label>
-                <Input
-                  id="slug"
-                  value={newAgency.slug}
-                  onChange={(e) => setNewAgency({ ...newAgency, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                  placeholder="acme-agency"
-                />
-              </div>
-              <Button onClick={handleCreateAgency} className="w-full">
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
                 Create Agency
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Agency</DialogTitle>
+                <DialogDescription>
+                  Add a new agency to the system (without owner)
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Agency Name</Label>
+                  <Input
+                    id="name"
+                    value={newAgency.name}
+                    onChange={(e) => setNewAgency({ ...newAgency, name: e.target.value })}
+                    placeholder="Acme Agency"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="slug">Slug</Label>
+                  <Input
+                    id="slug"
+                    value={newAgency.slug}
+                    onChange={(e) => setNewAgency({ ...newAgency, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                    placeholder="acme-agency"
+                  />
+                </div>
+                <Button onClick={handleCreateAgency} className="w-full">
+                  Create Agency
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -181,34 +289,22 @@ export default function Agencies() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
-                    Loading...
-                  </TableCell>
+                  <TableCell colSpan={4} className="text-center">Loading...</TableCell>
                 </TableRow>
               ) : filteredAgencies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
-                    No agencies found
-                  </TableCell>
+                  <TableCell colSpan={4} className="text-center">No agencies found</TableCell>
                 </TableRow>
               ) : (
                 filteredAgencies.map((agency) => (
                   <TableRow key={agency.id}>
                     <TableCell className="font-medium">{agency.name}</TableCell>
                     <TableCell>{agency.slug}</TableCell>
-                    <TableCell>
-                      {new Date(agency.created_at).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell>{new Date(agency.created_at).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          Manage
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleLoginAs(agency.id)}
-                        >
+                        <Button variant="outline" size="sm">Manage</Button>
+                        <Button variant="secondary" size="sm" onClick={() => handleLoginAs(agency.id)}>
                           <LogIn className="mr-2 h-4 w-4" />
                           Login As
                         </Button>
