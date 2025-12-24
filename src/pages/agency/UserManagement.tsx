@@ -27,14 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, Loader2, Mail } from "lucide-react";
 
 interface User {
   id: string;
   email: string;
-  full_name: string;
-  role: string;
+  full_name: string | null;
+  role: string | null;
   created_at: string;
 }
 
@@ -42,9 +43,10 @@ export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("sub_account_user");
+  const [role, setRole] = useState<"agency_admin" | "sub_account_user">("sub_account_user");
   const { profile } = useAuth();
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export function UserManagement() {
     setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, role, created_at')
       .eq('agency_id', profile?.agency_id)
       .order('created_at', { ascending: false });
 
@@ -72,28 +74,65 @@ export function UserManagement() {
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // In a real app, you'd send an invitation email
-    // For now, we'll create a placeholder profile
-    toast.success("User invitation sent! (Feature in development)");
-    setOpen(false);
-    setEmail("");
-    setFullName("");
-    setRole("sub_account_user");
+    if (!email || !fullName) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setInviting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("invite-agency-member", {
+        body: { email, fullName, role },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(data?.message || "Invitation sent successfully!");
+      setOpen(false);
+      setEmail("");
+      setFullName("");
+      setRole("sub_account_user");
+      fetchUsers();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send invitation");
+    } finally {
+      setInviting(false);
+    }
   };
 
   const handleDeleteUser = async (userId: string) => {
+    if (userId === profile?.id) {
+      toast.error("You cannot remove yourself");
+      return;
+    }
+    
     if (!confirm("Are you sure you want to remove this user?")) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ agency_id: null })
+        .eq('id', userId);
 
-    if (error) {
-      toast.error("Failed to remove user");
-    } else {
+      if (error) throw error;
       toast.success("User removed successfully");
       fetchUsers();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to remove user");
+    }
+  };
+
+  const getRoleBadge = (role: string | null) => {
+    switch (role) {
+      case "super_admin":
+        return <Badge variant="destructive">Super Admin</Badge>;
+      case "agency_admin":
+        return <Badge variant="default">Agency Admin</Badge>;
+      case "sub_account_user":
+        return <Badge variant="secondary">Team Member</Badge>;
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
     }
   };
 
@@ -126,6 +165,7 @@ export function UserManagement() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="team@example.com"
                   required
                 />
               </div>
@@ -135,23 +175,34 @@ export function UserManagement() {
                   id="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  placeholder="John Doe"
                   required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
-                <Select value={role} onValueChange={setRole}>
+                <Select value={role} onValueChange={(v: "agency_admin" | "sub_account_user") => setRole(v)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="agency_admin">Agency Admin</SelectItem>
-                    <SelectItem value="sub_account_user">Subaccount User</SelectItem>
+                    <SelectItem value="sub_account_user">Team Member</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" className="w-full">
-                Send Invitation
+              <Button type="submit" className="w-full" disabled={inviting}>
+                {inviting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Send Invitation
+                  </>
+                )}
               </Button>
             </form>
           </DialogContent>
@@ -172,22 +223,27 @@ export function UserManagement() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
-                  Loading...
+                <TableCell colSpan={5} className="text-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   No team members yet
                 </TableCell>
               </TableRow>
             ) : (
               users.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.full_name}</TableCell>
+                  <TableCell className="font-medium">
+                    {user.full_name || "—"}
+                    {user.id === profile?.id && (
+                      <Badge variant="outline" className="ml-2">You</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{user.email}</TableCell>
-                  <TableCell className="capitalize">{user.role?.replace('_', ' ')}</TableCell>
+                  <TableCell>{getRoleBadge(user.role)}</TableCell>
                   <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <Button

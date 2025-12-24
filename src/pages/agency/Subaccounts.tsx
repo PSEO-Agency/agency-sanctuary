@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, LogIn, Search, ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, LogIn, Search, ExternalLink, Loader2, RefreshCw, Trash2, Link, Copy, Check, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ export default function Subaccounts() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [retryingSetup, setRetryingSetup] = useState<string | null>(null);
   const [newSubaccount, setNewSubaccount] = useState({ 
@@ -63,6 +64,12 @@ export default function Subaccounts() {
     businessDetails: {} as BusinessDetails
   });
   const { impersonateUser } = useAuth();
+  
+  // Invite state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [generatedLink, setGeneratedLink] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
   
   // Delete dialog state
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -218,6 +225,32 @@ export default function Subaccounts() {
     subaccount.location_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleGenerateClientInvite = async () => {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("invite-subaccount-client", {
+        body: { email: inviteEmail || undefined },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setGeneratedLink(data.inviteUrl);
+      toast.success("Invite link generated!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to generate invite");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    await navigator.clipboard.writeText(generatedLink);
+    setCopied(true);
+    toast.success("Link copied to clipboard!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -228,14 +261,66 @@ export default function Subaccounts() {
           </p>
         </div>
         
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Sub-account
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div className="flex gap-2">
+          <Dialog open={isInviteOpen} onOpenChange={(open) => { setIsInviteOpen(open); if (!open) { setGeneratedLink(""); setInviteEmail(""); } }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Invite Client
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Invite Client</DialogTitle>
+                <DialogDescription>
+                  Generate an invite link for a new client to create their own sub-account
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="inviteEmail">Email (optional)</Label>
+                  <Input
+                    id="inviteEmail"
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="client@example.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    If provided, only this email can use the invite link
+                  </p>
+                </div>
+                
+                {generatedLink ? (
+                  <div className="space-y-2">
+                    <Label>Invite Link</Label>
+                    <div className="flex gap-2">
+                      <Input value={generatedLink} readOnly className="text-xs" />
+                      <Button onClick={copyToClipboard} size="icon" variant="outline">
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Share this link with your client. It expires in 7 days.
+                    </p>
+                  </div>
+                ) : (
+                  <Button onClick={handleGenerateClientInvite} className="w-full" disabled={generating}>
+                    {generating ? "Generating..." : "Generate Invite Link"}
+                  </Button>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Sub-account
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Sub-account</DialogTitle>
               <DialogDescription>
@@ -377,6 +462,7 @@ export default function Subaccounts() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>
