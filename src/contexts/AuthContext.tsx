@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -17,7 +17,7 @@ interface UserProfile {
   email: string;
   full_name: string | null;
   avatar_url: string | null;
-  role: AppRole; // Primary role (from profiles table for backwards compatibility)
+  role: AppRole;
   agency_id: string | null;
   sub_account_id: string | null;
   onboarding_completed?: boolean;
@@ -33,7 +33,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
-  roles: UserRole[]; // All user roles from user_roles table
+  roles: UserRole[];
   loading: boolean;
   impersonation: ImpersonationState | null;
   signIn: (email: string, password: string) => Promise<void>;
@@ -50,6 +50,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_TIMEOUT_MS = 15000; // 15 seconds timeout for fetching profile/roles
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -58,48 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [impersonation, setImpersonation] = useState<ImpersonationState | null>(null);
   const navigate = useNavigate();
+  
+  // Refs to prevent race conditions and duplicate processing
+  const initializedRef = useRef(false);
+  const processingAuthRef = useRef(false);
+  const lastProcessedUserIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const storedImpersonation = localStorage.getItem('impersonation');
-    if (storedImpersonation) {
-      setImpersonation(JSON.parse(storedImpersonation));
-    }
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-            fetchUserRoles(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-          setRoles([]);
-        }
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        Promise.all([
-          fetchUserProfile(session.user.id),
-          fetchUserRoles(session.user.id)
-        ]).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -108,13 +75,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) throw error;
-      setProfile(data);
+      return data;
     } catch (error) {
       console.error("Error fetching user profile:", error);
+      return null;
     }
-  };
+  }, []);
 
-  const fetchUserRoles = async (userId: string) => {
+  const fetchUserRoles = useCallback(async (userId: string): Promise<UserRole[]> => {
     try {
       const { data, error } = await supabase
         .from("user_roles")
@@ -122,33 +90,157 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("user_id", userId);
 
       if (error) throw error;
-      // Cast to UserRole[] since the context_type is a constrained enum in DB
-      setRoles((data as UserRole[]) || []);
+      return (data as UserRole[]) || [];
     } catch (error) {
       console.error("Error fetching user roles:", error);
+      return [];
     }
-  };
+  }, []);
 
-  const hasRole = (role: AppRole): boolean => {
+  // Handle user data loading with timeout
+  const loadUserData = useCallback(async (userId: string) => {
+    // Prevent duplicate processing for the same user
+    if (processingAuthRef.current && lastProcessedUserIdRef.current === userId) {
+      return;
+    }
+    
+    processingAuthRef.current = true;
+    lastProcessedUserIdRef.current = userId;
+
+    try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Auth timeout')), AUTH_TIMEOUT_MS);
+      });
+
+      // Race between data fetching and timeout
+      const [profileData, rolesData] = await Promise.race([
+        Promise.all([
+          fetchUserProfile(userId),
+          fetchUserRoles(userId)
+        ]),
+        timeoutPromise
+      ]) as [UserProfile | null, UserRole[]];
+
+      setProfile(profileData);
+      setRoles(rolesData);
+    } catch (error) {
+      console.error("Error loading user data:", error);
+      // On timeout or error, still set loading to false to prevent stuck state
+      setProfile(null);
+      setRoles([]);
+    } finally {
+      processingAuthRef.current = false;
+      setLoading(false);
+    }
+  }, [fetchUserProfile, fetchUserRoles]);
+
+  // Handle visibility change for mobile backgrounding
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        // Refresh session when app comes back to foreground
+        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+          if (currentSession?.user && currentSession.user.id !== lastProcessedUserIdRef.current) {
+            setSession(currentSession);
+            setUser(currentSession.user);
+            loadUserData(currentSession.user.id);
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user, loadUserData]);
+
+  useEffect(() => {
+    // Prevent double initialization in React StrictMode
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    const storedImpersonation = localStorage.getItem('impersonation');
+    if (storedImpersonation) {
+      try {
+        setImpersonation(JSON.parse(storedImpersonation));
+      } catch {
+        localStorage.removeItem('impersonation');
+      }
+    }
+
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        // Only process if this is a meaningful change
+        const newUserId = currentSession?.user?.id ?? null;
+        const currentUserId = lastProcessedUserIdRef.current;
+        
+        // Handle sign out
+        if (event === 'SIGNED_OUT' || !currentSession) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setRoles([]);
+          lastProcessedUserIdRef.current = null;
+          setLoading(false);
+          return;
+        }
+
+        // Handle sign in or token refresh
+        if (currentSession?.user) {
+          setSession(currentSession);
+          setUser(currentSession.user);
+          
+          // Only fetch user data if it's a new user or explicit sign in
+          if (event === 'SIGNED_IN' || newUserId !== currentUserId) {
+            // Use setTimeout to avoid potential deadlock with Supabase
+            setTimeout(() => {
+              loadUserData(currentSession.user.id);
+            }, 0);
+          }
+        }
+      }
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      if (existingSession?.user) {
+        setSession(existingSession);
+        setUser(existingSession.user);
+        loadUserData(existingSession.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadUserData]);
+
+  const hasRole = useCallback((role: AppRole): boolean => {
     return roles.some(r => r.role === role);
-  };
+  }, [roles]);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
-      await fetchUserProfile(user.id);
+      const profileData = await fetchUserProfile(user.id);
+      if (profileData) {
+        setProfile(profileData);
+      }
     }
-  };
+  }, [user, fetchUserProfile]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) throw error;
-  };
+  }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -157,10 +249,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (error) throw error;
-  };
+  }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase.auth.signUp({
+  const signUp = useCallback(async (email: string, password: string, fullName: string) => {
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -173,41 +265,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (error) throw error;
     
-    // Don't create agency here - it will be created during onboarding
-    // The profile is created automatically via the database trigger
-    
     toast.success("Account created! You can now sign in.");
-  };
+  }, []);
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = useCallback(async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth?mode=reset`,
     });
 
     if (error) throw error;
     toast.success("Password reset email sent! Check your inbox.");
-  };
+  }, []);
 
-  const updatePassword = async (newPassword: string) => {
+  const updatePassword = useCallback(async (newPassword: string) => {
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });
 
     if (error) throw error;
     toast.success("Password updated successfully!");
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     localStorage.removeItem('impersonation');
     setImpersonation(null);
     
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setProfile(null);
+    setRoles([]);
+    lastProcessedUserIdRef.current = null;
     navigate("/auth");
-  };
+  }, [navigate]);
 
-  const impersonateUser = async (targetUserId: string) => {
+  const impersonateUser = useCallback(async (targetUserId: string) => {
     if (!profile) return;
 
     const impersonationState: ImpersonationState = {
@@ -219,11 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('impersonation', JSON.stringify(impersonationState));
     setImpersonation(impersonationState);
 
-    const { data: targetProfile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", targetUserId)
-      .single();
+    const targetProfile = await fetchUserProfile(targetUserId);
 
     if (targetProfile) {
       setProfile(targetProfile);
@@ -241,16 +328,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           break;
       }
     }
-  };
+  }, [profile, fetchUserProfile, navigate]);
 
-  const stopImpersonation = async () => {
+  const stopImpersonation = useCallback(async () => {
     if (!impersonation) return;
 
-    const { data: originalProfile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", impersonation.originalUserId)
-      .single();
+    const originalProfile = await fetchUserProfile(impersonation.originalUserId);
 
     if (originalProfile) {
       setProfile(originalProfile);
@@ -267,7 +350,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           break;
       }
     }
-  };
+  }, [impersonation, fetchUserProfile, navigate]);
 
   return (
     <AuthContext.Provider
