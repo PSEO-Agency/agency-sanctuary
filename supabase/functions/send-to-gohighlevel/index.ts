@@ -29,6 +29,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Allow test requests with special header
+  const isTestRequest = req.headers.get("x-test-request") === "true";
+
   try {
     logStep("Function started");
 
