@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { SubaccountSidebar } from "@/components/SubaccountSidebar";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { TrialStatusWidget } from "@/components/TrialStatusWidget";
 import { Bell, Search, User, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,9 +48,8 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
 
           {/* Right Side Actions */}
           <div className="flex items-center gap-2 md:gap-4 ml-auto">
-            <div className="px-3 md:px-4 py-2 bg-success/10 text-success rounded-full font-medium text-sm whitespace-nowrap">
-              50 credits
-            </div>
+            {/* Trial Status Widget */}
+            <TrialStatusWidget subaccountId={subaccountId} />
 
             <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />

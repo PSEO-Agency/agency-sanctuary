@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
@@ -22,6 +23,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -126,7 +128,7 @@ export default function Auth() {
           toast.success("Signed in successfully!");
           break;
         case "signup":
-          await signUp(email, password, fullName);
+          await signUp(email, password, fullName, { marketing_consent: marketingConsent });
           break;
         case "forgot":
           await resetPassword(email);
@@ -320,6 +322,29 @@ export default function Auth() {
               </div>
               {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
             </div>
+            
+            {mode === "signup" && (
+              <div className="flex items-start space-x-3 py-2">
+                <Checkbox
+                  id="marketingConsent"
+                  checked={marketingConsent}
+                  onCheckedChange={(checked) => setMarketingConsent(checked as boolean)}
+                  className="mt-0.5"
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="marketingConsent"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Keep me updated
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    I agree to receive tips, product updates, and promotional emails from PSEO. You can unsubscribe anytime.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             <Button type="submit" className="w-full" disabled={formLoading}>
               {formLoading ? (
                 <>
