@@ -51,8 +51,6 @@ export function SubaccountSwitcher({ subaccountId }: SubaccountSwitcherProps) {
   };
 
   const fetchSubaccounts = async () => {
-    const { user } = useAuth;
-    
     // Fetch subaccounts from user's agency (if they're an agency admin)
     let agencySubaccounts: Subaccount[] = [];
     if (profile?.agency_id) {
