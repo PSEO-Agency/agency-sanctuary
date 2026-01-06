@@ -51,16 +51,58 @@ export function SubaccountSwitcher({ subaccountId }: SubaccountSwitcherProps) {
   };
 
   const fetchSubaccounts = async () => {
-    if (!profile?.agency_id) return;
-    const { data } = await supabase
-      .from('subaccounts')
-      .select('id, name')
-      .eq('agency_id', profile.agency_id)
-      .order('name');
+    const { user } = useAuth;
     
-    if (data) {
-      setSubaccounts(data);
+    // Fetch subaccounts from user's agency (if they're an agency admin)
+    let agencySubaccounts: Subaccount[] = [];
+    if (profile?.agency_id) {
+      const { data } = await supabase
+        .from('subaccounts')
+        .select('id, name')
+        .eq('agency_id', profile.agency_id)
+        .order('name');
+      
+      if (data) {
+        agencySubaccounts = data;
+      }
     }
+
+    // Also fetch any subaccounts the user has explicit access to via user_roles
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (currentUser) {
+      const { data: roleEntries } = await supabase
+        .from('user_roles')
+        .select('context_id')
+        .eq('user_id', currentUser.id)
+        .eq('role', 'sub_account_user')
+        .eq('context_type', 'subaccount');
+
+      if (roleEntries && roleEntries.length > 0) {
+        const roleSubaccountIds = roleEntries
+          .map(r => r.context_id)
+          .filter((id): id is string => id !== null);
+
+        if (roleSubaccountIds.length > 0) {
+          const { data: roleSubaccounts } = await supabase
+            .from('subaccounts')
+            .select('id, name')
+            .in('id', roleSubaccountIds)
+            .order('name');
+
+          if (roleSubaccounts) {
+            // Merge and dedupe
+            const allIds = new Set(agencySubaccounts.map(s => s.id));
+            for (const sub of roleSubaccounts) {
+              if (!allIds.has(sub.id)) {
+                agencySubaccounts.push(sub);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    setSubaccounts(agencySubaccounts);
   };
 
   const handleOpenChange = (isOpen: boolean) => {
