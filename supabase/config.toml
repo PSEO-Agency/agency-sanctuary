@@ -70,7 +70,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.send-to-gohighlevel]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-trial-checkout]
 verify_jwt = true
