@@ -248,6 +248,8 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          marketing_consent: boolean | null
+          marketing_consent_date: string | null
           onboarding_completed: boolean | null
           role: Database["public"]["Enums"]["app_role"] | null
           sub_account_id: string | null
@@ -260,6 +262,8 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          marketing_consent?: boolean | null
+          marketing_consent_date?: string | null
           onboarding_completed?: boolean | null
           role?: Database["public"]["Enums"]["app_role"] | null
           sub_account_id?: string | null
@@ -272,6 +276,8 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          marketing_consent?: boolean | null
+          marketing_consent_date?: string | null
           onboarding_completed?: boolean | null
           role?: Database["public"]["Enums"]["app_role"] | null
           sub_account_id?: string | null
@@ -301,9 +307,15 @@ export type Database = {
           billing_period_start: string | null
           created_at: string | null
           id: string
+          is_trial: boolean | null
           other_credits: number | null
+          payment_method_added: boolean | null
           plan_id: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           subaccount_id: string
+          trial_ends_at: string | null
+          trial_started_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -312,9 +324,15 @@ export type Database = {
           billing_period_start?: string | null
           created_at?: string | null
           id?: string
+          is_trial?: boolean | null
           other_credits?: number | null
+          payment_method_added?: boolean | null
           plan_id: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subaccount_id: string
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -323,9 +341,15 @@ export type Database = {
           billing_period_start?: string | null
           created_at?: string | null
           id?: string
+          is_trial?: boolean | null
           other_credits?: number | null
+          payment_method_added?: boolean | null
           plan_id?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subaccount_id?: string
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string | null
         }
         Relationships: [
