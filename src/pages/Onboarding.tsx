@@ -133,12 +133,47 @@ export default function Onboarding() {
 
       if (error) throw error;
 
+      // Send to GoHighLevel for CRM
+      const marketingConsent = user.user_metadata?.marketing_consent ?? false;
+      try {
+        await supabase.functions.invoke('send-to-gohighlevel', {
+          body: {
+            email: user.email,
+            name: user.user_metadata?.full_name || user.email?.split('@')[0],
+            businessName: businessName,
+            industry: data.industry,
+            phone: data.phone,
+            website: data.website,
+            companySize: data.companySize,
+            city: data.city,
+            country: data.country,
+            marketingConsent: marketingConsent,
+            subaccountId: subaccountId,
+          },
+        });
+      } catch (ghlError) {
+        // Don't block onboarding if GHL fails
+        console.error("Failed to send to GHL:", ghlError);
+      }
+
+      // Update profile with marketing consent
+      if (marketingConsent) {
+        await supabase
+          .from('profiles')
+          .update({
+            marketing_consent: true,
+            marketing_consent_date: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+      }
+
       await refreshProfile();
       toast.success("Welcome to PSEO Builder!");
       navigate(`/subaccount/${subaccountId}/launchpad`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Onboarding error:", error);
-      toast.error(error.message || "Failed to complete onboarding");
+      const message = error instanceof Error ? error.message : "Failed to complete onboarding";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
