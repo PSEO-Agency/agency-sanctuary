@@ -53,16 +53,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Upgrading user to agency:", { userId, agencyName, agencySlug });
 
-    // Get the target user's current profile
+    // Get the target user's current profile including their original subaccount
     const { data: targetProfile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("*")
+      .select("*, sub_account_id")
       .eq("id", userId)
       .single();
 
     if (profileError || !targetProfile) {
       throw new Error("User not found");
     }
+
+    const originalSubaccountId = targetProfile.sub_account_id;
+    console.log("Original subaccount ID:", originalSubaccountId);
 
     // Create the new agency
     const { data: agency, error: agencyError } = await supabaseAdmin
@@ -82,6 +85,41 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Agency created:", agency.id);
 
+    // If user had a subaccount, transfer it to the new agency
+    if (originalSubaccountId) {
+      const { error: transferError } = await supabaseAdmin
+        .from("subaccounts")
+        .update({ agency_id: agency.id })
+        .eq("id", originalSubaccountId);
+
+      if (transferError) {
+        console.error("Error transferring subaccount to new agency:", transferError);
+        // Continue anyway, subaccount will remain with old agency
+      } else {
+        console.log("Subaccount transferred to new agency:", originalSubaccountId);
+      }
+
+      // Add/upsert sub_account_user role for the original subaccount
+      const { error: subRoleError } = await supabaseAdmin
+        .from("user_roles")
+        .upsert({
+          user_id: userId,
+          role: "sub_account_user",
+          context_type: "subaccount",
+          context_id: originalSubaccountId,
+        }, {
+          onConflict: "user_id,role,context_id",
+          ignoreDuplicates: true,
+        });
+
+      if (subRoleError) {
+        console.error("Error creating sub_account_user role:", subRoleError);
+        // Don't throw, continue with upgrade
+      } else {
+        console.log("sub_account_user role preserved for:", originalSubaccountId);
+      }
+    }
+
     // Update the user's profile - keep sub_account_id for dual access, add new agency_id
     const { error: updateProfileError } = await supabaseAdmin
       .from("profiles")
@@ -96,7 +134,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw updateProfileError;
     }
 
-    // Add agency_admin role to user_roles (they may already have sub_account_user role)
+    // Add agency_admin role to user_roles
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
       .insert({
@@ -107,11 +145,11 @@ const handler = async (req: Request): Promise<Response> => {
       });
 
     if (roleError) {
-      console.error("Error creating user role:", roleError);
+      console.error("Error creating agency_admin role:", roleError);
       // Don't throw, profile role is sufficient
     }
 
-    console.log("User upgraded to agency successfully");
+    console.log("User upgraded to agency successfully with subaccount access preserved");
 
     return new Response(
       JSON.stringify({
