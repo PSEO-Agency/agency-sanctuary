@@ -300,6 +300,59 @@ export type Database = {
           },
         ]
       }
+      subaccount_knowledge_base: {
+        Row: {
+          ai_agent_prompt: string | null
+          brand_name: string | null
+          brand_voice: string | null
+          created_at: string | null
+          id: string
+          industry: string | null
+          key_differentiators: string | null
+          subaccount_id: string
+          system_prompt: string | null
+          tagline: string | null
+          target_audience: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_agent_prompt?: string | null
+          brand_name?: string | null
+          brand_voice?: string | null
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          key_differentiators?: string | null
+          subaccount_id: string
+          system_prompt?: string | null
+          tagline?: string | null
+          target_audience?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_agent_prompt?: string | null
+          brand_name?: string | null
+          brand_voice?: string | null
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          key_differentiators?: string | null
+          subaccount_id?: string
+          system_prompt?: string | null
+          tagline?: string | null
+          target_audience?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subaccount_knowledge_base_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: true
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subaccount_subscriptions: {
         Row: {
           articles_used: number | null

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Home, FolderKanban, FileText, BarChart3, Settings, Cog, Rocket, Send, MessageSquare } from "lucide-react";
+import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, MessageSquare, BookOpen } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -147,14 +147,14 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   };
 
   const mainNavItems = [
-    { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: Home },
+    { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: LayoutDashboard },
     { title: "Launchpad", url: `/subaccount/${subaccountId}/launchpad`, icon: Rocket },
+    { title: "Knowledge Base", url: `/subaccount/${subaccountId}/knowledge-base`, icon: BookOpen },
   ];
 
   const contentMachineItems = [
     { title: "Publishing", url: `/subaccount/${subaccountId}/wordpress`, icon: Send },
     { title: "Articles", url: `/subaccount/${subaccountId}/projects`, icon: FileText },
-    { title: "Automation Builder", url: `/subaccount/${subaccountId}/automation`, icon: Cog },
   ];
 
   const pseoBuilderItems = [
