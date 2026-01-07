@@ -146,11 +146,10 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
     return Math.max(1, diffWeeks);
   };
 
-  const launchpadItem = {
-    title: "Launchpad",
-    url: `/subaccount/${subaccountId}/launchpad`,
-    icon: Rocket,
-  };
+  const mainNavItems = [
+    { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: Home },
+    { title: "Launchpad", url: `/subaccount/${subaccountId}/launchpad`, icon: Rocket },
+  ];
 
   const contentMachineItems = [
     { title: "Publishing", url: `/subaccount/${subaccountId}/wordpress`, icon: Send },
@@ -159,7 +158,6 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   ];
 
   const pseoBuilderItems = [
-    { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: Home, disabled: true },
     { title: "Campaigns", url: `/subaccount/${subaccountId}/campaigns`, icon: FolderKanban, disabled: true },
     { title: "Reports", url: `/subaccount/${subaccountId}/reports`, icon: BarChart3, disabled: true },
   ];
@@ -191,21 +189,26 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
           </div>
         )}
 
-        {/* Launchpad Section */}
+        {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton 
-                  asChild 
-                  className={getMenuItemClassName(isRouteActive(launchpadItem.url))}
-                >
-                  <NavLink to={launchpadItem.url} end>
-                    <launchpadItem.icon className={getIconClassName(isRouteActive(launchpadItem.url))} />
-                    {!collapsed && <span>{launchpadItem.title}</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {mainNavItems.map((item) => {
+                const isActive = isRouteActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      asChild 
+                      className={getMenuItemClassName(isActive)}
+                    >
+                      <NavLink to={item.url} end>
+                        <item.icon className={getIconClassName(isActive)} />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
