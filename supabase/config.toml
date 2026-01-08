@@ -83,3 +83,9 @@ verify_jwt = true
 
 [functions.validate-invite-token]
 verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.test-ghl-webhooks]
+verify_jwt = false
