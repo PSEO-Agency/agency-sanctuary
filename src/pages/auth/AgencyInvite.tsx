@@ -37,19 +37,19 @@ export default function AgencyInvite() {
 
   const validateToken = async () => {
     try {
-      const { data, error } = await supabase
-        .from("agency_invites")
-        .select("*")
-        .eq("token", token)
-        .eq("invite_type", "agency")
-        .eq("status", "pending")
-        .single();
+      // Use edge function for secure token validation (no direct DB access)
+      const { data, error } = await supabase.functions.invoke("validate-invite-token", {
+        body: {
+          token,
+          inviteType: "agency",
+        },
+      });
 
-      if (error || !data) {
-        setTokenError("Invalid or expired invite link");
+      if (error) {
+        setTokenError("Failed to validate invite");
         setTokenValid(false);
-      } else if (new Date(data.expires_at) < new Date()) {
-        setTokenError("This invite link has expired");
+      } else if (!data?.valid) {
+        setTokenError(data?.error || "Invalid or expired invite link");
         setTokenValid(false);
       } else {
         setTokenValid(true);
