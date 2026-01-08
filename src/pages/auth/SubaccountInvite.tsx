@@ -54,23 +54,23 @@ export default function SubaccountInvite() {
 
   const validateToken = async () => {
     try {
-      const { data, error } = await supabase
-        .from("agency_invites")
-        .select("*, agency:agencies(name)")
-        .eq("token", token)
-        .eq("invite_type", "subaccount")
-        .eq("status", "pending")
-        .single();
+      // Use edge function for secure token validation (no direct DB access)
+      const { data, error } = await supabase.functions.invoke("validate-invite-token", {
+        body: {
+          token,
+          inviteType: "subaccount",
+        },
+      });
 
-      if (error || !data) {
-        setTokenError("Invalid or expired invite link");
+      if (error) {
+        setTokenError("Failed to validate invite");
         setTokenValid(false);
-      } else if (new Date(data.expires_at) < new Date()) {
-        setTokenError("This invite link has expired");
+      } else if (!data?.valid) {
+        setTokenError(data?.error || "Invalid or expired invite link");
         setTokenValid(false);
       } else {
         setTokenValid(true);
-        setAgencyName(data.agency?.name || "");
+        setAgencyName(data.agencyName || "");
         if (data.email) {
           setFormData(prev => ({ ...prev, email: data.email }));
         }
