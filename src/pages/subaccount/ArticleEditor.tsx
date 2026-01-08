@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import DOMPurify from "dompurify";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ChevronRight, 
@@ -289,7 +290,10 @@ export default function ArticleEditor() {
                 {/* Content - rendered as clean preview */}
                 <article 
                   className="prose prose-slate max-w-none"
-                  dangerouslySetInnerHTML={{ __html: convertContentToHTML(content) }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(convertContentToHTML(content), {
+                    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'br', 'span', 'div'],
+                    ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel']
+                  }) }}
                 />
               </div>
             )}
