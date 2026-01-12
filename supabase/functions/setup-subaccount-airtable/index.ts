@@ -46,7 +46,7 @@ serve(async (req) => {
         'X-PSEO-API-KEY': pseoApiKey,
       },
       body: JSON.stringify({
-        name: subaccountName,
+        name: `${subaccountName}_pseo_cm`,
       }),
     });
 
