@@ -266,7 +266,7 @@ export default function ArticleEditor() {
                   value="editor" 
                   className="px-4 py-2 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                 >
-                  Editor
+                  Article
                 </TabsTrigger>
                 <TabsTrigger 
                   value="seo" 
