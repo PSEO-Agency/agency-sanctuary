@@ -123,6 +123,13 @@ serve(async (req) => {
       addFieldIfExists('Language', fields.language);
     }
 
+    // Store creator info - try common field names
+    if (fields.createdByName) {
+      addFieldIfExists('Created By Name', fields.createdByName);
+      addFieldIfExists('Creator', fields.createdByName);
+      addFieldIfExists('Author Name', fields.createdByName);
+    }
+
     // Map configuration to individual Airtable fields
     if (fields.config) {
       const config = fields.config;

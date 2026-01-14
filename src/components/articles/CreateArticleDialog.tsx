@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Loader2, Settings2, Search, Link, Image, CheckCircle, Globe, Sparkles } from "lucide-react";
 import { ArticleStatusTracker } from "./ArticleStatusTracker";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface NewArticleConfig {
   approveEditSeoData: boolean;
@@ -60,6 +61,7 @@ const LANGUAGES = [
 
 export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArticleCreated }: CreateArticleDialogProps) {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [triggerWorkflow, setTriggerWorkflow] = useState(true);
@@ -88,7 +90,7 @@ export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArti
 
     setCreating(true);
     try {
-      // Create article in Airtable with project link
+      // Create article in Airtable with project link and creator info
       const { data, error } = await supabase.functions.invoke('create-airtable-article', {
         body: {
           baseId,
@@ -98,6 +100,8 @@ export function CreateArticleDialog({ baseId, projectId, projectRecordId, onArti
             language,
             config,
             status: 'Draft',
+            createdByName: profile?.full_name || profile?.email || 'Unknown',
+            createdByEmail: profile?.email || null,
           }
         }
       });

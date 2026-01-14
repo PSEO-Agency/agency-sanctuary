@@ -15,7 +15,15 @@ interface ArticleActionButtonsProps {
 }
 
 // Status transitions and their configurations
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, {
+  action: string;
+  label: string;
+  icon: typeof Eye;
+  nextStatus?: string;
+  secondaryAction?: string;
+  secondaryLabel?: string;
+  secondaryIcon?: typeof Eye;
+}> = {
   'research done': {
     action: 'generate-outline',
     label: 'Generate Outline',
@@ -32,6 +40,14 @@ const STATUS_CONFIG = {
     secondaryIcon: Sparkles,
   },
   'article ready': {
+    action: 'view-article',
+    label: 'View',
+    icon: Eye,
+    secondaryAction: 'approve-publish',
+    secondaryLabel: 'Approve & Publish',
+    secondaryIcon: ExternalLink,
+  },
+  'content ready': {
     action: 'view-article',
     label: 'View',
     icon: Eye,
