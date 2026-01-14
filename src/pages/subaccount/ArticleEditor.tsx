@@ -269,10 +269,10 @@ export default function ArticleEditor() {
                   Editor
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="brief" 
+                  value="seo" 
                   className="px-4 py-2 rounded-full text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                 >
-                  Content brief
+                  SEO Settings
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -317,10 +317,66 @@ export default function ArticleEditor() {
               </div>
             )}
 
-            {activeTab === "brief" && (
-              <div className="max-w-3xl mx-auto">
-                <div className="bg-muted/30 rounded-lg p-8 text-center">
-                  <p className="text-muted-foreground">Content brief coming soon...</p>
+            {activeTab === "seo" && (
+              <div className="max-w-3xl mx-auto space-y-8">
+                {/* Featured Image */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-foreground">Featured Image</label>
+                  {article.imageUrl ? (
+                    <div className="rounded-lg overflow-hidden border">
+                      <img 
+                        src={article.imageUrl} 
+                        alt={article.name}
+                        className="w-full h-48 object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed bg-muted/30 h-48 flex items-center justify-center">
+                      <p className="text-sm text-muted-foreground">No featured image</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Meta Title */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-foreground">Meta Title</label>
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-foreground">{article.metaTitle || <span className="text-muted-foreground italic">No meta title set</span>}</p>
+                  </div>
+                  {article.metaTitle && (
+                    <p className="text-xs text-muted-foreground">{article.metaTitle.length} / 60 characters</p>
+                  )}
+                </div>
+
+                {/* Meta Description */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-foreground">Meta Description</label>
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-foreground">{article.metaDescription || <span className="text-muted-foreground italic">No meta description set</span>}</p>
+                  </div>
+                  {article.metaDescription && (
+                    <p className="text-xs text-muted-foreground">{article.metaDescription.length} / 160 characters</p>
+                  )}
+                </div>
+
+                {/* SEO Outline */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-foreground">SEO Outline</label>
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    {article.outline ? (
+                      <div 
+                        className="prose prose-sm max-w-none text-foreground"
+                        dangerouslySetInnerHTML={{ 
+                          __html: DOMPurify.sanitize(convertContentToHTML(article.outline), {
+                            ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'ul', 'ol', 'li', 'br'],
+                            ALLOWED_ATTR: ['class']
+                          }) 
+                        }}
+                      />
+                    ) : (
+                      <p className="text-muted-foreground italic">No SEO outline available</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
