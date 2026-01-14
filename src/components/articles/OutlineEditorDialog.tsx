@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Save, X, List } from "lucide-react";
+import { Loader2, Save, X, List, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -60,14 +60,40 @@ export function OutlineEditorDialog({
   onSaved
 }: OutlineEditorDialogProps) {
   const [editedOutline, setEditedOutline] = useState(outline);
+  const [originalOutline, setOriginalOutline] = useState(outline);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   
-  // Reset edited outline when dialog opens with new content
+  // Fetch the latest outline from Airtable when dialog opens
   useEffect(() => {
-    if (open) {
-      setEditedOutline(outline);
+    if (open && baseId && recordId) {
+      fetchOutlineFromAirtable();
     }
-  }, [open, outline]);
+  }, [open, baseId, recordId]);
+
+  const fetchOutlineFromAirtable = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-article-status', {
+        body: { baseId, recordId }
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.record?.fields) {
+        // Get SEO Outline from the Airtable record
+        const seoOutline = data.record.fields['SEO Outline'] || data.record.fields['Outline'] || '';
+        setEditedOutline(seoOutline);
+        setOriginalOutline(seoOutline);
+      }
+    } catch (err) {
+      console.error('Error fetching outline:', err);
+      // Fallback to the prop value
+      setEditedOutline(outline);
+      setOriginalOutline(outline);
+    }
+    setLoading(false);
+  };
 
   const outlineItems = parseOutline(editedOutline);
 
@@ -98,7 +124,7 @@ export function OutlineEditorDialog({
     setSaving(false);
   };
 
-  const hasChanges = editedOutline !== outline;
+  const hasChanges = editedOutline !== originalOutline;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,18 +138,33 @@ export function OutlineEditorDialog({
         <div className="flex-1 flex overflow-hidden">
           {/* Editor Panel */}
           <div className="flex-1 flex flex-col border-r">
-            <div className="px-4 py-2 border-b bg-muted/30">
+            <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Markdown Editor
               </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchOutlineFromAirtable}
+                disabled={loading}
+                className="h-6 px-2"
+              >
+                <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
             </div>
             <div className="flex-1 p-4">
-              <Textarea
-                value={editedOutline}
-                onChange={(e) => setEditedOutline(e.target.value)}
-                placeholder="# Main Topic&#10;## Section 1&#10;### Subsection&#10;- Point 1&#10;- Point 2"
-                className="h-full resize-none font-mono text-sm"
-              />
+              {loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <Textarea
+                  value={editedOutline}
+                  onChange={(e) => setEditedOutline(e.target.value)}
+                  placeholder="# Main Topic&#10;## Section 1&#10;### Subsection&#10;- Point 1&#10;- Point 2"
+                  className="h-full resize-none font-mono text-sm"
+                />
+              )}
             </div>
           </div>
           
