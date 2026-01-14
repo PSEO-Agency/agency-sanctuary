@@ -38,9 +38,9 @@ interface ArticleRowProps {
 
 // Define the status pipeline order and their estimated times
 const STATUS_PIPELINE = [
-  { status: 'Start Research', eta: '7-10 min' },
+  { status: 'Start Research', eta: '4-7 min' },
   { status: 'Research Done', eta: null },
-  { status: 'Generate Outline', eta: '3-5 min' },
+  { status: 'Generate Outline', eta: '4-7 min' },
   { status: 'Outline Ready', eta: null },
   { status: 'Generate Article', eta: '5-8 min' },
   { status: 'Article Ready', eta: null },
@@ -124,13 +124,13 @@ export function ArticleRow({
       </TableCell>
       <TableCell className="py-2">
         <div className="flex flex-col gap-0.5">
-          <Badge variant="secondary" className={`${statusStyle.text} font-normal text-xs gap-1.5 px-2.5 py-1 w-fit`}>
+          <Badge variant="secondary" className={`${statusStyle.text} font-normal text-xs gap-1.5 px-2.5 py-1 w-fit whitespace-nowrap`}>
             {statusStyle.isProcessing ? (
               <Loader2 className="w-3 h-3 animate-spin" />
             ) : (
               <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
             )}
-            <span>{article.status}</span>
+            <span className="whitespace-nowrap">{article.status}</span>
             {statusStyle.isProcessing && (
               <span className="text-[10px] opacity-70">({step}/{total})</span>
             )}
