@@ -24,29 +24,96 @@ import type { Article } from "@/components/articles/ArticleRow";
 import { ArticleActionButtons } from "@/components/articles/ArticleActionButtons";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
-// Convert markdown-like content to HTML for preview
+// Convert markdown-like content to HTML for preview and editing
 const convertContentToHTML = (content: string): string => {
   if (!content) return '';
   
-  return content
-    .split('\n\n')
-    .map(block => {
-      const trimmed = block.trim();
-      if (!trimmed) return '';
-      
-      // Headers
-      if (trimmed.startsWith('## ')) {
-        return `<h2 class="text-2xl font-bold mt-8 mb-4">${trimmed.slice(3)}</h2>`;
+  // Process inline markdown first
+  const processInline = (text: string): string => {
+    return text
+      // Bold: **text** or __text__
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      // Italic: *text* or _text_
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      // Links: [text](url)
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  };
+
+  const lines = content.split('\n');
+  const result: string[] = [];
+  let inList = false;
+  let listType = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    if (!trimmed) {
+      if (inList) {
+        result.push(listType === 'ul' ? '</ul>' : '</ol>');
+        inList = false;
       }
-      if (trimmed.startsWith('### ')) {
-        return `<h3 class="text-xl font-semibold mt-6 mb-3">${trimmed.slice(4)}</h3>`;
+      continue;
+    }
+
+    // Headers
+    if (trimmed.startsWith('## ')) {
+      if (inList) {
+        result.push(listType === 'ul' ? '</ul>' : '</ol>');
+        inList = false;
       }
-      
-      // Regular paragraph
-      return `<p class="text-base leading-relaxed mb-4 text-muted-foreground">${trimmed}</p>`;
-    })
-    .filter(Boolean)
-    .join('');
+      result.push(`<h2>${processInline(trimmed.slice(3))}</h2>`);
+      continue;
+    }
+    if (trimmed.startsWith('### ')) {
+      if (inList) {
+        result.push(listType === 'ul' ? '</ul>' : '</ol>');
+        inList = false;
+      }
+      result.push(`<h3>${processInline(trimmed.slice(4))}</h3>`);
+      continue;
+    }
+
+    // Unordered list items
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      if (!inList || listType !== 'ul') {
+        if (inList) result.push('</ol>');
+        result.push('<ul>');
+        inList = true;
+        listType = 'ul';
+      }
+      result.push(`<li>${processInline(trimmed.slice(2))}</li>`);
+      continue;
+    }
+
+    // Ordered list items
+    const orderedMatch = trimmed.match(/^\d+\.\s(.+)$/);
+    if (orderedMatch) {
+      if (!inList || listType !== 'ol') {
+        if (inList) result.push('</ul>');
+        result.push('<ol>');
+        inList = true;
+        listType = 'ol';
+      }
+      result.push(`<li>${processInline(orderedMatch[1])}</li>`);
+      continue;
+    }
+
+    // Regular paragraph
+    if (inList) {
+      result.push(listType === 'ul' ? '</ul>' : '</ol>');
+      inList = false;
+    }
+    result.push(`<p>${processInline(trimmed)}</p>`);
+  }
+
+  if (inList) {
+    result.push(listType === 'ul' ? '</ul>' : '</ol>');
+  }
+
+  return result.join('');
 };
 
 const getStatusStyle = (status: string) => {
@@ -80,9 +147,10 @@ export default function ArticleEditor() {
   const [isEditing, setIsEditing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   
-  // Editable fields
+  // Editable fields - content is raw markdown, htmlContent is for the editor
   const [content, setContent] = useState("");
-  const [originalContent, setOriginalContent] = useState("");
+  const [htmlContent, setHtmlContent] = useState("");
+  const [originalHtmlContent, setOriginalHtmlContent] = useState("");
   const [baseId, setBaseId] = useState<string>("");
   
   // Collapsible states
@@ -127,7 +195,10 @@ export default function ArticleEditor() {
         if (foundArticle) {
           setArticle(foundArticle);
           setContent(foundArticle.content || "");
-          setOriginalContent(foundArticle.content || "");
+          // Convert markdown to HTML for the editor
+          const html = convertContentToHTML(foundArticle.content || "");
+          setHtmlContent(html);
+          setOriginalHtmlContent(html);
         } else {
           toast.error("Article not found");
           navigate(`/subaccount/${subaccountId}/projects`);
@@ -148,11 +219,12 @@ export default function ArticleEditor() {
     
     setSaving(true);
     try {
+      // Save the HTML content directly (Airtable can store HTML)
       const { data, error } = await supabase.functions.invoke('update-airtable-article', {
         body: {
           baseId,
           recordId: articleId,
-          fields: { content }
+          fields: { content: htmlContent }
         }
       });
 
@@ -160,12 +232,13 @@ export default function ArticleEditor() {
       
       if (data.success) {
         toast.success("Changes saved to Airtable");
-        setOriginalContent(content);
+        setOriginalHtmlContent(htmlContent);
+        setContent(htmlContent); // Update raw content too
         setHasChanges(false);
         setIsEditing(false);
         // Update local article state with new content
         if (article) {
-          setArticle({ ...article, content });
+          setArticle({ ...article, content: htmlContent });
         }
       } else {
         throw new Error(data.error || "Failed to save");
@@ -177,13 +250,13 @@ export default function ArticleEditor() {
     setSaving(false);
   };
 
-  const handleContentChange = (newContent: string) => {
-    setContent(newContent);
-    setHasChanges(newContent !== originalContent);
+  const handleContentChange = (newHtml: string) => {
+    setHtmlContent(newHtml);
+    setHasChanges(newHtml !== originalHtmlContent);
   };
 
   const handleCancelEdit = () => {
-    setContent(originalContent);
+    setHtmlContent(originalHtmlContent);
     setHasChanges(false);
     setIsEditing(false);
   };
@@ -374,7 +447,7 @@ export default function ArticleEditor() {
                 {/* Content - editable or preview */}
                 {isEditing ? (
                   <RichTextEditor
-                    content={content}
+                    content={htmlContent}
                     onChange={handleContentChange}
                     placeholder="Start writing your article content..."
                   />
