@@ -11,7 +11,10 @@ import {
   Loader2,
   ChevronDown,
   HelpCircle,
-  Check
+  Check,
+  Pencil,
+  Save,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +22,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Article } from "@/components/articles/ArticleRow";
 import { ArticleActionButtons } from "@/components/articles/ArticleActionButtons";
+import { RichTextEditor } from "@/components/RichTextEditor";
 
 // Convert markdown-like content to HTML for preview
 const convertContentToHTML = (content: string): string => {
@@ -73,9 +77,12 @@ export default function ArticleEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("editor");
+  const [isEditing, setIsEditing] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
   
   // Editable fields
   const [content, setContent] = useState("");
+  const [originalContent, setOriginalContent] = useState("");
   const [baseId, setBaseId] = useState<string>("");
   
   // Collapsible states
@@ -120,6 +127,7 @@ export default function ArticleEditor() {
         if (foundArticle) {
           setArticle(foundArticle);
           setContent(foundArticle.content || "");
+          setOriginalContent(foundArticle.content || "");
         } else {
           toast.error("Article not found");
           navigate(`/subaccount/${subaccountId}/projects`);
@@ -151,7 +159,14 @@ export default function ArticleEditor() {
       if (error) throw error;
       
       if (data.success) {
-        toast.success("Changes saved");
+        toast.success("Changes saved to Airtable");
+        setOriginalContent(content);
+        setHasChanges(false);
+        setIsEditing(false);
+        // Update local article state with new content
+        if (article) {
+          setArticle({ ...article, content });
+        }
       } else {
         throw new Error(data.error || "Failed to save");
       }
@@ -160,6 +175,17 @@ export default function ArticleEditor() {
       toast.error(err.message || "Failed to save changes");
     }
     setSaving(false);
+  };
+
+  const handleContentChange = (newContent: string) => {
+    setContent(newContent);
+    setHasChanges(newContent !== originalContent);
+  };
+
+  const handleCancelEdit = () => {
+    setContent(originalContent);
+    setHasChanges(false);
+    setIsEditing(false);
   };
 
   if (loading) {
@@ -233,24 +259,63 @@ export default function ArticleEditor() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Copy className="h-4 w-4" />
-            Copy
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Regenerate
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-          
-          {/* Dynamic Action Buttons based on status */}
-          <ArticleActionButtons
-            article={article}
-            baseId={baseId}
-            onStatusChange={handleStatusChange}
-            onArticleUpdate={handleArticleUpdate}
-          />
+          {isEditing ? (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={handleCancelEdit}
+                disabled={saving}
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </Button>
+              <Button 
+                size="sm" 
+                className="gap-2"
+                onClick={handleSave}
+                disabled={saving || !hasChanges}
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={() => setIsEditing(true)}
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Copy className="h-4 w-4" />
+                Copy
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Regenerate
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+              
+              {/* Dynamic Action Buttons based on status */}
+              <ArticleActionButtons
+                article={article}
+                baseId={baseId}
+                onStatusChange={handleStatusChange}
+                onArticleUpdate={handleArticleUpdate}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -306,14 +371,22 @@ export default function ArticleEditor() {
                 {/* Separator */}
                 <div className="border-t my-8" />
 
-                {/* Content - rendered as clean preview */}
-                <article 
-                  className="prose prose-slate max-w-none"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(convertContentToHTML(content), {
-                    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'br', 'span', 'div'],
-                    ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel']
-                  }) }}
-                />
+                {/* Content - editable or preview */}
+                {isEditing ? (
+                  <RichTextEditor
+                    content={content}
+                    onChange={handleContentChange}
+                    placeholder="Start writing your article content..."
+                  />
+                ) : (
+                  <article 
+                    className="prose prose-slate max-w-none"
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(convertContentToHTML(content), {
+                      ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'br', 'span', 'div'],
+                      ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel']
+                    }) }}
+                  />
+                )}
               </div>
             )}
 
