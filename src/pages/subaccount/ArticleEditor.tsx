@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import {
   ChevronRight, 
   Copy, 
   RefreshCw, 
-  Send, 
   Loader2,
   ChevronDown,
   HelpCircle,
@@ -19,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Article } from "@/components/articles/ArticleRow";
+import { ArticleActionButtons } from "@/components/articles/ArticleActionButtons";
 
 // Convert markdown-like content to HTML for preview
 const convertContentToHTML = (content: string): string => {
@@ -48,9 +48,11 @@ const convertContentToHTML = (content: string): string => {
 const getStatusStyle = (status: string) => {
   const statusLower = status.toLowerCase();
   if (statusLower.includes('published')) return { dot: 'bg-green-500', text: 'text-green-700' };
-  if (statusLower.includes('generated') || statusLower.includes('ready') || statusLower.includes('complete')) return { dot: 'bg-green-500', text: 'text-green-700' };
+  if (statusLower === 'article ready') return { dot: 'bg-green-500', text: 'text-green-700' };
+  if (statusLower === 'outline ready') return { dot: 'bg-blue-500', text: 'text-blue-700' };
+  if (statusLower === 'research done') return { dot: 'bg-blue-500', text: 'text-blue-700' };
   if (statusLower.includes('draft')) return { dot: 'bg-gray-400', text: 'text-gray-600' };
-  if (statusLower.includes('processing') || statusLower.includes('generate')) return { dot: 'bg-yellow-500', text: 'text-yellow-700' };
+  if (statusLower.includes('processing') || statusLower.includes('generate') || statusLower.includes('start research')) return { dot: 'bg-yellow-500', text: 'text-yellow-700' };
   return { dot: 'bg-gray-400', text: 'text-gray-600' };
 };
 
@@ -200,6 +202,18 @@ export default function ArticleEditor() {
       })
     : '-';
 
+  const handleStatusChange = (newStatus: string) => {
+    if (article) {
+      setArticle({ ...article, status: newStatus });
+    }
+    // Refetch to get latest data after status change
+    setTimeout(() => fetchArticle(), 1000);
+  };
+
+  const handleArticleUpdate = (updatedArticle: Article) => {
+    setArticle(updatedArticle);
+  };
+
   return (
     <div className="h-full flex flex-col -m-6">
       {/* Top Header Bar */}
@@ -228,10 +242,14 @@ export default function ArticleEditor() {
             Regenerate
             <ChevronDown className="h-3 w-3" />
           </Button>
-          <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90">
-            <Send className="h-4 w-4" />
-            Publish
-          </Button>
+          
+          {/* Dynamic Action Buttons based on status */}
+          <ArticleActionButtons
+            article={article}
+            baseId={baseId}
+            onStatusChange={handleStatusChange}
+            onArticleUpdate={handleArticleUpdate}
+          />
         </div>
       </div>
 

@@ -17,7 +17,7 @@ interface ArticlesTableProps {
 }
 
 // Processing statuses that should trigger auto-refresh
-const PROCESSING_STATUSES = ['start research', 'researched', 'generate outline', 'outlined', 'generate article'];
+const PROCESSING_STATUSES = ['start research', 'generate outline', 'generate article'];
 
 const hasProcessingArticles = (articles: Article[]): boolean => {
   return articles.some(article => 
@@ -133,6 +133,18 @@ export function ArticlesTable({
     setSelectedIds(newSelected);
   };
 
+  const handleStatusChange = (articleId: string, newStatus: string) => {
+    setArticles(prev => prev.map(a => 
+      a.id === articleId ? { ...a, status: newStatus } : a
+    ));
+  };
+
+  const handleArticleUpdate = (updatedArticle: Article) => {
+    setArticles(prev => prev.map(a => 
+      a.id === updatedArticle.id ? updatedArticle : a
+    ));
+  };
+
   // Filter articles
   const filteredArticles = articles.filter(article => {
     const matchesSearch = searchQuery === "" || 
@@ -187,6 +199,7 @@ export function ArticlesTable({
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Article</TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Keyword</TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
+            <TableHead className="py-2 text-xs font-medium text-muted-foreground">Actions</TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Created by</TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Created</TableHead>
           </TableRow>
@@ -200,6 +213,9 @@ export function ArticlesTable({
               isSelected={selectedIds.has(article.id)}
               onToggleSelect={() => toggleSelect(article.id)}
               viewMode={viewMode}
+              baseId={baseId}
+              onStatusChange={handleStatusChange}
+              onArticleUpdate={handleArticleUpdate}
             />
           ))}
         </TableBody>
