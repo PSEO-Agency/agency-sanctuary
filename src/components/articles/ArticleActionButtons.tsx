@@ -32,9 +32,12 @@ const STATUS_CONFIG = {
     secondaryIcon: Sparkles,
   },
   'article ready': {
-    action: 'approve-publish',
-    label: 'Approve & Publish',
-    icon: ExternalLink,
+    action: 'view-article',
+    label: 'View',
+    icon: Eye,
+    secondaryAction: 'approve-publish',
+    secondaryLabel: 'Approve & Publish',
+    secondaryIcon: ExternalLink,
   },
 };
 
@@ -167,6 +170,9 @@ export function ArticleActionButtons({
       case 'generate-article':
         updateStatus('Generate Article');
         break;
+      case 'view-article':
+        // Already viewing the article, could navigate to editor if on table
+        break;
       case 'approve-publish':
         window.open('https://programmaticseo.agency/strategy-call', '_blank');
         break;
@@ -181,16 +187,9 @@ export function ArticleActionButtons({
     }
   };
 
-  // If in a polling state, show processing indicator
+  // If in a polling state, don't show action button (status badge handles processing indicator)
   if (pollingInfo && isPolling) {
-    return (
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size={compact ? "sm" : "default"} disabled>
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          {pollingInfo.label}
-        </Button>
-      </div>
-    );
+    return null;
   }
 
   // If no action available for this status, return null
@@ -206,11 +205,10 @@ export function ArticleActionButtons({
       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
         {/* Primary Action Button */}
         <Button
-          variant={actionConfig.action === 'approve-publish' ? 'default' : 'outline'}
+          variant="default"
           size={compact ? "sm" : "default"}
           onClick={() => handleAction(actionConfig.action)}
           disabled={isUpdating}
-          className={actionConfig.action === 'approve-publish' ? 'bg-green-600 hover:bg-green-700' : ''}
         >
           {isUpdating ? (
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -220,13 +218,14 @@ export function ArticleActionButtons({
           {actionConfig.label}
         </Button>
 
-        {/* Secondary Action Button (for outline ready state) */}
+        {/* Secondary Action Button (for outline ready and article ready states) */}
         {'secondaryAction' in actionConfig && actionConfig.secondaryAction && SecondaryIcon && (
           <Button
-            variant="default"
+            variant={actionConfig.secondaryAction === 'approve-publish' ? 'default' : 'default'}
             size={compact ? "sm" : "default"}
             onClick={() => handleAction(actionConfig.secondaryAction!)}
             disabled={isUpdating}
+            className={actionConfig.secondaryAction === 'approve-publish' ? 'bg-green-600 hover:bg-green-700' : ''}
           >
             {isUpdating ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />

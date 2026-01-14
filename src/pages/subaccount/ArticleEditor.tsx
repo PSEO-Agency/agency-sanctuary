@@ -192,7 +192,8 @@ export default function ArticleEditor() {
 
   const statusStyle = getStatusStyle(article.status);
   const scoreInfo = getScoreGrade(article.contentScore);
-  const creatorInitial = article.createdBy?.[0]?.charAt(0)?.toUpperCase() || 'A';
+  const creatorName = article.createdBy?.[0] || 'Unknown';
+  const creatorInitial = creatorName.charAt(0).toUpperCase();
   
   const formattedDate = article.createdAt 
     ? new Date(article.createdAt).toLocaleDateString('en-US', { 
@@ -254,11 +255,11 @@ export default function ArticleEditor() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden h-[calc(100vh-120px)]">
         {/* Center Content */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Tabs */}
-          <div className="border-b px-6 pt-4">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Tabs - Fixed */}
+          <div className="border-b px-6 pt-4 flex-shrink-0">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="bg-transparent p-0 h-auto gap-4">
                 <TabsTrigger 
@@ -277,8 +278,8 @@ export default function ArticleEditor() {
             </Tabs>
           </div>
 
-          {/* Editor Content */}
-          <div className="p-6">
+          {/* Editor Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-6">
             {activeTab === "editor" && (
               <div className="max-w-3xl mx-auto">
                 {/* Featured Image */}
@@ -326,8 +327,8 @@ export default function ArticleEditor() {
           </div>
         </div>
 
-        {/* Right Sidebar */}
-        <div className="w-72 border-l bg-background overflow-y-auto">
+        {/* Right Sidebar - Scrollable */}
+        <div className="w-72 border-l bg-background overflow-y-auto flex-shrink-0">
           <div className="p-4 space-y-4">
             {/* Content Grade */}
             <div className="space-y-2">

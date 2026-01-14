@@ -94,7 +94,8 @@ export function ArticleRow({
 
   const statusStyle = getStatusVariant(article.status);
   const keyword = article.slug?.replace(/-/g, ' ') || '-';
-  const creatorInitial = article.createdBy?.[0]?.charAt(0)?.toUpperCase() || 'A';
+  const creatorName = article.createdBy?.[0] || 'Unknown';
+  const creatorInitial = creatorName.charAt(0).toUpperCase();
   const { step, total, eta } = getStatusStep(article.status);
 
   const handleStatusChange = (newStatus: string) => {
@@ -157,7 +158,7 @@ export function ArticleRow({
             </AvatarFallback>
           </Avatar>
           <span className="text-sm text-muted-foreground">
-            {article.createdBy?.[0] || 'Admin'}
+            {creatorName}
           </span>
         </div>
       </TableCell>

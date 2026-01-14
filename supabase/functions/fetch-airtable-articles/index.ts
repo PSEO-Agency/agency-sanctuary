@@ -114,6 +114,39 @@ serve(async (req) => {
       console.log(`After filtering: ${filteredRecords.length} records match`);
     }
     
+    // Helper to extract creator name from collaborator field
+    const getCreatorName = (usersField: any): string[] | null => {
+      if (!usersField) return null;
+      if (Array.isArray(usersField)) {
+        // Collaborator fields return objects with { id, email, name }
+        const names = usersField.map((user: any) => {
+          if (typeof user === 'object' && user.name) {
+            return user.name;
+          }
+          if (typeof user === 'object' && user.email) {
+            // Use email prefix as fallback
+            return user.email.split('@')[0];
+          }
+          // If it's a string (record ID), return null to be filtered
+          if (typeof user === 'string') {
+            return null;
+          }
+          return null;
+        }).filter(Boolean);
+        return names.length > 0 ? names : null;
+      }
+      if (typeof usersField === 'object' && usersField.name) {
+        return [usersField.name];
+      }
+      if (typeof usersField === 'object' && usersField.email) {
+        return [usersField.email.split('@')[0]];
+      }
+      if (typeof usersField === 'string') {
+        return null; // Just a record ID, can't extract name
+      }
+      return null;
+    };
+
     // Transform the filtered records - map available fields flexibly
     const articles = filteredRecords.map((record: any) => {
       const f = record.fields;
@@ -121,7 +154,7 @@ serve(async (req) => {
         id: record.id,
         name: f['Name'] || f['Title'] || 'Untitled',
         status: f['Status'] || 'Draft',
-        createdBy: f['Users'] || f['Created By'] || f['Author'] || null,
+        createdBy: getCreatorName(f['Users'] || f['Created By'] || f['Author']),
         createdAt: f['Created'] || f['Created Time'] || record.createdTime || null,
         language: f['Language'] || 'English',
         contentScore: f['Avg Content Score'] || f['Content Score'] || null,
