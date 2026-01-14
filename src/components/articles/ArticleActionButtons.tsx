@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, Sparkles, ExternalLink, Eye } from "lucide-react";
+import { Loader2, FileText, Sparkles, ExternalLink, Eye, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { OutlineEditorDialog } from "./OutlineEditorDialog";
+import { ResearchViewerDialog } from "./ResearchViewerDialog";
 import type { Article } from "./ArticleRow";
 
 interface ArticleActionButtonsProps {
@@ -25,10 +26,13 @@ const STATUS_CONFIG: Record<string, {
   secondaryIcon?: typeof Eye;
 }> = {
   'research done': {
-    action: 'generate-outline',
-    label: 'Generate Outline',
+    action: 'view-research',
+    label: 'View Research',
+    icon: Search,
+    secondaryAction: 'generate-outline',
+    secondaryLabel: 'Generate Outline',
     nextStatus: 'Generate Outline',
-    icon: FileText,
+    secondaryIcon: FileText,
   },
   'outline ready': {
     action: 'view-outline',
@@ -75,6 +79,7 @@ export function ArticleActionButtons({
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [outlineDialogOpen, setOutlineDialogOpen] = useState(false);
+  const [researchDialogOpen, setResearchDialogOpen] = useState(false);
   const [currentOutline, setCurrentOutline] = useState(article.outline);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -177,6 +182,9 @@ export function ArticleActionButtons({
   // Handle action button clicks
   const handleAction = (action: string) => {
     switch (action) {
+      case 'view-research':
+        setResearchDialogOpen(true);
+        break;
       case 'generate-outline':
         updateStatus('Generate Outline');
         break;
@@ -262,6 +270,15 @@ export function ArticleActionButtons({
         recordId={article.id}
         articleName={article.name}
         onSaved={handleOutlineSaved}
+      />
+
+      {/* Research Viewer Dialog */}
+      <ResearchViewerDialog
+        open={researchDialogOpen}
+        onOpenChange={setResearchDialogOpen}
+        baseId={baseId}
+        recordId={article.id}
+        articleName={article.name}
       />
     </>
   );
