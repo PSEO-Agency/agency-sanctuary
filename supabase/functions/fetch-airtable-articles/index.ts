@@ -114,8 +114,13 @@ serve(async (req) => {
       console.log(`After filtering: ${filteredRecords.length} records match`);
     }
     
-    // Helper to extract creator name from collaborator field
-    const getCreatorName = (usersField: any): string[] | null => {
+    // Helper to extract creator name from collaborator field or text field
+    const getCreatorName = (usersField: any, creatorNameField: any): string[] | null => {
+      // First, try the explicit creator name text field (from our app)
+      if (creatorNameField && typeof creatorNameField === 'string') {
+        return [creatorNameField];
+      }
+      
       if (!usersField) return null;
       if (Array.isArray(usersField)) {
         // Collaborator fields return objects with { id, email, name }
@@ -154,7 +159,10 @@ serve(async (req) => {
         id: record.id,
         name: f['Name'] || f['Title'] || 'Untitled',
         status: f['Status'] || 'Draft',
-        createdBy: getCreatorName(f['Users'] || f['Created By'] || f['Author']),
+        createdBy: getCreatorName(
+          f['Users'] || f['Created By'] || f['Author'],
+          f['Created By Name'] || f['Creator'] || f['Author Name']
+        ),
         createdAt: f['Created'] || f['Created Time'] || record.createdTime || null,
         language: f['Language'] || 'English',
         contentScore: f['Avg Content Score'] || f['Content Score'] || null,
