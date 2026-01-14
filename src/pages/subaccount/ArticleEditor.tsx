@@ -216,7 +216,7 @@ export default function ArticleEditor() {
   };
 
   return (
-    <div className="h-full flex flex-col -m-6">
+    <div className="h-[calc(100vh-64px)] flex flex-col -m-6 overflow-hidden">
       {/* Top Header Bar */}
       <div className="border-b bg-background px-6 py-3 flex items-center justify-between">
         {/* Breadcrumb */}
