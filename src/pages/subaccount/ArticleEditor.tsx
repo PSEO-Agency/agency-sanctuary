@@ -454,7 +454,7 @@ export default function ArticleEditor() {
                 ) : (
                   <article 
                     className="prose prose-slate max-w-none"
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(convertContentToHTML(content), {
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(htmlContent || convertContentToHTML(content), {
                       ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'br', 'span', 'div'],
                       ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel']
                     }) }}
