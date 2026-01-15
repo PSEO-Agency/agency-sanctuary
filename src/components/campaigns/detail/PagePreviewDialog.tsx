@@ -74,14 +74,52 @@ export function PagePreviewDialog({
     }
   };
 
+  // Helper to get field content from sections_content
+  const getFieldContentFromSection = (sectionId: string, fieldName: string): string => {
+    const sectionsContent = page.sections_content || [];
+    const section = sectionsContent.find(s => s.id === sectionId);
+    if (section?.fields?.[fieldName]) {
+      const field = section.fields[fieldName];
+      if (field.isPrompt && field.generated) {
+        return field.generated;
+      }
+      return field.rendered || "";
+    }
+    return "";
+  };
+
   // Generate full HTML source with generated content
   const generateHTMLSource = () => {
     const sectionsContent = page.sections_content || [];
     const sectionHTML = sectionsContent.map(section => {
-      const content = section.content || "";
+      // Build content from fields
+      const fieldContents: string[] = [];
+      if (section.fields) {
+        for (const [key, field] of Object.entries(section.fields)) {
+          const content = field.isPrompt && field.generated ? field.generated : field.rendered;
+          if (content && !content.startsWith('[')) {
+            if (key === 'items') {
+              // Handle array fields
+              try {
+                const items = JSON.parse(content);
+                if (Array.isArray(items)) {
+                  fieldContents.push(`    <ul>\n${items.map(item => `      <li>${item}</li>`).join('\n')}\n    </ul>`);
+                }
+              } catch {
+                fieldContents.push(`    <p>${content}</p>`);
+              }
+            } else if (key === 'headline' || key === 'title') {
+              fieldContents.push(`    <h2>${content}</h2>`);
+            } else {
+              fieldContents.push(`    <p>${content}</p>`);
+            }
+          }
+        }
+      }
+      
       return `  <!-- ${section.name || section.id} -->
   <section class="${section.type || section.id}">
-    ${content.split("\n").map(line => `    <p>${line}</p>`).join("\n")}
+${fieldContents.join('\n') || '    <!-- No content -->'}
   </section>`;
     }).join("\n\n");
 
@@ -95,7 +133,7 @@ export function PagePreviewDialog({
 </head>
 <body>
   <header>
-    <h1>${page.title}</h1>
+    <h1>${parseStaticPlaceholders(page.title, dataValues)}</h1>
   </header>
 
 ${sectionHTML || "  <!-- No content generated yet -->"}
@@ -124,13 +162,17 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
           const extracted = extractPrompts(value, dataValues);
           extracted.forEach(p => {
             const sectionContent = page.sections_content?.find(s => s.id === section.id);
+            // Get generated content from field-level storage
+            const fieldData = sectionContent?.fields?.[field];
+            const generatedContent = fieldData?.generated || null;
+            
             prompts.push({
               sectionId: section.id,
               sectionName: section.name,
               field,
               rawPrompt: p.prompt,
               resolvedPrompt: p.placeholdersReplaced,
-              generatedContent: sectionContent?.content || null,
+              generatedContent: generatedContent,
             });
           });
         }

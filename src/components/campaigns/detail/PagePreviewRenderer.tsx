@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { TemplateSection } from "@/lib/campaignTemplates";
 import { hasPrompts, getPromptPlaceholder, parseStaticPlaceholders } from "@/lib/templateParser";
-import { SectionContent } from "@/hooks/useCampaignPages";
+import { FieldContent, SectionContent } from "@/hooks/useCampaignPages";
 
 interface PagePreviewRendererProps {
   sections: TemplateSection[];
@@ -18,40 +18,71 @@ export function PagePreviewRenderer({
   businessName = "Your Company",
   className,
 }: PagePreviewRendererProps) {
-  // Build a map of generated content by section ID
-  const contentMap = generatedContent.reduce((acc, section) => {
-    acc[section.id] = section.content;
-    return acc;
-  }, {} as Record<string, string>);
-
-  // Check if we have any generated content
-  const hasGeneratedContent = generatedContent.length > 0 && generatedContent.some(s => s.generated);
-
-  const renderContent = (content: string, sectionId: string): string => {
-    // If we have generated content for this section, use it
-    if (hasGeneratedContent && contentMap[sectionId]) {
-      return contentMap[sectionId];
+  
+  // Helper to get field content (generated or fallback to template)
+  const getFieldContent = (sectionId: string, fieldName: string): string => {
+    // First try to get from generated content
+    const section = generatedContent.find(s => s.id === sectionId);
+    if (section?.fields?.[fieldName]) {
+      const field = section.fields[fieldName];
+      // If it's a prompt, use generated content
+      if (field.isPrompt && field.generated) {
+        return field.generated;
+      }
+      // Otherwise use rendered (with placeholders replaced)
+      return field.rendered;
     }
-
-    // First replace static placeholders
-    let rendered = parseStaticPlaceholders(content, dataValues);
     
-    // If it's a prompt, show placeholder
-    if (hasPrompts(content)) {
-      const match = content.match(/prompt\(["'`]([^"'`]+)["'`]\)/);
-      if (match) {
-        const promptText = parseStaticPlaceholders(match[1], dataValues);
-        return getPromptPlaceholder(promptText);
+    // Fallback to template parsing
+    const templateSection = sections.find(s => s.id === sectionId);
+    const templateValue = templateSection?.content[fieldName];
+    
+    if (typeof templateValue === "string") {
+      // Check if it's a prompt
+      if (hasPrompts(templateValue)) {
+        const promptMatch = templateValue.match(/prompt\(["'`]([^"'`]+)["'`]\)/);
+        if (promptMatch) {
+          const resolvedPrompt = parseStaticPlaceholders(promptMatch[1], dataValues);
+          return getPromptPlaceholder(resolvedPrompt);
+        }
+      }
+      // Otherwise just replace placeholders
+      return parseStaticPlaceholders(templateValue, dataValues);
+    }
+    
+    return "";
+  };
+
+  // Helper to get array field items
+  const getFieldItems = (sectionId: string, fieldName: string): string[] => {
+    // First try to get from generated content
+    const section = generatedContent.find(s => s.id === sectionId);
+    if (section?.fields?.[fieldName]) {
+      const field = section.fields[fieldName];
+      try {
+        const items = JSON.parse(field.rendered);
+        if (Array.isArray(items)) {
+          return items;
+        }
+      } catch {
+        // If not JSON, try splitting by newlines or return as single item
+        if (field.rendered) {
+          return field.rendered.split('\n').filter(Boolean);
+        }
       }
     }
     
-    return rendered;
+    // Fallback to template
+    const templateSection = sections.find(s => s.id === sectionId);
+    const items = templateSection?.content[fieldName];
+    if (Array.isArray(items)) {
+      return items.map(item => parseStaticPlaceholders(item, dataValues));
+    }
+    return [];
   };
 
-  // For non-prompt content, just replace placeholders
-  const renderStaticContent = (content: string): string => {
-    return parseStaticPlaceholders(content, dataValues);
-  };
+  const resolvedBusinessName = parseStaticPlaceholders(businessName, dataValues) || 
+    dataValues.company || dataValues.business || "Your Company";
 
   return (
     <div className={cn("bg-white text-gray-900 min-h-[600px]", className)}>
@@ -62,32 +93,33 @@ export function PagePreviewRenderer({
               <section key={section.id} className="bg-gradient-to-br from-primary to-primary/80 text-white py-16 px-8">
                 <div className="max-w-4xl mx-auto text-center">
                   <h1 className="text-4xl font-bold mb-4">
-                    {renderStaticContent(section.content.headline as string)}
+                    {getFieldContent(section.id, "headline")}
                   </h1>
                   <p className="text-xl text-white/90 mb-8">
-                    {renderContent(section.content.subheadline as string, section.id)}
+                    {getFieldContent(section.id, "subheadline")}
                   </p>
                   <button className="bg-white text-primary font-semibold px-8 py-3 rounded-lg hover:bg-white/90 transition-colors">
-                    {renderStaticContent(section.content.cta_text as string)}
+                    {getFieldContent(section.id, "cta_text") || "Get Started"}
                   </button>
                 </div>
               </section>
             );
 
           case "features":
+            const featureItems = getFieldItems(section.id, "items");
             return (
               <section key={section.id} className="py-16 px-8 bg-gray-50">
                 <div className="max-w-4xl mx-auto">
                   <h2 className="text-2xl font-bold text-center mb-8">
-                    {renderStaticContent(section.content.title as string)}
+                    {getFieldContent(section.id, "title")}
                   </h2>
                   <div className="grid grid-cols-2 gap-6">
-                    {(section.content.items as string[]).map((item, index) => (
+                    {featureItems.map((item, index) => (
                       <div key={index} className="flex items-start gap-3 p-4 bg-white rounded-lg shadow-sm">
-                        <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-sm">
+                        <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-sm flex-shrink-0">
                           ✓
                         </div>
-                        <span className="text-gray-700">{renderStaticContent(item)}</span>
+                        <span className="text-gray-700">{item}</span>
                       </div>
                     ))}
                   </div>
@@ -100,10 +132,10 @@ export function PagePreviewRenderer({
               <section key={section.id} className="py-16 px-8">
                 <div className="max-w-3xl mx-auto">
                   <h2 className="text-2xl font-bold mb-6">
-                    {renderStaticContent(section.content.title as string)}
+                    {getFieldContent(section.id, "title")}
                   </h2>
                   <div className="prose prose-lg text-gray-600">
-                    <p>{renderContent(section.content.body as string, section.id)}</p>
+                    <p>{getFieldContent(section.id, "body")}</p>
                   </div>
                 </div>
               </section>
@@ -114,13 +146,13 @@ export function PagePreviewRenderer({
               <section key={section.id} className="py-16 px-8 bg-primary/5">
                 <div className="max-w-2xl mx-auto text-center">
                   <h2 className="text-2xl font-bold mb-4">
-                    {renderStaticContent(section.content.title as string)}
+                    {getFieldContent(section.id, "title")}
                   </h2>
                   <p className="text-gray-600 mb-8">
-                    {renderContent(section.content.description as string, section.id)}
+                    {getFieldContent(section.id, "description")}
                   </p>
                   <button className="bg-primary text-white font-semibold px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors">
-                    {renderStaticContent(section.content.button_text as string)}
+                    {getFieldContent(section.id, "button_text") || "Contact Us"}
                   </button>
                 </div>
               </section>
@@ -146,7 +178,7 @@ export function PagePreviewRenderer({
 
       {/* Footer */}
       <footer className="py-8 px-8 bg-gray-900 text-white text-center text-sm">
-        <p>© {new Date().getFullYear()} {businessName}. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} {resolvedBusinessName}. All rights reserved.</p>
       </footer>
     </div>
   );

@@ -44,9 +44,9 @@ export const LOCAL_BUSINESS_TEMPLATE: CampaignTemplate = {
       content: {
         title: "Why Choose Our {{service}} Services?",
         items: [
-          "Licensed & Insured Professionals",
-          "24/7 Emergency Service Available",
-          "Free Estimates & Consultations",
+          "Licensed & Insured {{service}} Professionals",
+          "24/7 Emergency {{service}} in {{city}}",
+          "Free {{service}} Estimates & Consultations",
           "100% Satisfaction Guaranteed",
         ],
       },

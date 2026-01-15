@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Field-level content structure
+interface FieldContent {
+  original: string;
+  rendered: string;
+  generated?: string;
+  isPrompt: boolean;
+}
+
 interface TemplateSection {
   id: string;
   type: string;
@@ -26,14 +34,19 @@ interface GeneratedSection {
   id: string;
   name: string;
   type: string;
-  content: string;
+  fields: Record<string, FieldContent>;
   generated: boolean;
 }
 
-// Parse static placeholders like {{variable}}
+// Parse static placeholders - case insensitive
 function parseStaticPlaceholders(template: string, data: Record<string, string>): string {
+  const lowercaseData: Record<string, string> = {};
+  Object.entries(data).forEach(([key, value]) => {
+    lowercaseData[key.toLowerCase()] = value;
+  });
+
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    return data[key] || match;
+    return lowercaseData[key.toLowerCase()] || match;
   });
 }
 
@@ -79,7 +92,7 @@ Guidelines:
 - Write compelling, SEO-optimized content
 - Be specific and use the provided data values naturally
 - Keep content concise but impactful
-- Do not use placeholder text or brackets
+- Do not use placeholder text or brackets like {{variable}}
 - Write in the same language as the data values provided
 - Do NOT include any markdown formatting, just plain text`;
 
@@ -259,6 +272,7 @@ serve(async (req) => {
     // Include company name in data values
     const enrichedDataValues = {
       company: business_name,
+      business: business_name,
       ...data_values,
     };
 
@@ -278,41 +292,56 @@ serve(async (req) => {
       };
     }
 
-    // Process each template section
+    // Process each template section and generate content per field
     const generatedSections: GeneratedSection[] = [];
 
     for (const section of template_sections) {
       console.log(`Processing section: ${section.id} (${section.type})`);
       
-      let sectionContent = "";
+      const fields: Record<string, FieldContent> = {};
 
-      // Process content fields that might have prompts
       for (const [key, value] of Object.entries(section.content)) {
-        if (typeof value === "string" && hasPrompt(value)) {
-          // Extract the prompt and replace placeholders
-          const rawPrompt = extractPrompt(value);
-          if (rawPrompt) {
-            const processedPrompt = parseStaticPlaceholders(rawPrompt, enrichedDataValues);
-            console.log(`Generating AI content for ${section.id}.${key}:`, processedPrompt);
-            
-            const generated = await generateWithAI(processedPrompt, {
-              businessName: business_name,
-              businessType: business_type,
-              toneOfVoice: tone_of_voice || "Professional and friendly",
-              dataValues: enrichedDataValues,
-            });
+        if (typeof value === "string") {
+          const isPrompt = hasPrompt(value);
+          let generated: string | undefined;
 
-            sectionContent += `${generated}\n\n`;
+          if (isPrompt) {
+            const rawPrompt = extractPrompt(value);
+            if (rawPrompt) {
+              const processedPrompt = parseStaticPlaceholders(rawPrompt, enrichedDataValues);
+              console.log(`Generating AI content for ${section.id}.${key}:`, processedPrompt.substring(0, 100));
+              
+              try {
+                generated = await generateWithAI(processedPrompt, {
+                  businessName: business_name,
+                  businessType: business_type,
+                  toneOfVoice: tone_of_voice || "Professional and friendly",
+                  dataValues: enrichedDataValues,
+                });
+              } catch (err) {
+                console.error(`Failed to generate content for ${section.id}.${key}:`, err);
+                generated = `[Generation failed - please retry]`;
+              }
+            }
           }
-        } else if (typeof value === "string") {
-          // Just replace placeholders for static content
-          sectionContent += parseStaticPlaceholders(value, enrichedDataValues) + "\n\n";
+
+          fields[key] = {
+            original: value,
+            rendered: parseStaticPlaceholders(value, enrichedDataValues),
+            generated: generated,
+            isPrompt: isPrompt,
+          };
         } else if (Array.isArray(value)) {
-          // Handle array content (like feature lists)
-          const items = value.map((item) =>
-            typeof item === "string" ? parseStaticPlaceholders(item, enrichedDataValues) : item
+          // Handle arrays (like feature items) - replace placeholders in each item
+          const renderedItems = value.map(item => 
+            parseStaticPlaceholders(item, enrichedDataValues)
           );
-          sectionContent += items.join("\n") + "\n\n";
+          
+          fields[key] = {
+            original: JSON.stringify(value),
+            rendered: JSON.stringify(renderedItems),
+            isPrompt: false,
+          };
         }
       }
 
@@ -320,7 +349,7 @@ serve(async (req) => {
         id: section.id,
         name: section.name,
         type: section.type,
-        content: sectionContent.trim(),
+        fields: fields,
         generated: true,
       });
     }

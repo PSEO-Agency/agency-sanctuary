@@ -20,11 +20,18 @@ export interface CampaignPageDB {
   updated_at: string;
 }
 
+export interface FieldContent {
+  original: string;
+  rendered: string;
+  generated?: string;
+  isPrompt: boolean;
+}
+
 export interface SectionContent {
   id: string;
   name: string;
   type: string;
-  content: string;
+  fields: Record<string, FieldContent>;
   generated: boolean;
 }
 
