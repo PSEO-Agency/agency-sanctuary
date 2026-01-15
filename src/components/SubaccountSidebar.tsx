@@ -225,7 +225,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
         {/* Mode Switcher Card - Only show if pSEO Builder is enabled */}
         {pseoBuilderEnabled && !collapsed && (
-          <div className="px-3 py-2">
+          <div className="px-2 py-2">
             <button
               onClick={toggleMode}
               className={cn(
@@ -237,17 +237,17 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                 "hover:scale-[1.02]"
               )}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div className={cn(
-                  "flex items-center justify-center w-9 h-9 rounded-lg",
+                  "flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg",
                   "bg-primary/15 text-primary",
                   "group-hover:bg-primary group-hover:text-primary-foreground",
                   "transition-colors duration-300"
                 )}>
                   {activeMode === "content-machine" ? (
-                    <Layers className="h-5 w-5" />
+                    <Layers className="h-4 w-4" />
                   ) : (
-                    <Zap className="h-5 w-5" />
+                    <Zap className="h-4 w-4" />
                   )}
                 </div>
                 <div className="flex-1 text-left min-w-0">
@@ -260,7 +260,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                       : "Write in-depth researched SEO optimized articles"}
                   </p>
                 </div>
-                <ArrowRightLeft className="h-4 w-4 text-sidebar-foreground/40 group-hover:text-primary transition-colors" />
+                <ArrowRightLeft className="flex-shrink-0 h-3.5 w-3.5 text-sidebar-foreground/40 group-hover:text-primary transition-colors" />
               </div>
             </button>
           </div>
