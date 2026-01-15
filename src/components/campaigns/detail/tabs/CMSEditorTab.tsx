@@ -1,24 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Pencil, Trash2, Type, AlignLeft, Image, Menu, Plus, Eye, X, GripVertical, Loader2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sparkles, Search, Eye, Loader2, Save, FileText } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB, SectionContent } from "@/hooks/useCampaignPages";
-import { PageSelector } from "../../PageSelector";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-interface PageSection {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-}
+import { PagePreviewDialog } from "../PagePreviewDialog";
 
 interface CMSEditorTabProps {
   campaign: CampaignDB;
@@ -30,49 +23,32 @@ interface CMSEditorTabProps {
 
 export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpdateContent }: CMSEditorTabProps) {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
-  const [pageTitle, setPageTitle] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [newKeyword, setNewKeyword] = useState("");
-  const [autoGenerate, setAutoGenerate] = useState(true);
-  const [customContent, setCustomContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-
-  const [sections, setSections] = useState<PageSection[]>([
-    { id: "hero", name: "Hero Section", description: "Main banner with call-to-action", icon: <Type className="h-4 w-4" /> },
-    { id: "content", name: "Content Block", description: "Text content with formatting", icon: <AlignLeft className="h-4 w-4" /> },
-    { id: "gallery", name: "Image Gallery", description: "Responsive image grid", icon: <Image className="h-4 w-4" /> },
-    { id: "footer", name: "Footer", description: "Links and contact information", icon: <Menu className="h-4 w-4" /> },
-  ]);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const selectedPage = pages.find(p => p.id === selectedPageId);
 
+  // Filter pages by search
+  const filteredPages = pages.filter(page => 
+    page.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    Object.values(page.data_values || {}).some(v => 
+      v.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  );
+
+  // Load page data when selected
+  useEffect(() => {
+    if (selectedPage) {
+      setMetaTitle(selectedPage.meta_title || "");
+      setMetaDescription(selectedPage.meta_description || "");
+    }
+  }, [selectedPage]);
+
   const handleSelectPage = (pageId: string) => {
     setSelectedPageId(pageId);
-    const page = pages.find(p => p.id === pageId);
-    if (page) {
-      setPageTitle(page.title);
-      setMetaTitle(page.meta_title || "");
-      setMetaDescription(page.meta_description || "");
-      // Extract keywords from page
-      setKeywords(page.keywords?.filter(k => k.selected).map(k => k.keyword) || []);
-    }
-  };
-
-  const handleAddKeyword = () => {
-    if (newKeyword.trim() && !keywords.includes(newKeyword.trim())) {
-      setKeywords([...keywords, newKeyword.trim()]);
-      setNewKeyword("");
-    }
-  };
-
-  const handleRemoveKeyword = (keyword: string) => {
-    setKeywords(keywords.filter(k => k !== keyword));
-  };
-
-  const handleRemoveSection = (id: string) => {
-    setSections(sections.filter(s => s.id !== id));
   };
 
   const handleSave = async () => {
@@ -93,220 +69,254 @@ export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpd
     return title.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "published":
+        return "bg-green-100 text-green-700";
+      case "generated":
+        return "bg-blue-100 text-blue-700";
+      case "reviewed":
+        return "bg-purple-100 text-purple-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  if (pagesLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold">CMS Editor</h2>
-          <p className="text-sm text-muted-foreground">Edit your page content and structure</p>
+          <p className="text-sm text-muted-foreground">Edit page SEO settings and content</p>
         </div>
-        <Button onClick={handleSave} disabled={!selectedPageId || isSaving}>
-          {isSaving ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4 mr-2" />
+        <div className="flex items-center gap-2">
+          {selectedPageId && (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setPreviewOpen(true)}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Preview
+              </Button>
+              <Button 
+                size="sm"
+                onClick={handleSave} 
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Changes
+              </Button>
+            </>
           )}
-          Save Changes
-        </Button>
+        </div>
       </div>
 
-      {/* Page Selector */}
-      <PageSelector
-        pages={pages}
-        selectedPageId={selectedPageId}
-        onSelectPage={handleSelectPage}
-        loading={pagesLoading}
-        label="Select Page to Edit"
-      />
-
-      {!selectedPageId ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">Select a page above to start editing</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-2 gap-6">
-          {/* Left Column - Page Settings */}
-          <div className="space-y-6">
-            {/* Page Title */}
-            <div>
-              <Label className="text-sm">Page Title</Label>
-              <Input 
-                placeholder="Enter page title..."
-                value={pageTitle}
-                onChange={(e) => setPageTitle(e.target.value)}
-                className="mt-1"
-              />
+      <div className="grid grid-cols-3 gap-6">
+        {/* Left: Page List */}
+        <div className="col-span-1">
+          <Card className="h-[600px] flex flex-col">
+            <div className="p-4 border-b">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search pages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-
-            {/* SEO Settings */}
-            <Card>
-              <CardContent className="p-4 space-y-4">
-                <h3 className="font-semibold">SEO Settings</h3>
-                
-                <div>
-                  <Label className="text-sm text-muted-foreground">Meta Title (60 chars max)</Label>
-                  <Input 
-                    placeholder="Enter meta title..."
-                    value={metaTitle}
-                    onChange={(e) => setMetaTitle(e.target.value)}
-                    maxLength={60}
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm text-muted-foreground">Meta Description (160 chars max)</Label>
-                  <Textarea 
-                    placeholder="Enter meta description..."
-                    value={metaDescription}
-                    onChange={(e) => setMetaDescription(e.target.value)}
-                    maxLength={160}
-                    className="mt-1 resize-none"
-                    rows={3}
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm text-muted-foreground">Keywords</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {keywords.map((keyword) => (
-                      <Badge 
-                        key={keyword} 
-                        variant="secondary" 
-                        className="gap-1 pr-1"
-                      >
-                        {keyword}
-                        <button 
-                          onClick={() => handleRemoveKeyword(keyword)}
-                          className="hover:bg-muted rounded p-0.5"
+            <ScrollArea className="flex-1">
+              <div className="p-2 space-y-1">
+                {filteredPages.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <FileText className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                    <p className="text-sm text-muted-foreground">No pages found</p>
+                  </div>
+                ) : (
+                  filteredPages.map((page) => (
+                    <button
+                      key={page.id}
+                      onClick={() => handleSelectPage(page.id)}
+                      className={cn(
+                        "w-full text-left p-3 rounded-lg transition-colors",
+                        selectedPageId === page.id
+                          ? "bg-primary/10 border border-primary/20"
+                          : "hover:bg-muted/50"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm truncate">{page.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {Object.values(page.data_values || {}).slice(0, 2).join(", ")}
+                          </p>
+                        </div>
+                        <Badge 
+                          variant="secondary" 
+                          className={cn("text-xs flex-shrink-0", getStatusColor(page.status))}
                         >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <Input 
-                      placeholder="Enter keyword..."
-                      value={newKeyword}
-                      onChange={(e) => setNewKeyword(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddKeyword()}
-                      className="flex-1"
-                    />
-                    <Button variant="outline" size="sm" onClick={handleAddKeyword}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Content Settings */}
-            <Card>
-              <CardContent className="p-4 space-y-4">
-                <h3 className="font-semibold">Content Settings</h3>
-                
-                <div className="flex items-center justify-between">
-                  <Label>Auto-generate content</Label>
-                  <Switch 
-                    checked={autoGenerate}
-                    onCheckedChange={setAutoGenerate}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm text-muted-foreground">Custom Content</Label>
-                    <span className="text-xs text-muted-foreground">Optional</span>
-                  </div>
-                  <Textarea 
-                    placeholder="Enter custom content..."
-                    value={customContent}
-                    onChange={(e) => setCustomContent(e.target.value)}
-                    className="mt-1 resize-none"
-                    rows={4}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column - Page Structure Preview */}
-          <div>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Page Structure Preview</h3>
-                  <Button variant="link" size="sm" className="text-primary">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Section
-                  </Button>
-                </div>
-
-                {/* SEO Preview */}
-                <div className="p-4 bg-muted/30 rounded-lg mb-4">
-                  <p className="text-xs text-muted-foreground mb-1">SEO Preview</p>
-                  <p className="text-primary font-medium">
-                    {metaTitle || pageTitle || "Your Page Title Here"}
-                  </p>
-                  <p className="text-xs text-green-600">
-                    www.{campaign.website_url?.replace(/https?:\/\//, "") || "yoursite.com"}/{generateSlug(pageTitle)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {metaDescription || "Your meta description will appear here and help users understand what this page is about..."}
-                  </p>
-                </div>
-
-                {/* Sections */}
-                <div>
-                  <Label className="text-sm mb-2 block">Page Sections</Label>
-                  <div className="space-y-2">
-                    {sections.map((section) => (
-                      <div 
-                        key={section.id}
-                        className="flex items-center justify-between p-3 rounded-lg border hover:border-muted-foreground/30 cursor-move group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="p-2 rounded bg-primary/10">
-                            {section.icon}
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm">{section.name}</p>
-                            <p className="text-xs text-muted-foreground">{section.description}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => handleRemoveSection(section.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                          {page.status}
+                        </Badge>
                       </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Click and drag the section to change the order
-                  </p>
-                </div>
-
-                <Button variant="link" className="text-primary mt-4 p-0">
-                  <Eye className="h-4 w-4 mr-1" />
-                  Preview Full Page
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+            <div className="p-3 border-t text-xs text-muted-foreground">
+              {filteredPages.length} of {pages.length} pages
+            </div>
+          </Card>
         </div>
+
+        {/* Right: Editor */}
+        <div className="col-span-2">
+          {!selectedPageId ? (
+            <Card className="h-[600px] flex items-center justify-center">
+              <div className="text-center">
+                <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                <h3 className="font-medium mb-1">Select a page to edit</h3>
+                <p className="text-sm text-muted-foreground">
+                  Choose a page from the list to edit its SEO settings
+                </p>
+              </div>
+            </Card>
+          ) : selectedPage ? (
+            <Card className="h-[600px] flex flex-col">
+              <div className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">{selectedPage.title}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Last updated: {new Date(selectedPage.updated_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Badge className={getStatusColor(selectedPage.status)}>
+                    {selectedPage.status}
+                  </Badge>
+                </div>
+              </div>
+              
+              <ScrollArea className="flex-1">
+                <div className="p-6 space-y-6">
+                  {/* SEO Preview */}
+                  <div>
+                    <Label className="text-sm font-medium mb-3 block">Google Search Preview</Label>
+                    <div className="p-4 bg-white border rounded-lg space-y-1">
+                      <p className="text-lg text-blue-700 hover:underline cursor-pointer truncate">
+                        {metaTitle || selectedPage.title}
+                      </p>
+                      <p className="text-sm text-green-700">
+                        {campaign.website_url || "https://yoursite.com"}/{generateSlug(selectedPage.title)}
+                      </p>
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {metaDescription || "No meta description set..."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Meta Title */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-medium">Meta Title</Label>
+                      <span className={cn(
+                        "text-xs",
+                        metaTitle.length > 60 ? "text-destructive" : "text-muted-foreground"
+                      )}>
+                        {metaTitle.length}/60
+                      </span>
+                    </div>
+                    <Input 
+                      placeholder="Enter SEO title..."
+                      value={metaTitle}
+                      onChange={(e) => setMetaTitle(e.target.value)}
+                      maxLength={70}
+                    />
+                  </div>
+
+                  {/* Meta Description */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-medium">Meta Description</Label>
+                      <span className={cn(
+                        "text-xs",
+                        metaDescription.length > 160 ? "text-destructive" : "text-muted-foreground"
+                      )}>
+                        {metaDescription.length}/160
+                      </span>
+                    </div>
+                    <Textarea 
+                      placeholder="Enter SEO description..."
+                      value={metaDescription}
+                      onChange={(e) => setMetaDescription(e.target.value)}
+                      maxLength={200}
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+
+                  {/* Page Variables */}
+                  <div>
+                    <Label className="text-sm font-medium mb-3 block">Page Variables</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(selectedPage.data_values || {}).map(([key, value]) => (
+                        <div key={key} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                          <code className="font-mono text-primary text-xs">{`{{${key}}}`}</code>
+                          <span className="text-foreground truncate">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Generated Content Preview */}
+                  {selectedPage.sections_content && selectedPage.sections_content.length > 0 && (
+                    <div>
+                      <Label className="text-sm font-medium mb-3 block">Generated Sections</Label>
+                      <div className="space-y-3">
+                        {selectedPage.sections_content.map((section, idx) => (
+                          <div key={idx} className="border rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline">{section.name || section.id}</Badge>
+                              <span className="text-xs text-muted-foreground">{section.type}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-3">
+                              {section.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </Card>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Preview Dialog */}
+      {selectedPage && (
+        <PagePreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          page={selectedPage}
+          campaign={campaign}
+        />
       )}
     </div>
   );

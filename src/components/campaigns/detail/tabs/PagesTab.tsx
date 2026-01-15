@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -28,17 +29,20 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB } from "@/hooks/useCampaignPages";
 import { PagePreviewDialog } from "../PagePreviewDialog";
+import { toast } from "sonner";
 
 interface PagesTabProps {
   campaign: CampaignDB;
   pages: CampaignPageDB[];
   pagesLoading: boolean;
   onDeletePage?: (id: string) => Promise<boolean>;
-  onGenerateContent?: (pageId: string) => Promise<void>;
+  onGenerateContent?: (pageId: string) => Promise<any>;
+  onRefetchPages?: () => Promise<void>;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -49,13 +53,20 @@ export function PagesTab({
   pagesLoading,
   onDeletePage,
   onGenerateContent,
+  onRefetchPages,
 }: PagesTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
-  const [previewPage, setPreviewPage] = useState<CampaignPageDB | null>(null);
-  const [isGeneratingBulk, setIsGeneratingBulk] = useState(false);
+  const [previewPageId, setPreviewPageId] = useState<string | null>(null);
+  
+  // Generation tracking
+  const [generatingPageIds, setGeneratingPageIds] = useState<Set<string>>(new Set());
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Derive preview page from pages array to avoid stale data
+  const previewPage = pages.find(p => p.id === previewPageId) || null;
 
   // Filter pages
   const filteredPages = pages.filter(page => {
@@ -88,21 +99,123 @@ export function PagesTab({
     }
   };
 
-  const handleBulkGenerate = async () => {
-    if (!onGenerateContent || selectedPages.length === 0) return;
+  const handleGenerateSingle = async (pageId: string) => {
+    if (!onGenerateContent) return;
     
-    setIsGeneratingBulk(true);
+    setGeneratingPageIds(prev => new Set(prev).add(pageId));
+    
     try {
-      for (const pageId of selectedPages) {
-        await onGenerateContent(pageId);
-      }
-      setSelectedPages([]);
+      await onGenerateContent(pageId);
+      toast.success("Content generated successfully!");
+    } catch (error) {
+      // Error already handled in parent
     } finally {
-      setIsGeneratingBulk(false);
+      setGeneratingPageIds(prev => {
+        const next = new Set(prev);
+        next.delete(pageId);
+        return next;
+      });
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const handleBulkGenerate = async () => {
+    if (!onGenerateContent || selectedPages.length === 0) return;
+    
+    const toGenerate = selectedPages.filter(id => {
+      const page = pages.find(p => p.id === id);
+      return page?.status === "draft";
+    });
+
+    if (toGenerate.length === 0) {
+      toast.info("No draft pages selected for generation");
+      return;
+    }
+
+    setBulkProgress({ current: 0, total: toGenerate.length });
+    
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < toGenerate.length; i++) {
+      const pageId = toGenerate[i];
+      setGeneratingPageIds(prev => new Set(prev).add(pageId));
+      setBulkProgress({ current: i, total: toGenerate.length });
+      
+      try {
+        await onGenerateContent(pageId);
+        successCount++;
+      } catch (error) {
+        failCount++;
+      } finally {
+        setGeneratingPageIds(prev => {
+          const next = new Set(prev);
+          next.delete(pageId);
+          return next;
+        });
+      }
+    }
+
+    setBulkProgress(null);
+    setSelectedPages([]);
+    
+    if (successCount > 0) {
+      toast.success(`Generated content for ${successCount} page${successCount > 1 ? "s" : ""}`);
+    }
+    if (failCount > 0) {
+      toast.error(`Failed to generate ${failCount} page${failCount > 1 ? "s" : ""}`);
+    }
+  };
+
+  const handleGenerateAllDrafts = async () => {
+    if (!onGenerateContent) return;
+    
+    const draftPages = pages.filter(p => p.status === "draft");
+    if (draftPages.length === 0) {
+      toast.info("No draft pages to generate");
+      return;
+    }
+
+    setSelectedPages(draftPages.map(p => p.id));
+    
+    setBulkProgress({ current: 0, total: draftPages.length });
+    
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < draftPages.length; i++) {
+      const pageId = draftPages[i].id;
+      setGeneratingPageIds(prev => new Set(prev).add(pageId));
+      setBulkProgress({ current: i + 1, total: draftPages.length });
+      
+      try {
+        await onGenerateContent(pageId);
+        successCount++;
+      } catch (error) {
+        failCount++;
+      } finally {
+        setGeneratingPageIds(prev => {
+          const next = new Set(prev);
+          next.delete(pageId);
+          return next;
+        });
+      }
+    }
+
+    setBulkProgress(null);
+    setSelectedPages([]);
+    
+    if (successCount > 0) {
+      toast.success(`Generated content for ${successCount} page${successCount > 1 ? "s" : ""}`);
+    }
+    if (failCount > 0) {
+      toast.error(`Failed to generate ${failCount} page${failCount > 1 ? "s" : ""}`);
+    }
+  };
+
+  const getStatusBadge = (status: string, isGenerating: boolean) => {
+    if (isGenerating) {
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    }
     const styles: Record<string, string> = {
       draft: "bg-gray-100 text-gray-700 border-gray-200",
       generated: "bg-blue-100 text-blue-700 border-blue-200",
@@ -120,6 +233,10 @@ export function PagesTab({
     return entries.length > 2 ? `${preview}, ...` : preview;
   };
 
+  const draftCount = pages.filter(p => p.status === "draft").length;
+  const generatedCount = pages.filter(p => p.status === "generated").length;
+  const publishedCount = pages.filter(p => p.status === "published").length;
+
   if (pagesLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -134,29 +251,84 @@ export function PagesTab({
         <div>
           <h2 className="text-xl font-bold">Campaign Pages</h2>
           <p className="text-sm text-muted-foreground">
-            {pages.length} pages generated • {pages.filter(p => p.status === "published").length} published
+            {pages.length} pages • {draftCount} draft • {generatedCount} generated • {publishedCount} published
           </p>
         </div>
-        {selectedPages.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {selectedPages.length} selected
-            </span>
+        <div className="flex items-center gap-2">
+          {onRefetchPages && (
+            <Button variant="outline" size="sm" onClick={onRefetchPages}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          )}
+          {draftCount > 0 && onGenerateContent && (
             <Button
               size="sm"
-              onClick={handleBulkGenerate}
-              disabled={isGeneratingBulk}
+              variant="outline"
+              onClick={handleGenerateAllDrafts}
+              disabled={bulkProgress !== null}
             >
-              {isGeneratingBulk ? (
+              {bulkProgress !== null ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
-              Generate Selected
+              Generate All Drafts ({draftCount})
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Bulk Progress */}
+      {bulkProgress !== null && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">Generating content...</span>
+                <span className="text-muted-foreground">
+                  {bulkProgress.current}/{bulkProgress.total} pages
+                </span>
+              </div>
+              <Progress value={(bulkProgress.current / bulkProgress.total) * 100} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Selected Actions */}
+      {selectedPages.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">
+                {selectedPages.length} page{selectedPages.length > 1 ? "s" : ""} selected
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleBulkGenerate}
+                  disabled={bulkProgress !== null}
+                >
+                  {bulkProgress !== null ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Generate Selected
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedPages([])}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <Card>
@@ -205,7 +377,7 @@ export function PagesTab({
         <Card>
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="bg-muted/30">
                 <TableHead className="w-12">
                   <Checkbox
                     checked={selectedPages.length === paginatedPages.length && paginatedPages.length > 0}
@@ -219,60 +391,74 @@ export function PagesTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedPages.map((page) => (
-                <TableRow key={page.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedPages.includes(page.id)}
-                      onCheckedChange={(checked) => handleSelectPage(page.id, !!checked)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{page.title}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                    {getDataPreview(page.data_values)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="outline" 
-                      className={getStatusBadge(page.status)}
-                    >
-                      {page.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setPreviewPage(page)}
+              {paginatedPages.map((page) => {
+                const isGenerating = generatingPageIds.has(page.id);
+                return (
+                  <TableRow key={page.id} className={isGenerating ? "bg-amber-50/50" : ""}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedPages.includes(page.id)}
+                        onCheckedChange={(checked) => handleSelectPage(page.id, !!checked)}
+                        disabled={isGenerating}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{page.title}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                      {getDataPreview(page.data_values)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="outline" 
+                        className={getStatusBadge(page.status, isGenerating)}
                       >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      {page.status === "draft" && onGenerateContent && (
+                        {isGenerating ? (
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Generating...
+                          </span>
+                        ) : page.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => onGenerateContent(page.id)}
+                          onClick={() => setPreviewPageId(page.id)}
                         >
-                          <Sparkles className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </Button>
-                      )}
-                      {onDeletePage && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => onDeletePage(page.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        {page.status === "draft" && onGenerateContent && !isGenerating && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleGenerateSingle(page.id)}
+                          >
+                            <Sparkles className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {isGenerating && (
+                          <div className="h-8 w-8 flex items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                          </div>
+                        )}
+                        {onDeletePage && !isGenerating && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => onDeletePage(page.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
 
@@ -332,11 +518,12 @@ export function PagesTab({
 
       {/* Page Preview Dialog */}
       <PagePreviewDialog
-        open={!!previewPage}
-        onOpenChange={(open) => !open && setPreviewPage(null)}
+        open={!!previewPageId}
+        onOpenChange={(open) => !open && setPreviewPageId(null)}
         page={previewPage}
         campaign={campaign}
-        onGenerateContent={onGenerateContent}
+        onGenerateContent={handleGenerateSingle}
+        isGenerating={previewPageId ? generatingPageIds.has(previewPageId) : false}
       />
     </div>
   );

@@ -4,7 +4,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   LayoutGrid, 
   BarChart3, 
-  Pencil, 
   FileEdit, 
   Settings, 
   Blocks,
@@ -15,7 +14,6 @@ import { CampaignDB } from "@/hooks/useCampaigns";
 import { useCampaignPages } from "@/hooks/useCampaignPages";
 import { MatrixBuilderTab } from "./tabs/MatrixBuilderTab";
 import { KeywordMapperTab } from "./tabs/KeywordMapperTab";
-import { ContentGeneratorTab } from "./tabs/ContentGeneratorTab";
 import { CMSEditorTab } from "./tabs/CMSEditorTab";
 import { DeploymentSettingsTab } from "./tabs/DeploymentSettingsTab";
 import { ReusableBlocksTab } from "./tabs/ReusableBlocksTab";
@@ -32,13 +30,12 @@ interface CampaignDetailDialogProps {
   onSave: (campaign: CampaignDB) => void;
 }
 
-type TabId = "pages" | "matrix" | "keywords" | "content" | "cms" | "deployment" | "blocks";
+type TabId = "matrix" | "keywords" | "pages" | "cms" | "deployment" | "blocks";
 
 const TABS = [
-  { id: "pages" as TabId, label: "Pages", icon: FileText },
   { id: "matrix" as TabId, label: "Matrix Builder", icon: LayoutGrid },
   { id: "keywords" as TabId, label: "Keyword Mapper", icon: BarChart3 },
-  { id: "content" as TabId, label: "Content Generator", icon: Pencil },
+  { id: "pages" as TabId, label: "Pages", icon: FileText },
   { id: "cms" as TabId, label: "CMS Editor", icon: FileEdit },
   { id: "deployment" as TabId, label: "Deployment Settings", icon: Settings },
   { id: "blocks" as TabId, label: "Reusable Blocks", icon: Blocks },
@@ -67,8 +64,6 @@ export function CampaignDetailDialog({
     }
 
     try {
-      toast.info("Generating content with AI...", { duration: 10000 });
-
       const { data, error } = await supabase.functions.invoke("generate-campaign-content", {
         body: {
           page_id: pageId,
@@ -89,14 +84,14 @@ export function CampaignDetailDialog({
         } else {
           toast.error("Failed to generate content. Please try again.");
         }
-        return;
+        throw error;
       }
 
-      toast.success("Content generated successfully!");
-      refetchPages();
+      await refetchPages();
+      return data;
     } catch (err) {
       console.error("Error calling generate-campaign-content:", err);
-      toast.error("Failed to generate content. Please try again.");
+      throw err;
     }
   };
 
@@ -110,14 +105,13 @@ export function CampaignDetailDialog({
             pagesLoading={pagesLoading}
             onDeletePage={deletePage}
             onGenerateContent={handleGenerateContent}
+            onRefetchPages={refetchPages}
           />
         );
       case "matrix":
         return <MatrixBuilderTab campaign={campaign} pages={pages} onRefreshPages={refetchPages} />;
       case "keywords":
         return <KeywordMapperTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateKeywords={async (id, kw) => { updatePageKeywords(id, kw); }} />;
-      case "content":
-        return <ContentGeneratorTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateSEO={updatePageSEO} onUpdateContent={updatePageContent} />;
       case "cms":
         return <CMSEditorTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateSEO={updatePageSEO} onUpdateContent={updatePageContent} />;
       case "deployment":
@@ -131,10 +125,10 @@ export function CampaignDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[90vh] p-0 gap-0 overflow-hidden">
-        <div className="flex h-full">
+      <DialogContent className="max-w-6xl h-[90vh] p-0 gap-0 flex flex-col overflow-hidden">
+        <div className="flex flex-1 min-h-0">
           {/* Sidebar */}
-          <div className="w-52 bg-gradient-to-b from-primary via-primary/90 to-primary/80 text-white p-4 flex flex-col">
+          <div className="w-52 bg-gradient-to-b from-primary via-primary/90 to-primary/80 text-white p-4 flex flex-col flex-shrink-0">
             <h2 className="font-bold text-lg mb-6">Campaign</h2>
             <nav className="space-y-1 flex-1">
               {TABS.map((tab) => {
@@ -159,15 +153,15 @@ export function CampaignDetailDialog({
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 flex flex-col bg-background overflow-hidden">
-            <ScrollArea className="flex-1 h-[calc(90vh-80px)]">
+          <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-background">
+            <ScrollArea className="flex-1">
               <div className="p-6">
                 {renderTabContent()}
               </div>
             </ScrollArea>
 
             {/* Footer */}
-            <div className="border-t p-4 flex justify-end gap-3">
+            <div className="border-t p-4 flex justify-end gap-3 flex-shrink-0">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
