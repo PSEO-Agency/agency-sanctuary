@@ -216,6 +216,155 @@ export type Database = {
           },
         ]
       }
+      campaign_pages: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          data_values: Json | null
+          id: string
+          keywords: Json | null
+          meta_description: string | null
+          meta_title: string | null
+          published_at: string | null
+          published_url: string | null
+          sections_content: Json | null
+          slug: string | null
+          status: string
+          subaccount_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          data_values?: Json | null
+          id?: string
+          keywords?: Json | null
+          meta_description?: string | null
+          meta_title?: string | null
+          published_at?: string | null
+          published_url?: string | null
+          sections_content?: Json | null
+          slug?: string | null
+          status?: string
+          subaccount_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          data_values?: Json | null
+          id?: string
+          keywords?: Json | null
+          meta_description?: string | null
+          meta_title?: string | null
+          published_at?: string | null
+          published_url?: string | null
+          sections_content?: Json | null
+          slug?: string | null
+          status?: string
+          subaccount_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_pages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_pages_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          business_address: string | null
+          business_logo_url: string | null
+          business_name: string | null
+          business_type: string | null
+          clicks: number | null
+          column_mappings: Json | null
+          created_at: string
+          data_columns: Json | null
+          data_source_type: string | null
+          deployment_settings: Json | null
+          description: string | null
+          id: string
+          name: string
+          pages_generated: number | null
+          status: string
+          subaccount_id: string
+          template_config: Json | null
+          template_id: string | null
+          total_pages: number | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          business_address?: string | null
+          business_logo_url?: string | null
+          business_name?: string | null
+          business_type?: string | null
+          clicks?: number | null
+          column_mappings?: Json | null
+          created_at?: string
+          data_columns?: Json | null
+          data_source_type?: string | null
+          deployment_settings?: Json | null
+          description?: string | null
+          id?: string
+          name: string
+          pages_generated?: number | null
+          status?: string
+          subaccount_id: string
+          template_config?: Json | null
+          template_id?: string | null
+          total_pages?: number | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          business_address?: string | null
+          business_logo_url?: string | null
+          business_name?: string | null
+          business_type?: string | null
+          clicks?: number | null
+          column_mappings?: Json | null
+          created_at?: string
+          data_columns?: Json | null
+          data_source_type?: string | null
+          deployment_settings?: Json | null
+          description?: string | null
+          id?: string
+          name?: string
+          pages_generated?: number | null
+          status?: string
+          subaccount_id?: string
+          template_config?: Json | null
+          template_id?: string | null
+          total_pages?: number | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           created_at: string | null
