@@ -33,6 +33,7 @@ export interface CampaignFormData {
   // Step 3B: Build From Scratch
   scratchData: Record<string, string[]>;
   generatedTitles: GeneratedTitle[];
+  titlePattern: string; // e.g., "{{service}} in {{city}}"
 
   // Step 4: Template Selection
   selectedTemplate: string;
@@ -148,5 +149,6 @@ export const initialFormData: CampaignFormData = {
   csvColumns: [],
   scratchData: {},
   generatedTitles: [],
+  titlePattern: "",
   selectedTemplate: "",
 };
