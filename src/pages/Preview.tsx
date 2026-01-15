@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import WebsiteShell from "@/components/preview/WebsiteShell";
-import PreviewPageContent from "@/components/preview/PreviewPageContent";
+import { PagePreviewRenderer } from "@/components/campaigns/detail/PagePreviewRenderer";
+import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
 import AIAssistantPanel from "@/components/preview/AIAssistantPanel";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -200,16 +201,21 @@ export default function Preview() {
         currentPage={page}
         siblingPages={siblingPages}
       >
-        <PreviewPageContent
-          page={page}
-          campaign={campaign}
+        <PagePreviewRenderer
+          sections={getTemplateForBusinessType(campaign?.template_config?.templateId || "local").sections}
+          dataValues={{
+            company: campaign?.business_name || "Your Company",
+            ...page.data_values,
+          }}
+          generatedContent={page.sections_content || []}
+          businessName={campaign?.business_name || undefined}
         />
       </WebsiteShell>
 
       {/* AI Assistant Toggle Button */}
       <Button
         onClick={() => setIsAIAssistantOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-40"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-[60]"
         size="icon"
       >
         <Sparkles className="h-6 w-6" />
