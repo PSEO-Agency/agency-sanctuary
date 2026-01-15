@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { baseId, fields, projectRecordId } = await req.json();
+    const { baseId, fields, projectRecordId, subaccountId } = await req.json();
     
     if (!baseId) {
       return new Response(
@@ -19,6 +20,11 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
+
+    // Initialize Supabase admin client for incrementing usage
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const airtableApiKey = Deno.env.get('AIRTABLE_API_KEY');
     if (!airtableApiKey) {
@@ -244,10 +250,30 @@ serve(async (req) => {
       const updatedRecord = await updateResponse.json();
       console.log('Successfully updated status to Start Research');
       
+      // Increment articles_used for this subaccount
+      if (subaccountId) {
+        try {
+          await supabaseAdmin.rpc('increment_articles_used', { p_subaccount_id: subaccountId });
+          console.log(`Incremented articles_used for subaccount: ${subaccountId}`);
+        } catch (incErr) {
+          console.error('Failed to increment articles_used:', incErr);
+        }
+      }
+      
       return new Response(
         JSON.stringify({ success: true, record: updatedRecord }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Increment even if no status field (article was still created)
+    if (subaccountId) {
+      try {
+        await supabaseAdmin.rpc('increment_articles_used', { p_subaccount_id: subaccountId });
+        console.log(`Incremented articles_used for subaccount: ${subaccountId}`);
+      } catch (incErr) {
+        console.error('Failed to increment articles_used:', incErr);
+      }
     }
 
     return new Response(

@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { baseId, projectRecordId } = await req.json();
+    const { baseId, projectRecordId, countOnly } = await req.json();
     
     if (!baseId) {
       return new Response(
@@ -20,8 +20,7 @@ serve(async (req) => {
       );
     }
     
-    console.log(`Filtering by projectRecordId: ${projectRecordId || 'none'}`);
-    
+    console.log(`Fetching articles from base ${baseId}, countOnly: ${countOnly}, projectRecordId: ${projectRecordId || 'none'}`);
 
     const airtableApiKey = Deno.env.get('AIRTABLE_API_KEY');
     if (!airtableApiKey) {
@@ -30,8 +29,6 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
-
-    console.log(`Fetching articles from Airtable base: ${baseId}`);
 
     // First, discover tables in the base to find "pSEO Pages" table
     const metaResponse = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
@@ -65,53 +62,83 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false, 
           error: 'Could not find pSEO Pages table in this base',
-          availableTables: metaData.tables.map((t: { name: string }) => t.name)
+          articles: [],
+          count: 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
       );
     }
 
     console.log(`Found table: ${pSEOTable.name} (${pSEOTable.id})`);
-    console.log(`Table fields:`, pSEOTable.fields?.map((f: { name: string }) => f.name));
 
-    // Build URL - fetch all records first
-    let url = `https://api.airtable.com/v0/${baseId}/${pSEOTable.id}?maxRecords=100`;
+    // Paginate through all records to get accurate count
+    let allRecords: any[] = [];
+    let offset: string | undefined = undefined;
     
-    console.log(`Fetching from URL (no filter, will filter in-memory): ${url}`);
+    do {
+      const url = new URL(`https://api.airtable.com/v0/${baseId}/${pSEOTable.id}`);
+      url.searchParams.set('pageSize', '100');
+      
+      // For countOnly, we only need minimal fields to reduce payload
+      if (countOnly) {
+        url.searchParams.append('fields[]', 'Name');
+      }
+      
+      if (offset) {
+        url.searchParams.set('offset', offset);
+      }
 
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${airtableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Authorization': `Bearer ${airtableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Airtable API error:', errorText);
-      return new Response(
-        JSON.stringify({ success: false, error: `Airtable API error: ${response.status}` }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: response.status }
-      );
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Airtable API error:', errorText);
+        return new Response(
+          JSON.stringify({ success: false, error: `Failed to fetch records: ${response.status}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: response.status }
+        );
+      }
 
-    const data = await response.json();
-    
+      const data = await response.json();
+      allRecords = allRecords.concat(data.records || []);
+      offset = data.offset;
+      
+      console.log(`Fetched ${data.records?.length || 0} records, total so far: ${allRecords.length}, has more: ${!!offset}`);
+    } while (offset);
+
+    console.log(`Total records fetched: ${allRecords.length}`);
+
     // Filter by projectRecordId in-memory if provided
-    let filteredRecords = data.records;
+    let filteredRecords = allRecords;
     if (projectRecordId) {
-      console.log(`Filtering ${data.records.length} records for project: ${projectRecordId}`);
-      filteredRecords = data.records.filter((record: any) => {
+      console.log(`Filtering ${allRecords.length} records for project: ${projectRecordId}`);
+      filteredRecords = allRecords.filter((record: any) => {
         const projects = record.fields['Projects'];
         // Projects is an array of linked record IDs
         if (Array.isArray(projects)) {
           const matches = projects.includes(projectRecordId);
-          if (matches) console.log(`Record ${record.id} matches project ${projectRecordId}`);
           return matches;
         }
         return false;
       });
       console.log(`After filtering: ${filteredRecords.length} records match`);
+    }
+
+    // If countOnly, return just the count
+    if (countOnly) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          count: filteredRecords.length,
+          totalUnfiltered: allRecords.length
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     // Helper to extract creator name from collaborator field or text field
@@ -129,10 +156,8 @@ serve(async (req) => {
             return user.name;
           }
           if (typeof user === 'object' && user.email) {
-            // Use email prefix as fallback
             return user.email.split('@')[0];
           }
-          // If it's a string (record ID), return null to be filtered
           if (typeof user === 'string') {
             return null;
           }
@@ -147,12 +172,12 @@ serve(async (req) => {
         return [usersField.email.split('@')[0]];
       }
       if (typeof usersField === 'string') {
-        return null; // Just a record ID, can't extract name
+        return null;
       }
       return null;
     };
 
-    // Transform the filtered records - map available fields flexibly
+    // Transform the filtered records
     const articles = filteredRecords.map((record: any) => {
       const f = record.fields;
       return {
@@ -182,7 +207,7 @@ serve(async (req) => {
     console.log(`Successfully fetched ${articles.length} articles from ${pSEOTable.name}`);
 
     return new Response(
-      JSON.stringify({ success: true, articles, tableName: pSEOTable.name }),
+      JSON.stringify({ success: true, articles, count: articles.length, tableName: pSEOTable.name }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -190,7 +215,7 @@ serve(async (req) => {
     console.error('Error fetching articles:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: errorMessage, articles: [], count: 0 }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
