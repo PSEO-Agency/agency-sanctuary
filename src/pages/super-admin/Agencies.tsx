@@ -114,7 +114,7 @@ export default function Agencies() {
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-agency-invite", {
-        body: { email: inviteEmail || undefined },
+        body: { email: inviteEmail || undefined, baseUrl: window.location.origin },
       });
 
       if (error) throw error;

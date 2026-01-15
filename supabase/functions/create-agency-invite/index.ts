@@ -11,6 +11,7 @@ interface CreateAgencyInviteRequest {
   email?: string;
   agencyName?: string;
   expiresInDays?: number;
+  baseUrl?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -49,7 +50,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Only super admins can create agency invites");
     }
 
-    const { email, agencyName, expiresInDays = 7 }: CreateAgencyInviteRequest = await req.json();
+    const { email, agencyName, expiresInDays = 7, baseUrl }: CreateAgencyInviteRequest = await req.json();
 
     // Generate unique token
     const token_value = crypto.randomUUID() + "-" + crypto.randomUUID();
@@ -79,8 +80,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Agency invite created:", invite.id);
 
-    // Build the invite URL
-    const origin = req.headers.get("origin") || supabaseUrl.replace("supabase.co", "lovableproject.com");
+    // Build the invite URL - use baseUrl from request, fallback to origin header
+    const origin = baseUrl || req.headers.get("origin") || "https://app.pseo.nl";
     const inviteUrl = `${origin}/auth/agency-invite?token=${token_value}`;
 
     return new Response(
