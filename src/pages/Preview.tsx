@@ -5,9 +5,10 @@ import WebsiteShell from "@/components/preview/WebsiteShell";
 import { PagePreviewRenderer } from "@/components/campaigns/detail/PagePreviewRenderer";
 import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
 import AIAssistantPanel from "@/components/preview/AIAssistantPanel";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface CampaignPage {
   id: string;
@@ -47,6 +48,8 @@ export default function Preview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [isVisualMode, setIsVisualMode] = useState(false);
 
   const handleApplyAIChanges = async (changes: any) => {
     if (!page || !changes) return;
@@ -98,6 +101,19 @@ export default function Preview() {
     } catch (err) {
       console.error("Failed to apply changes:", err);
       toast.error("Failed to apply changes");
+    }
+  };
+
+  const handleSectionSelect = (sectionId: string) => {
+    if (isVisualMode) {
+      setSelectedSection(sectionId === selectedSection ? null : sectionId);
+    }
+  };
+
+  const handleModeChange = (mode: string) => {
+    setIsVisualMode(mode === "visual");
+    if (mode !== "visual") {
+      setSelectedSection(null);
     }
   };
 
@@ -194,44 +210,89 @@ export default function Preview() {
     );
   }
 
+  const template = getTemplateForBusinessType(campaign?.template_config?.templateId || "local");
+
   return (
-    <>
-      <WebsiteShell
-        campaign={campaign}
-        currentPage={page}
-        siblingPages={siblingPages}
+    <div className="h-screen flex overflow-hidden bg-[#0a0a0a]">
+      {/* AI Assistant Panel - Integrated into layout */}
+      <div
+        className={cn(
+          "h-full flex-shrink-0 transition-all duration-300 ease-in-out",
+          isAIAssistantOpen ? "w-[420px]" : "w-0"
+        )}
       >
-        <PagePreviewRenderer
-          sections={getTemplateForBusinessType(campaign?.template_config?.templateId || "local").sections}
-          dataValues={{
-            company: campaign?.business_name || "Your Company",
-            ...page.data_values,
+        <AIAssistantPanel
+          isOpen={isAIAssistantOpen}
+          onClose={() => setIsAIAssistantOpen(false)}
+          pageId={page.id}
+          currentContent={{
+            sections: page.sections_content || [],
+            dataValues: page.data_values || {},
           }}
-          generatedContent={page.sections_content || []}
-          businessName={campaign?.business_name || undefined}
+          onApplyChanges={handleApplyAIChanges}
+          selectedSection={selectedSection}
+          templateSections={template.sections}
+          onModeChange={handleModeChange}
         />
-      </WebsiteShell>
+      </div>
 
-      {/* AI Assistant Toggle Button */}
-      <Button
-        onClick={() => setIsAIAssistantOpen(true)}
-        className="fixed bottom-6 left-6 h-14 w-14 rounded-full shadow-lg z-[60]"
-        size="icon"
-      >
-        <Sparkles className="h-6 w-6" />
-      </Button>
+      {/* Main Preview Area */}
+      <div className="flex-1 h-full overflow-hidden flex flex-col">
+        {/* Toggle Button Bar */}
+        <div className="h-12 bg-[#0d0d0d] border-b border-white/10 flex items-center px-4 gap-3 flex-shrink-0">
+          <Button
+            onClick={() => setIsAIAssistantOpen(!isAIAssistantOpen)}
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "gap-2 text-white/70 hover:text-white hover:bg-white/10",
+              isAIAssistantOpen && "bg-white/10 text-white"
+            )}
+          >
+            {isAIAssistantOpen ? (
+              <>
+                <X className="h-4 w-4" />
+                <span>Close AI</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                <span>PSEO AI Builder</span>
+              </>
+            )}
+          </Button>
+          
+          {isVisualMode && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-white/50">
+                {selectedSection ? `Selected: ${selectedSection}` : "Click a section to select"}
+              </span>
+            </div>
+          )}
+        </div>
 
-      {/* AI Assistant Panel */}
-      <AIAssistantPanel
-        isOpen={isAIAssistantOpen}
-        onClose={() => setIsAIAssistantOpen(false)}
-        pageId={page.id}
-        currentContent={{
-          sections: page.sections_content || [],
-          dataValues: page.data_values || {},
-        }}
-        onApplyChanges={handleApplyAIChanges}
-      />
-    </>
+        {/* Preview Content */}
+        <div className="flex-1 overflow-auto">
+          <WebsiteShell
+            campaign={campaign}
+            currentPage={page}
+            siblingPages={siblingPages}
+          >
+            <PagePreviewRenderer
+              sections={template.sections}
+              dataValues={{
+                company: campaign?.business_name || "Your Company",
+                ...page.data_values,
+              }}
+              generatedContent={page.sections_content || []}
+              businessName={campaign?.business_name || undefined}
+              isVisualMode={isVisualMode}
+              selectedSection={selectedSection}
+              onSectionSelect={handleSectionSelect}
+            />
+          </WebsiteShell>
+        </div>
+      </div>
+    </div>
   );
 }
