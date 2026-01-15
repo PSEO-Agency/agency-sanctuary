@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +13,13 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw } from "lucide-react";
+import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB } from "@/hooks/useCampaignPages";
 import { BUSINESS_TYPES } from "../../types";
+import { TitlePatternInput } from "../../TitlePatternInput";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface MatrixBuilderTabProps {
   campaign: CampaignDB;
@@ -34,6 +37,10 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   );
 
   const [newItems, setNewItems] = useState<Record<string, string>>({});
+  const [titlePattern, setTitlePattern] = useState<string>(
+    (campaign.template_config as any)?.titlePattern || ""
+  );
+  const [isSaving, setIsSaving] = useState(false);
 
   const businessType = BUSINESS_TYPES.find(bt => bt.id === campaign.business_type);
   const columnConfigs = businessType?.columns || BUSINESS_TYPES[2].columns;
@@ -59,6 +66,31 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
       ...prev,
       [columnId]: prev[columnId].filter((_, i) => i !== index),
     }));
+  };
+
+  const handleSaveMatrix = async () => {
+    setIsSaving(true);
+    try {
+      // Update campaign with new data_columns and title pattern
+      const { error } = await supabase
+        .from("campaigns")
+        .update({
+          data_columns: columns,
+          template_config: {
+            ...(campaign.template_config as object || {}),
+            titlePattern: titlePattern,
+          },
+        })
+        .eq("id", campaign.id);
+
+      if (error) throw error;
+      toast.success("Matrix saved successfully!");
+    } catch (err) {
+      console.error("Error saving matrix:", err);
+      toast.error("Failed to save matrix");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Generate sample combinations from actual pages or calculate from columns
@@ -97,11 +129,24 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
             </div>
           </div>
         </div>
-        <div className="text-right text-sm">
-          <p className="font-medium">Campaign</p>
-          <p className="text-muted-foreground text-xs">Edit your campaign details</p>
-        </div>
+        <Button onClick={handleSaveMatrix} disabled={isSaving}>
+          <Save className="h-4 w-4 mr-2" />
+          {isSaving ? "Saving..." : "Save Changes"}
+        </Button>
       </div>
+
+      {/* Title Pattern Configuration */}
+      <Card>
+        <CardContent className="p-4">
+          <TitlePatternInput
+            value={titlePattern}
+            onChange={setTitlePattern}
+            columns={columnConfigs}
+            label="Page Title Pattern"
+            placeholder={`e.g., {{${columnConfigs[0]?.id}}} in {{${columnConfigs[1]?.id}}}`}
+          />
+        </CardContent>
+      </Card>
 
       {/* Business Details */}
       <Card>

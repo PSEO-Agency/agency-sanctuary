@@ -3,6 +3,7 @@ import { Plus, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CampaignFormData, BUSINESS_TYPES, ColumnConfig } from "../types";
+import { TitlePatternInput } from "../TitlePatternInput";
 import { cn } from "@/lib/utils";
 
 interface BuildFromScratchStepProps {
@@ -50,23 +51,55 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   };
 
   const generateTitles = () => {
+    const pattern = formData.titlePattern || `{{${columns[0]?.id}}} in {{${columns[1]?.id}}}`;
     const titles: { id: string; title: string; language: string }[] = [];
-    const col1Items = formData.scratchData[columns[0]?.id] || [];
-    const col2Items = formData.scratchData[columns[1]?.id] || [];
-    const col3Items = formData.scratchData[columns[2]?.id] || [];
-
-    // Generate combinations
-    col1Items.forEach((item1) => {
-      col2Items.forEach((item2) => {
-        col3Items.forEach((item3) => {
-          titles.push({
-            id: `${item1}-${item2}-${item3}`,
-            title: `${item1} in ${item2}`,
-            language: item3,
-          });
-        });
-      });
+    
+    // Get all column data
+    const columnData: Record<string, string[]> = {};
+    columns.forEach(col => {
+      columnData[col.id] = formData.scratchData[col.id] || [];
     });
+
+    // Generate all combinations using the pattern
+    const generateCombinations = (
+      columnIds: string[],
+      currentValues: Record<string, string>,
+      index: number
+    ) => {
+      if (index >= columnIds.length) {
+        // All columns processed - create title from pattern
+        let title = pattern;
+        Object.entries(currentValues).forEach(([key, value]) => {
+          title = title.replace(new RegExp(`\\{\\{${key}\\}\\}`, "gi"), value);
+        });
+        
+        titles.push({
+          id: Object.values(currentValues).join("-"),
+          title: title,
+          language: currentValues[columns[2]?.id] || currentValues[columns[0]?.id] || "Default",
+        });
+        return;
+      }
+
+      const colId = columnIds[index];
+      const items = columnData[colId] || [];
+      
+      if (items.length === 0) {
+        // Skip empty columns
+        generateCombinations(columnIds, currentValues, index + 1);
+      } else {
+        items.forEach(item => {
+          generateCombinations(
+            columnIds, 
+            { ...currentValues, [colId]: item }, 
+            index + 1
+          );
+        });
+      }
+    };
+
+    const columnIds = columns.map(c => c.id);
+    generateCombinations(columnIds, {}, 0);
 
     updateFormData({ generatedTitles: titles.slice(0, 10) }); // Limit for preview
   };
@@ -83,6 +116,17 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         <p className="text-muted-foreground">
           Enter your data in the columns below. We'll combine them to generate your campaign pages.
         </p>
+      </div>
+
+      {/* Title Pattern Input */}
+      <div className="border rounded-xl p-4 bg-muted/30">
+        <TitlePatternInput
+          value={formData.titlePattern}
+          onChange={(titlePattern) => updateFormData({ titlePattern })}
+          columns={columns}
+          label="Page Title Pattern"
+          placeholder={`e.g., {{${columns[0]?.id}}} in {{${columns[1]?.id}}}`}
+        />
       </div>
 
       {/* Columns Grid */}
