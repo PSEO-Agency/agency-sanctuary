@@ -59,13 +59,29 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const fetchSubscription = async () => {
     try {
-      // Get actual article count from blog_posts
-      const { count: articleCount } = await supabase
-        .from("blog_posts")
-        .select("*", { count: "exact", head: true })
-        .eq("subaccount_id", subaccountId);
+      // Get the subaccount's Airtable base ID first
+      const { data: subaccount } = await supabase
+        .from("subaccounts")
+        .select("airtable_base_id")
+        .eq("id", subaccountId)
+        .maybeSingle();
 
-      const actualArticlesUsed = articleCount || 0;
+      let actualArticlesUsed = 0;
+
+      // If subaccount has an Airtable base, fetch article count from there
+      if (subaccount?.airtable_base_id) {
+        try {
+          const { data: articlesData } = await supabase.functions.invoke('fetch-airtable-articles', {
+            body: { baseId: subaccount.airtable_base_id }
+          });
+          
+          if (articlesData?.success && Array.isArray(articlesData.articles)) {
+            actualArticlesUsed = articlesData.articles.length;
+          }
+        } catch (airtableError) {
+          console.error("Error fetching Airtable articles count:", airtableError);
+        }
+      }
 
       // First check if subscription exists
       const { data: existingSubscription } = await supabase
@@ -92,7 +108,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
             planName: plan.name,
             articlesUsed: actualArticlesUsed,
             articleLimit: plan.article_limit,
-            otherCredits: existingSubscription.other_credits,
+            otherCredits: existingSubscription.other_credits || 0,
             billingPeriodEnd: new Date(existingSubscription.billing_period_end),
           });
         }
