@@ -12,6 +12,7 @@ import SuperAdmin from "./pages/SuperAdmin";
 import Agency from "./pages/Agency";
 import Subaccount from "./pages/Subaccount";
 import BlogEditor from "./pages/subaccount/BlogEditor";
+import Preview from "./pages/Preview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -37,6 +38,8 @@ function App() {
               <Route path="/auth/agency-invite" element={<AgencyInvite />} />
               <Route path="/auth/subaccount-invite" element={<SubaccountInvite />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              {/* Public preview route - no auth required */}
+              <Route path="/preview/:token" element={<Preview />} />
               <Route path="/super-admin/*" element={<SuperAdmin />} />
               <Route path="/agency/:agencyId/*" element={<Agency />} />
               <Route path="/subaccount/:subaccountId/projects/:projectId/blogs/:blogId/edit" element={<BlogEditor />} />

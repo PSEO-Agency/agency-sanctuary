@@ -16,6 +16,7 @@ export interface CampaignPageDB {
   status: "draft" | "generated" | "reviewed" | "published";
   published_url: string | null;
   published_at: string | null;
+  preview_token: string | null;
   created_at: string;
   updated_at: string;
 }
