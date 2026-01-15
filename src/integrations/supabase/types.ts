@@ -612,6 +612,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_articles_used: {
+        Args: { p_subaccount_id: string }
+        Returns: undefined
+      }
+      reset_articles_if_period_ended: {
+        Args: { p_subaccount_id: string }
+        Returns: undefined
+      }
       user_agency_id: { Args: { _user_id: string }; Returns: string }
       user_has_role: {
         Args: {
