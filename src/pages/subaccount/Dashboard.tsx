@@ -81,8 +81,15 @@ export default function SubaccountDashboard() {
 
   const loading = usage.isLoading || projectsLoading || statsLoading;
 
-  const usagePercentage = usage.articleLimit > 0 
-    ? Math.min(100, (usage.articlesUsedPeriod / usage.articleLimit) * 100) 
+  // Keep dashboard usage consistent with the counters used elsewhere.
+  // If the DB-backed period counter isn't being incremented yet, fall back to actual article count.
+  const usedThisPeriod =
+    usage.articlesUsedPeriod === 0 && usage.totalArticles > 0
+      ? usage.totalArticles
+      : usage.articlesUsedPeriod;
+
+  const usagePercentage = usage.articleLimit > 0
+    ? Math.min(100, (usedThisPeriod / usage.articleLimit) * 100)
     : 0;
 
   // Format billing period end date
@@ -113,7 +120,7 @@ export default function SubaccountDashboard() {
     },
     {
       title: "Used This Period",
-      value: usage.articlesUsedPeriod,
+      value: usedThisPeriod,
       icon: TrendingUp,
       description: `of ${usage.articleLimit} articles`,
     },
@@ -181,12 +188,12 @@ export default function SubaccountDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm">
-              <span>{usage.articlesUsedPeriod} / {usage.articleLimit} articles</span>
+              <span>{usedThisPeriod} / {usage.articleLimit} articles</span>
               <span className="text-muted-foreground">Resets {formatPeriodEnd()}</span>
             </div>
             <Progress value={usagePercentage} className="h-2" />
             <p className="text-xs text-muted-foreground">
-              {Math.max(0, usage.articleLimit - usage.articlesUsedPeriod)} articles remaining this billing period
+              {Math.max(0, usage.articleLimit - usedThisPeriod)} articles remaining this billing period
             </p>
             
             <div className="grid grid-cols-2 gap-4 pt-4">
