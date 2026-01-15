@@ -35,8 +35,12 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   const location = useLocation();
   const collapsed = state === "collapsed";
   const [pseoBuilderEnabled, setPseoBuilderEnabled] = useState(false);
-  const [activeMode, setActiveMode] = useState<"content-machine" | "pseo-builder">("content-machine");
+  const [activeMode, setActiveMode] = useState<"content-machine" | "pseo-builder">(() => {
+    const saved = localStorage.getItem(`sidebar-mode-${subaccountId}`);
+    return saved === "pseo-builder" ? "pseo-builder" : "content-machine";
+  });
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
     fetchFeatureSettings();
@@ -60,7 +64,15 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   };
 
   const toggleMode = () => {
-    setActiveMode(prev => prev === "content-machine" ? "pseo-builder" : "content-machine");
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setActiveMode(prev => {
+        const newMode = prev === "content-machine" ? "pseo-builder" : "content-machine";
+        localStorage.setItem(`sidebar-mode-${subaccountId}`, newMode);
+        return newMode;
+      });
+      setTimeout(() => setIsTransitioning(false), 150);
+    }, 150);
   };
 
   const fetchSubscription = async () => {
@@ -238,11 +250,11 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                     <Zap className="h-5 w-5" />
                   )}
                 </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-semibold text-sidebar-foreground">
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-semibold text-sidebar-foreground whitespace-nowrap">
                     {activeMode === "content-machine" ? "pSEO Builder" : "Content Machine"}
                   </p>
-                  <p className="text-xs text-sidebar-foreground/60">
+                  <p className="text-xs text-sidebar-foreground/60 whitespace-nowrap">
                     {activeMode === "content-machine" 
                       ? "Switch to exclusive builder" 
                       : "Back to content tools"}
@@ -279,65 +291,77 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
         </SidebarGroup>
 
         {/* Content Machine Section - Show when in content-machine mode */}
-        {activeMode === "content-machine" && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
-              Content Machine
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {contentMachineItems.map((item) => {
-                  const isActive = isRouteActive(item.url);
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton 
-                        asChild 
-                        className={getMenuItemClassName(isActive)}
-                      >
-                        <NavLink to={item.url} end>
-                          <item.icon className={getIconClassName(isActive)} />
-                          {!collapsed && <span>{item.title}</span>}
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <div className={cn(
+          "transition-all duration-300 ease-out",
+          activeMode === "content-machine" ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 absolute pointer-events-none",
+          isTransitioning && "opacity-0"
+        )}>
+          {activeMode === "content-machine" && (
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
+                Content Machine
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {contentMachineItems.map((item) => {
+                    const isActive = isRouteActive(item.url);
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton 
+                          asChild 
+                          className={getMenuItemClassName(isActive)}
+                        >
+                          <NavLink to={item.url} end>
+                            <item.icon className={getIconClassName(isActive)} />
+                            {!collapsed && <span>{item.title}</span>}
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </div>
 
         {/* pSEO Builder Section - Show when in pseo-builder mode AND feature is enabled */}
-        {activeMode === "pseo-builder" && pseoBuilderEnabled && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
-              pSEO Builder
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {pseoBuilderItems.map((item) => {
-                  const isActive = isRouteActive(item.url);
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton 
-                        disabled={item.disabled}
-                        className={isActive ? getMenuItemClassName(true) : "text-sidebar-foreground/40 cursor-not-allowed"}
-                      >
-                        <item.icon className={isActive ? getIconClassName(true) : "h-5 w-5"} />
-                        {!collapsed && (
-                          <span className="flex items-center justify-between w-full">
-                            {item.title}
-                            {item.disabled && <span className="text-xs text-sidebar-foreground/30 ml-2">Soon</span>}
-                          </span>
-                        )}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <div className={cn(
+          "transition-all duration-300 ease-out",
+          activeMode === "pseo-builder" && pseoBuilderEnabled ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 absolute pointer-events-none",
+          isTransitioning && "opacity-0"
+        )}>
+          {activeMode === "pseo-builder" && pseoBuilderEnabled && (
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
+                pSEO Builder
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {pseoBuilderItems.map((item) => {
+                    const isActive = isRouteActive(item.url);
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton 
+                          disabled={item.disabled}
+                          className={isActive ? getMenuItemClassName(true) : "text-sidebar-foreground/40 cursor-not-allowed"}
+                        >
+                          <item.icon className={isActive ? getIconClassName(true) : "h-5 w-5"} />
+                          {!collapsed && (
+                            <span className="flex items-center justify-between w-full">
+                              {item.title}
+                              {item.disabled && <span className="text-xs text-sidebar-foreground/30 ml-2">Soon</span>}
+                            </span>
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </div>
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-3 bg-sidebar space-y-3">
