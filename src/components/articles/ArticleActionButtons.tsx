@@ -44,20 +44,14 @@ const STATUS_CONFIG: Record<string, {
     secondaryIcon: Sparkles,
   },
   'article ready': {
-    action: 'view-article',
-    label: 'View',
-    icon: Eye,
-    secondaryAction: 'approve-publish',
-    secondaryLabel: 'Approve & Publish',
-    secondaryIcon: ExternalLink,
+    action: 'approve-publish',
+    label: 'Approve & Publish',
+    icon: ExternalLink,
   },
   'content ready': {
-    action: 'view-article',
-    label: 'View',
-    icon: Eye,
-    secondaryAction: 'approve-publish',
-    secondaryLabel: 'Approve & Publish',
-    secondaryIcon: ExternalLink,
+    action: 'approve-publish',
+    label: 'Approve & Publish',
+    icon: ExternalLink,
   },
 };
 
