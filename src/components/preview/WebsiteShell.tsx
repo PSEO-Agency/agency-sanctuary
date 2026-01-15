@@ -25,6 +25,7 @@ interface CampaignPage {
   slug: string | null;
   preview_token: string;
   data_values: Record<string, string>;
+  status?: string;
 }
 
 interface SiblingPage {
@@ -33,6 +34,7 @@ interface SiblingPage {
   slug: string | null;
   preview_token: string;
   data_values: Record<string, string>;
+  status?: string;
 }
 
 interface WebsiteShellProps {
@@ -127,6 +129,36 @@ export default function WebsiteShell({
               Home
             </span>
             
+            {/* Pages Dropdown - All campaign pages */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-1 h-auto py-1 px-2">
+                  <span className="text-sm font-medium">Pages</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-popover z-[100] max-h-80 overflow-y-auto">
+                {allPages.map((page) => {
+                  const isCurrentPage = page.id === currentPage.id;
+                  const statusLabel = page.status === 'generated' ? '' : ' (Draft)';
+                  
+                  return (
+                    <DropdownMenuItem key={page.id} asChild>
+                      <Link 
+                        to={`/preview/${page.preview_token}`}
+                        className={isCurrentPage ? "font-semibold bg-accent" : ""}
+                      >
+                        <span className="truncate">{page.title}</span>
+                        {statusLabel && (
+                          <span className="ml-auto text-xs text-muted-foreground">{statusLabel}</span>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Entity Dropdown */}
             {showEntityDropdowns && entityDropdownItems.length > 0 && groupingColumn && (
               <DropdownMenu>
@@ -185,6 +217,28 @@ export default function WebsiteShell({
           <div className="md:hidden border-t bg-background">
             <div className="container py-4 space-y-3">
               <span className="block text-sm font-medium text-muted-foreground">Home</span>
+              
+              {/* Pages section in mobile */}
+              <div className="space-y-2">
+                <span className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Pages
+                </span>
+                {allPages.map((page) => {
+                  const isCurrentPage = page.id === currentPage.id;
+                  const statusLabel = page.status === 'generated' ? '' : ' (Draft)';
+                  
+                  return (
+                    <Link 
+                      key={page.id}
+                      to={`/preview/${page.preview_token}`}
+                      className={`block text-sm pl-3 ${isCurrentPage ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {page.title}{statusLabel}
+                    </Link>
+                  );
+                })}
+              </div>
               
               {showEntityDropdowns && entityDropdownItems.length > 0 && (
                 <div className="space-y-2">

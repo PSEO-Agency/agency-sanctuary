@@ -144,7 +144,7 @@ export default function Preview() {
         // Fetch sibling pages for navigation
         const { data: siblingsData, error: siblingsError } = await supabase
           .from("campaign_pages")
-          .select("id, title, slug, preview_token, data_values")
+          .select("id, title, slug, preview_token, data_values, status")
           .eq("campaign_id", pageData.campaign_id)
           .neq("id", pageData.id)
           .order("title");
@@ -156,6 +156,7 @@ export default function Preview() {
             (siblingsData || []).map((p) => ({
               ...p,
               data_values: (p.data_values as Record<string, string>) || {},
+              status: p.status,
             }))
           );
         }
