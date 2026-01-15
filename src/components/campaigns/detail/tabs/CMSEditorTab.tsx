@@ -295,7 +295,7 @@ export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpd
                               <span className="text-xs text-muted-foreground">{section.type}</span>
                             </div>
                             <p className="text-sm text-muted-foreground line-clamp-3">
-                              {section.content}
+                              {section.fields ? Object.values(section.fields).map(f => f.generated || f.rendered).filter(Boolean).join(' ').substring(0, 200) : 'No content'}
                             </p>
                           </div>
                         ))}

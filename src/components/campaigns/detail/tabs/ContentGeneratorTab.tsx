@@ -142,7 +142,9 @@ export function ContentGeneratorTab({ campaign, pages, pagesLoading, onUpdateSEO
         id: selectedSection,
         name: sections.find(s => s.id === selectedSection)?.name || "",
         type: selectedSection,
-        content: generatedContent,
+        fields: {
+          body: { original: generatedContent, rendered: generatedContent, isPrompt: false }
+        },
         generated: true,
       }
     ];

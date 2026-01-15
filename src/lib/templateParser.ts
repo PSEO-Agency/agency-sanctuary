@@ -5,13 +5,20 @@
 
 /**
  * Parse static placeholders like {{variable}} and replace with actual values
+ * Case-insensitive key matching to handle Service vs service
  */
 export function parseStaticPlaceholders(
   template: string,
   data: Record<string, string>
 ): string {
+  // Create lowercase key map for case-insensitive lookup
+  const lowercaseData: Record<string, string> = {};
+  Object.entries(data).forEach(([key, value]) => {
+    lowercaseData[key.toLowerCase()] = value;
+  });
+
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    return data[key] || match;
+    return lowercaseData[key.toLowerCase()] || match;
   });
 }
 
