@@ -20,6 +20,7 @@ export function PagePreviewRenderer({
 }: PagePreviewRendererProps) {
   
   // Helper to get field content (generated or fallback to template)
+  // ALWAYS resolves {{placeholders}} at render time to handle singular/plural mismatches
   const getFieldContent = (sectionId: string, fieldName: string): string => {
     // First try to get from generated content
     const section = generatedContent.find(s => s.id === sectionId);
@@ -27,10 +28,11 @@ export function PagePreviewRenderer({
       const field = section.fields[fieldName];
       // If it's a prompt, use generated content
       if (field.isPrompt && field.generated) {
-        return field.generated;
+        // AI-generated content should already be clean, but parse just in case
+        return parseStaticPlaceholders(field.generated, dataValues);
       }
-      // Otherwise use rendered (with placeholders replaced)
-      return field.rendered;
+      // Otherwise use rendered - ALWAYS parse to resolve any remaining placeholders
+      return parseStaticPlaceholders(field.rendered || field.original || "", dataValues);
     }
     
     // Fallback to template parsing
@@ -54,20 +56,24 @@ export function PagePreviewRenderer({
   };
 
   // Helper to get array field items
+  // ALWAYS resolves {{placeholders}} for each item at render time
   const getFieldItems = (sectionId: string, fieldName: string): string[] => {
     // First try to get from generated content
     const section = generatedContent.find(s => s.id === sectionId);
     if (section?.fields?.[fieldName]) {
       const field = section.fields[fieldName];
       try {
-        const items = JSON.parse(field.rendered);
+        const items = JSON.parse(field.rendered || field.original || "[]");
         if (Array.isArray(items)) {
-          return items;
+          // ALWAYS parse each item to resolve remaining placeholders
+          return items.map(item => parseStaticPlaceholders(String(item), dataValues));
         }
       } catch {
         // If not JSON, try splitting by newlines or return as single item
         if (field.rendered) {
-          return field.rendered.split('\n').filter(Boolean);
+          return field.rendered.split('\n').filter(Boolean).map(item => 
+            parseStaticPlaceholders(item, dataValues)
+          );
         }
       }
     }
