@@ -13,10 +13,10 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Plug, Globe, Link2, Rocket, Check } from "lucide-react";
-import { Campaign } from "../../types";
+import { CampaignDB } from "@/hooks/useCampaigns";
 
 interface DeploymentSettingsTabProps {
-  campaign: Campaign;
+  campaign: CampaignDB;
 }
 
 export function DeploymentSettingsTab({ campaign }: DeploymentSettingsTabProps) {

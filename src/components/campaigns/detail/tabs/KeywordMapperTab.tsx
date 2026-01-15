@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,7 +12,9 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Upload, Plus, ChevronDown } from "lucide-react";
-import { Campaign } from "../../types";
+import { CampaignDB } from "@/hooks/useCampaigns";
+import { CampaignPageDB, KeywordData } from "@/hooks/useCampaignPages";
+import { PageSelector } from "../../PageSelector";
 
 interface Keyword {
   id: string;
@@ -28,7 +29,10 @@ interface Keyword {
 }
 
 interface KeywordMapperTabProps {
-  campaign: Campaign;
+  campaign: CampaignDB;
+  pages: CampaignPageDB[];
+  pagesLoading: boolean;
+  onUpdateKeywords: (pageId: string, keywords: KeywordData[]) => Promise<void>;
 }
 
 export function KeywordMapperTab({ campaign }: KeywordMapperTabProps) {

@@ -54,7 +54,7 @@ export function CampaignDetailDialog({
       case "matrix":
         return <MatrixBuilderTab campaign={campaign} pages={pages} onRefreshPages={refetchPages} />;
       case "keywords":
-        return <KeywordMapperTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateKeywords={updatePageKeywords} />;
+        return <KeywordMapperTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateKeywords={async (id, kw) => { updatePageKeywords(id, kw); }} />;
       case "content":
         return <ContentGeneratorTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateSEO={updatePageSEO} onUpdateContent={updatePageContent} />;
       case "cms":
