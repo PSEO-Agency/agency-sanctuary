@@ -10,7 +10,8 @@ import {
   Blocks 
 } from "lucide-react";
 import { useState } from "react";
-import { Campaign } from "../types";
+import { CampaignDB } from "@/hooks/useCampaigns";
+import { useCampaignPages } from "@/hooks/useCampaignPages";
 import { MatrixBuilderTab } from "./tabs/MatrixBuilderTab";
 import { KeywordMapperTab } from "./tabs/KeywordMapperTab";
 import { ContentGeneratorTab } from "./tabs/ContentGeneratorTab";
@@ -22,8 +23,8 @@ import { cn } from "@/lib/utils";
 interface CampaignDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  campaign: Campaign | null;
-  onSave: (campaign: Campaign) => void;
+  campaign: CampaignDB | null;
+  onSave: (campaign: CampaignDB) => void;
 }
 
 type TabId = "matrix" | "keywords" | "content" | "cms" | "deployment" | "blocks";
@@ -44,19 +45,20 @@ export function CampaignDetailDialog({
   onSave,
 }: CampaignDetailDialogProps) {
   const [activeTab, setActiveTab] = useState<TabId>("matrix");
+  const { pages, loading: pagesLoading, updatePageSEO, updatePageContent, updatePageKeywords, refetch: refetchPages } = useCampaignPages(campaign?.id || null);
 
   if (!campaign) return null;
 
   const renderTabContent = () => {
     switch (activeTab) {
       case "matrix":
-        return <MatrixBuilderTab campaign={campaign} />;
+        return <MatrixBuilderTab campaign={campaign} pages={pages} onRefreshPages={refetchPages} />;
       case "keywords":
-        return <KeywordMapperTab campaign={campaign} />;
+        return <KeywordMapperTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateKeywords={updatePageKeywords} />;
       case "content":
-        return <ContentGeneratorTab campaign={campaign} />;
+        return <ContentGeneratorTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateSEO={updatePageSEO} onUpdateContent={updatePageContent} />;
       case "cms":
-        return <CMSEditorTab campaign={campaign} />;
+        return <CMSEditorTab campaign={campaign} pages={pages} pagesLoading={pagesLoading} onUpdateSEO={updatePageSEO} onUpdateContent={updatePageContent} />;
       case "deployment":
         return <DeploymentSettingsTab campaign={campaign} />;
       case "blocks":
