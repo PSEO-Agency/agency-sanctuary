@@ -15,6 +15,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   const [newItems, setNewItems] = useState<Record<string, string>>({});
   const [editingColumn, setEditingColumn] = useState<{ columnId: string; name: string } | null>(null);
   const [columnNames, setColumnNames] = useState<Record<string, string>>({});
+  const [newCustomTitle, setNewCustomTitle] = useState("");
 
   // Get columns based on business type
   const businessType = BUSINESS_TYPES.find((t) => t.id === formData.businessType);
@@ -50,71 +51,125 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     });
   };
 
-  const generateTitles = () => {
-    const pattern = formData.titlePattern || `{{${columns[0]?.id}}} in {{${columns[1]?.id}}}`;
-    const titles: { id: string; title: string; language: string }[] = [];
-    
-    // Get all column data
-    const columnData: Record<string, string[]> = {};
-    columns.forEach(col => {
-      columnData[col.id] = formData.scratchData[col.id] || [];
-    });
+  const addCustomTitle = () => {
+    const title = newCustomTitle.trim();
+    if (!title) return;
 
-    // Generate all combinations using the pattern
-    const generateCombinations = (
-      columnIds: string[],
-      currentValues: Record<string, string>,
-      index: number
-    ) => {
-      if (index >= columnIds.length) {
-        // All columns processed - create title from pattern
-        let title = pattern;
-        Object.entries(currentValues).forEach(([key, value]) => {
-          title = title.replace(new RegExp(`\\{\\{${key}\\}\\}`, "gi"), value);
-        });
-        
-        titles.push({
-          id: Object.values(currentValues).join("-"),
-          title: title,
-          language: currentValues[columns[2]?.id] || currentValues[columns[0]?.id] || "Default",
-        });
-        return;
-      }
-
-      const colId = columnIds[index];
-      const items = columnData[colId] || [];
-      
-      if (items.length === 0) {
-        // Skip empty columns
-        generateCombinations(columnIds, currentValues, index + 1);
-      } else {
-        items.forEach(item => {
-          generateCombinations(
-            columnIds, 
-            { ...currentValues, [colId]: item }, 
-            index + 1
-          );
-        });
-      }
+    const newTitle = {
+      id: `custom-${Date.now()}`,
+      title: title,
+      language: "Default",
     };
 
-    const columnIds = columns.map(c => c.id);
-    generateCombinations(columnIds, {}, 0);
-
-    updateFormData({ generatedTitles: titles.slice(0, 10) }); // Limit for preview
+    updateFormData({
+      generatedTitles: [...formData.generatedTitles, newTitle],
+    });
+    setNewCustomTitle("");
   };
 
-  const totalCombinations = columns.reduce((acc, col) => {
-    const count = formData.scratchData[col.id]?.length || 0;
-    return acc === 0 ? count : acc * (count || 1);
-  }, 0);
+  const removeTitle = (titleId: string) => {
+    updateFormData({
+      generatedTitles: formData.generatedTitles.filter((t) => t.id !== titleId),
+    });
+  };
+
+  const generateTitles = () => {
+    const pattern = formData.titlePattern || `{{${columns[0]?.id}}}`;
+    const titles: { id: string; title: string; language: string }[] = [];
+    
+    // Get all column data that has items
+    const columnData: Record<string, string[]> = {};
+    const activeColumnIds: string[] = [];
+    
+    columns.forEach(col => {
+      const items = formData.scratchData[col.id] || [];
+      if (items.length > 0) {
+        columnData[col.id] = items;
+        activeColumnIds.push(col.id);
+      }
+    });
+
+    // If no data, return
+    if (activeColumnIds.length === 0) return;
+
+    // Check if pattern uses multiple columns or just one
+    const usedColumns = activeColumnIds.filter(colId => 
+      pattern.toLowerCase().includes(`{{${colId.toLowerCase()}}}`)
+    );
+
+    if (usedColumns.length <= 1) {
+      // Single column mode - just list items from the first active column
+      const primaryColumn = usedColumns[0] || activeColumnIds[0];
+      const items = columnData[primaryColumn] || [];
+      
+      items.forEach(item => {
+        let title = pattern;
+        title = title.replace(new RegExp(`\\{\\{${primaryColumn}\\}\\}`, "gi"), item);
+        // Clear any remaining placeholders
+        columns.forEach(col => {
+          title = title.replace(new RegExp(`\\{\\{${col.id}\\}\\}`, "gi"), "");
+        });
+        title = title.trim();
+        
+        titles.push({
+          id: `${primaryColumn}-${item}`,
+          title: title,
+          language: "Default",
+        });
+      });
+    } else {
+      // Multiple columns - generate combinations
+      const generateCombinations = (
+        columnIds: string[],
+        currentValues: Record<string, string>,
+        index: number
+      ) => {
+        if (index >= columnIds.length) {
+          let title = pattern;
+          Object.entries(currentValues).forEach(([key, value]) => {
+            title = title.replace(new RegExp(`\\{\\{${key}\\}\\}`, "gi"), value);
+          });
+          
+          titles.push({
+            id: Object.values(currentValues).join("-"),
+            title: title,
+            language: "Default",
+          });
+          return;
+        }
+
+        const colId = columnIds[index];
+        const items = columnData[colId] || [];
+        
+        if (items.length === 0) {
+          generateCombinations(columnIds, currentValues, index + 1);
+        } else {
+          items.forEach(item => {
+            generateCombinations(
+              columnIds, 
+              { ...currentValues, [colId]: item }, 
+              index + 1
+            );
+          });
+        }
+      };
+
+      generateCombinations(usedColumns, {}, 0);
+    }
+
+    // Preserve existing custom titles and add new generated ones
+    const existingCustomTitles = formData.generatedTitles.filter(t => t.id.startsWith('custom-'));
+    updateFormData({ generatedTitles: [...titles.slice(0, 50), ...existingCustomTitles] });
+  };
+
+  const totalTitles = formData.generatedTitles.length;
 
   return (
     <div className="space-y-8">
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold">Add Your Data</h2>
         <p className="text-muted-foreground">
-          Enter your data in the columns below. We'll combine them to generate your campaign pages.
+          Enter your data in the columns below. We'll generate your campaign pages.
         </p>
       </div>
 
@@ -125,7 +180,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
           onChange={(titlePattern) => updateFormData({ titlePattern })}
           columns={columns}
           label="Page Title Pattern"
-          placeholder={`e.g., {{${columns[0]?.id}}} in {{${columns[1]?.id}}}`}
+          placeholder={`e.g., {{${columns[0]?.id}}} or {{${columns[0]?.id}}} in {{${columns[1]?.id}}}`}
         />
       </div>
 
@@ -220,35 +275,70 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
       </Button>
 
       {/* Generated Titles Preview */}
-      {formData.generatedTitles.length > 0 && (
-        <div className="border rounded-xl p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Generated Titles</h3>
-            <span className="text-sm text-primary">{totalCombinations} combinations generated</span>
-          </div>
+      <div className="border rounded-xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Generated Titles</h3>
+          <span className="text-sm text-primary">{totalTitles} titles</span>
+        </div>
+        
+        {/* Add Custom Title */}
+        <div className="flex gap-2">
+          <Input
+            placeholder="Add a custom title..."
+            value={newCustomTitle}
+            onChange={(e) => setNewCustomTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addCustomTitle();
+              }
+            }}
+            className="text-sm"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={addCustomTitle}
+            disabled={!newCustomTitle.trim()}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {formData.generatedTitles.length > 0 ? (
           <div className="border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[1fr,auto] gap-4 p-3 bg-muted/50 text-sm font-medium">
+            <div className="grid grid-cols-[1fr,auto,auto] gap-4 p-3 bg-muted/50 text-sm font-medium">
               <span>Title</span>
-              <span>Language</span>
+              <span>Type</span>
+              <span></span>
             </div>
             {formData.generatedTitles.map((title, index) => (
               <div
                 key={title.id}
                 className={cn(
-                  "grid grid-cols-[1fr,auto] gap-4 p-3 text-sm",
+                  "grid grid-cols-[1fr,auto,auto] gap-4 p-3 text-sm items-center group",
                   index !== formData.generatedTitles.length - 1 && "border-b"
                 )}
               >
                 <span>{title.title}</span>
-                <span className="text-muted-foreground">{title.language}</span>
+                <span className="text-muted-foreground text-xs px-2 py-0.5 bg-muted rounded">
+                  {title.id.startsWith('custom-') ? 'Custom' : 'Generated'}
+                </span>
+                <button
+                  onClick={() => removeTitle(title.id)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                </button>
               </div>
             ))}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Your final campaign will include all permutations.
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            No titles yet. Add data and generate titles, or add custom titles manually.
           </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
