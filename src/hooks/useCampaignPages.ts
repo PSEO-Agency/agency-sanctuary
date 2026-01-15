@@ -62,7 +62,8 @@ export function useCampaignPages(campaignId: string | null) {
         .from("campaign_pages")
         .select("*")
         .eq("campaign_id", campaignId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true });
 
       if (fetchError) throw fetchError;
       
