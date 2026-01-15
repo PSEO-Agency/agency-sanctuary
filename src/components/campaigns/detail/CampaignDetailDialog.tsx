@@ -7,7 +7,8 @@ import {
   Pencil, 
   FileEdit, 
   Settings, 
-  Blocks 
+  Blocks,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { CampaignDB } from "@/hooks/useCampaigns";
@@ -18,6 +19,7 @@ import { ContentGeneratorTab } from "./tabs/ContentGeneratorTab";
 import { CMSEditorTab } from "./tabs/CMSEditorTab";
 import { DeploymentSettingsTab } from "./tabs/DeploymentSettingsTab";
 import { ReusableBlocksTab } from "./tabs/ReusableBlocksTab";
+import { PagesTab } from "./tabs/PagesTab";
 import { cn } from "@/lib/utils";
 
 interface CampaignDetailDialogProps {
@@ -27,9 +29,10 @@ interface CampaignDetailDialogProps {
   onSave: (campaign: CampaignDB) => void;
 }
 
-type TabId = "matrix" | "keywords" | "content" | "cms" | "deployment" | "blocks";
+type TabId = "pages" | "matrix" | "keywords" | "content" | "cms" | "deployment" | "blocks";
 
 const TABS = [
+  { id: "pages" as TabId, label: "Pages", icon: FileText },
   { id: "matrix" as TabId, label: "Matrix Builder", icon: LayoutGrid },
   { id: "keywords" as TabId, label: "Keyword Mapper", icon: BarChart3 },
   { id: "content" as TabId, label: "Content Generator", icon: Pencil },
@@ -44,13 +47,29 @@ export function CampaignDetailDialog({
   campaign,
   onSave,
 }: CampaignDetailDialogProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("matrix");
-  const { pages, loading: pagesLoading, updatePageSEO, updatePageContent, updatePageKeywords, refetch: refetchPages } = useCampaignPages(campaign?.id || null);
+  const [activeTab, setActiveTab] = useState<TabId>("pages");
+  const { pages, loading: pagesLoading, updatePageSEO, updatePageContent, updatePageKeywords, deletePage, refetch: refetchPages } = useCampaignPages(campaign?.id || null);
 
   if (!campaign) return null;
 
+  // Placeholder for content generation (will be connected to edge function later)
+  const handleGenerateContent = async (pageId: string) => {
+    console.log("Generate content for page:", pageId);
+    // TODO: Connect to generate-campaign-content edge function
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
+      case "pages":
+        return (
+          <PagesTab 
+            campaign={campaign} 
+            pages={pages} 
+            pagesLoading={pagesLoading}
+            onDeletePage={deletePage}
+            onGenerateContent={handleGenerateContent}
+          />
+        );
       case "matrix":
         return <MatrixBuilderTab campaign={campaign} pages={pages} onRefreshPages={refetchPages} />;
       case "keywords":
