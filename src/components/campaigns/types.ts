@@ -10,6 +10,33 @@ export interface ColumnConfig {
   placeholder: string;
 }
 
+export interface TemplateStyleConfig {
+  primaryColor: string;
+  backgroundColor: string;
+  typography: string;
+  buttonStyle: "rounded" | "square";
+  buttonFill: "solid" | "outline" | "ghost";
+  darkMode: boolean;
+}
+
+export interface TemplateImagesConfig {
+  logo?: { url: string; size: number };
+  heroImage?: { url: string; position: string };
+  sectionImages: Array<{ id: string; url: string }>;
+  favicon?: string;
+}
+
+export interface TemplateContentConfig {
+  sections: Array<{
+    id: string;
+    type: string;
+    name: string;
+    content: Record<string, string | string[]>;
+  }>;
+  style?: TemplateStyleConfig;
+  images?: TemplateImagesConfig;
+}
+
 export interface CampaignFormData {
   // Step 1: Business Details
   businessName: string;
@@ -37,6 +64,9 @@ export interface CampaignFormData {
 
   // Step 4: Template Selection
   selectedTemplate: string;
+
+  // Step 5: Template Editor
+  templateContent?: TemplateContentConfig;
 }
 
 export interface GeneratedTitle {
@@ -151,4 +181,5 @@ export const initialFormData: CampaignFormData = {
   generatedTitles: [],
   titlePattern: "",
   selectedTemplate: "",
+  templateContent: undefined,
 };

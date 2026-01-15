@@ -8,6 +8,7 @@ import { DataUploadMethodStep } from "./steps/DataUploadMethodStep";
 import { CSVUploadStep } from "./steps/CSVUploadStep";
 import { BuildFromScratchStep } from "./steps/BuildFromScratchStep";
 import { TemplateSelectionStep } from "./steps/TemplateSelectionStep";
+import { TemplateEditorStep } from "./steps/TemplateEditorStep";
 
 interface CreateCampaignDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ const STEP_TITLES = [
   "Data Upload",
   "Data Upload",
   "Template Selection",
+  "Customize Template",
 ];
 
 export function CreateCampaignDialog({
@@ -30,7 +32,7 @@ export function CreateCampaignDialog({
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<CampaignFormData>(initialFormData);
 
-  const totalSteps = 4;
+  const totalSteps = 5;
 
   const updateFormData = (updates: Partial<CampaignFormData>) => {
     setFormData((prev) => ({ ...prev, ...updates }));
@@ -59,6 +61,8 @@ export function CreateCampaignDialog({
         return Object.values(formData.scratchData).some((arr) => arr.length > 0);
       case 4:
         return formData.selectedTemplate !== "";
+      case 5:
+        return true; // Template editor is optional customization
       default:
         return true;
     }
@@ -106,6 +110,14 @@ export function CreateCampaignDialog({
         return (
           <TemplateSelectionStep formData={formData} updateFormData={updateFormData} />
         );
+      case 5:
+        return (
+          <TemplateEditorStep 
+            formData={formData} 
+            updateFormData={updateFormData} 
+            onBack={() => setCurrentStep(4)}
+          />
+        );
       default:
         return null;
     }
@@ -113,44 +125,59 @@ export function CreateCampaignDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Header with Progress */}
-        <div className="sticky top-0 bg-background z-10 px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-muted-foreground">
-              Step {currentStep} of {totalSteps}
-            </span>
-            <span className="text-sm font-medium">{getStepTitle()}</span>
+      <DialogContent className={currentStep === 5 ? "max-w-[95vw] h-[90vh] overflow-hidden p-0" : "max-w-4xl max-h-[90vh] overflow-y-auto p-0"}>
+        {/* Header with Progress - hide on step 5 */}
+        {currentStep !== 5 && (
+          <div className="sticky top-0 bg-background z-10 px-6 pt-6 pb-4 border-b">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm text-muted-foreground">
+                Step {currentStep} of {totalSteps}
+              </span>
+              <span className="text-sm font-medium">{getStepTitle()}</span>
+            </div>
+            <Progress value={(currentStep / totalSteps) * 100} className="h-1.5" />
           </div>
-          <Progress value={(currentStep / totalSteps) * 100} className="h-1.5" />
-        </div>
+        )}
 
         {/* Step Content */}
-        <div className="px-6 py-8">{renderStep()}</div>
+        <div className={currentStep === 5 ? "h-full" : "px-6 py-8"}>{renderStep()}</div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 bg-background border-t px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              disabled={currentStep === 1}
-              className="min-w-[100px]"
-            >
-              Back
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Your progress is saved automatically.
-            </span>
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              className="min-w-[100px]"
-            >
-              {currentStep === totalSteps ? "Finish" : "Next"}
-            </Button>
+        {/* Footer - hide on step 5 */}
+        {currentStep !== 5 && (
+          <div className="sticky bottom-0 bg-background border-t px-6 py-4">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                disabled={currentStep === 1}
+                className="min-w-[100px]"
+              >
+                Back
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Your progress is saved automatically.
+              </span>
+              <Button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                className="min-w-[100px]"
+              >
+                {currentStep === totalSteps ? "Finish" : "Next"}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Step 5 has its own footer inside TemplateEditorStep */}
+        {currentStep === 5 && (
+          <div className="absolute bottom-0 left-0 right-0 bg-background border-t px-6 py-4">
+            <div className="flex items-center justify-end">
+              <Button onClick={handleNext} className="min-w-[120px]">
+                Finish
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
