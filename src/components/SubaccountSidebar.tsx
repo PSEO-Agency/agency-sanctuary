@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen } from "lucide-react";
+import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen, ArrowRightLeft, Zap, Layers } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -16,6 +16,7 @@ import {
 import { SubaccountSwitcher } from "./SubaccountSwitcher";
 import { BillingWidget } from "./BillingWidget";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 interface SubaccountSidebarProps {
   subaccountId: string;
@@ -33,7 +34,8 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   const { state } = useSidebar();
   const location = useLocation();
   const collapsed = state === "collapsed";
-  const [showPseoBuilder, setShowPseoBuilder] = useState(false);
+  const [pseoBuilderEnabled, setPseoBuilderEnabled] = useState(false);
+  const [activeMode, setActiveMode] = useState<"content-machine" | "pseo-builder">("content-machine");
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
 
   useEffect(() => {
@@ -50,11 +52,15 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
         .maybeSingle();
       
       if (data) {
-        setShowPseoBuilder(data.value === "true");
+        setPseoBuilderEnabled(data.value === "true");
       }
     } catch (error) {
       // Setting not found, default to false
     }
+  };
+
+  const toggleMode = () => {
+    setActiveMode(prev => prev === "content-machine" ? "pseo-builder" : "content-machine");
   };
 
   const fetchSubscription = async () => {
@@ -205,6 +211,49 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
           </div>
         )}
 
+        {/* Mode Switcher Card - Only show if pSEO Builder is enabled */}
+        {pseoBuilderEnabled && !collapsed && (
+          <div className="px-3 py-2">
+            <button
+              onClick={toggleMode}
+              className={cn(
+                "w-full group relative overflow-hidden rounded-xl p-3",
+                "bg-gradient-to-br from-primary/10 via-primary/5 to-transparent",
+                "border border-primary/20 hover:border-primary/40",
+                "transition-all duration-300 ease-out",
+                "hover:shadow-lg hover:shadow-primary/10",
+                "hover:scale-[1.02]"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "flex items-center justify-center w-9 h-9 rounded-lg",
+                  "bg-primary/15 text-primary",
+                  "group-hover:bg-primary group-hover:text-primary-foreground",
+                  "transition-colors duration-300"
+                )}>
+                  {activeMode === "content-machine" ? (
+                    <Layers className="h-5 w-5" />
+                  ) : (
+                    <Zap className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-semibold text-sidebar-foreground">
+                    {activeMode === "content-machine" ? "pSEO Builder" : "Content Machine"}
+                  </p>
+                  <p className="text-xs text-sidebar-foreground/60">
+                    {activeMode === "content-machine" 
+                      ? "Switch to exclusive builder" 
+                      : "Back to content tools"}
+                  </p>
+                </div>
+                <ArrowRightLeft className="h-4 w-4 text-sidebar-foreground/40 group-hover:text-primary transition-colors" />
+              </div>
+            </button>
+          </div>
+        )}
+
         {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
@@ -229,35 +278,37 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Content Machine Section */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
-            Content Machine
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {contentMachineItems.map((item) => {
-                const isActive = isRouteActive(item.url);
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
-                      className={getMenuItemClassName(isActive)}
-                    >
-                      <NavLink to={item.url} end>
-                        <item.icon className={getIconClassName(isActive)} />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Content Machine Section - Show when in content-machine mode */}
+        {activeMode === "content-machine" && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
+              Content Machine
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {contentMachineItems.map((item) => {
+                  const isActive = isRouteActive(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton 
+                        asChild 
+                        className={getMenuItemClassName(isActive)}
+                      >
+                        <NavLink to={item.url} end>
+                          <item.icon className={getIconClassName(isActive)} />
+                          {!collapsed && <span>{item.title}</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
-        {/* pSEO Builder Section - Conditionally shown */}
-        {showPseoBuilder && (
+        {/* pSEO Builder Section - Show when in pseo-builder mode AND feature is enabled */}
+        {activeMode === "pseo-builder" && pseoBuilderEnabled && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
               pSEO Builder
