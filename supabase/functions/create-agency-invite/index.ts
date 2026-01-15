@@ -63,7 +63,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from("agency_invites")
       .insert({
         token: token_value,
-        invite_type: "agency",
+        invite_type: "new_agency",
         inviting_user_id: user.id,
         email: email || null,
         expires_at: expiresAt.toISOString(),
