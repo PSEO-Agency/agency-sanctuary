@@ -192,7 +192,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   ];
 
   const pseoBuilderItems = [
-    { title: "Campaigns", url: `/subaccount/${subaccountId}/campaigns`, icon: FolderKanban, disabled: true },
+    { title: "Campaigns", url: `/subaccount/${subaccountId}/campaigns`, icon: FolderKanban, disabled: false },
     { title: "Reports", url: `/subaccount/${subaccountId}/reports`, icon: BarChart3, disabled: true },
   ];
 
@@ -344,19 +344,34 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                 <SidebarMenu>
                   {pseoBuilderItems.map((item) => {
                     const isActive = isRouteActive(item.url);
+                    if (item.disabled) {
+                      return (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton 
+                            disabled
+                            className="text-sidebar-foreground/40 cursor-not-allowed"
+                          >
+                            <item.icon className="h-5 w-5" />
+                            {!collapsed && (
+                              <span className="flex items-center justify-between w-full">
+                                {item.title}
+                                <span className="text-xs text-sidebar-foreground/30 ml-2">Soon</span>
+                              </span>
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    }
                     return (
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton 
-                          disabled={item.disabled}
-                          className={isActive ? getMenuItemClassName(true) : "text-sidebar-foreground/40 cursor-not-allowed"}
+                          asChild 
+                          className={getMenuItemClassName(isActive)}
                         >
-                          <item.icon className={isActive ? getIconClassName(true) : "h-5 w-5"} />
-                          {!collapsed && (
-                            <span className="flex items-center justify-between w-full">
-                              {item.title}
-                              {item.disabled && <span className="text-xs text-sidebar-foreground/30 ml-2">Soon</span>}
-                            </span>
-                          )}
+                          <NavLink to={item.url} end>
+                            <item.icon className={getIconClassName(isActive)} />
+                            {!collapsed && <span>{item.title}</span>}
+                          </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );
