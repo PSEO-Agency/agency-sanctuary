@@ -30,7 +30,29 @@ export function useTrialStatus(subaccountId: string | undefined) {
     if (!subaccountId) return;
 
     try {
-      // First check local database
+      // Get the subaccount's Airtable base ID for article count
+      const { data: subaccount } = await supabase
+        .from("subaccounts")
+        .select("airtable_base_id")
+        .eq("id", subaccountId)
+        .maybeSingle();
+
+      // Fetch actual article count from Airtable
+      let actualArticlesUsed = 0;
+      if (subaccount?.airtable_base_id) {
+        try {
+          const { data: articlesData } = await supabase.functions.invoke('fetch-airtable-articles', {
+            body: { baseId: subaccount.airtable_base_id }
+          });
+          if (articlesData?.success && Array.isArray(articlesData.articles)) {
+            actualArticlesUsed = articlesData.articles.length;
+          }
+        } catch (airtableError) {
+          console.error("Error fetching Airtable articles count:", airtableError);
+        }
+      }
+
+      // Check local database for subscription info
       const { data: subData } = await supabase
         .from("subaccount_subscriptions")
         .select(`
@@ -61,13 +83,13 @@ export function useTrialStatus(subaccountId: string | undefined) {
           trialEndsAt,
           hasPaymentMethod: subData.payment_method_added ?? false,
           planName: plan?.name ?? "Free",
-          articlesUsed: subData.articles_used ?? 0,
+          articlesUsed: actualArticlesUsed,
           articleLimit: plan?.article_limit ?? 10,
           isLoading: false,
           subscriptionStatus: subData.is_trial ? "trialing" : (plan?.name === "Pro" ? "active" : "none"),
         });
       } else {
-        setStatus(prev => ({ ...prev, isLoading: false }));
+        setStatus(prev => ({ ...prev, articlesUsed: actualArticlesUsed, isLoading: false }));
       }
 
       // Then sync with Stripe in the background
@@ -107,7 +129,7 @@ export function useTrialStatus(subaccountId: string | undefined) {
             trialEndsAt,
             hasPaymentMethod: refreshedData.payment_method_added ?? false,
             planName: plan?.name ?? "Free",
-            articlesUsed: refreshedData.articles_used ?? 0,
+            articlesUsed: actualArticlesUsed,
             articleLimit: plan?.article_limit ?? 10,
             isLoading: false,
             subscriptionStatus: data.status || "none",

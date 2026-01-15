@@ -74,6 +74,13 @@ export function TrialStatusWidget({ subaccountId }: TrialStatusWidgetProps) {
     navigate(`/subaccount/${subaccountId}/settings/billing`);
   };
 
+  // Calculate article usage color
+  const getUsageColor = () => {
+    if (usageProgress >= 90) return "text-destructive";
+    if (usageProgress >= 75) return "text-warning";
+    return "text-primary";
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -83,27 +90,36 @@ export function TrialStatusWidget({ subaccountId }: TrialStatusWidgetProps) {
             isTrialing
               ? cn("border-transparent", getTrialColor())
               : subscriptionStatus === "active"
-              ? "border-success bg-success/10"
+              ? "border-transparent"
               : "border-border bg-muted"
           )}
-          title={isTrialing ? `${daysRemaining} days left in trial` : planName}
+          title={`${articlesUsed}/${articleLimit} articles used`}
         >
-          {/* Circular progress ring for trial */}
-          {isTrialing && (
-            <svg className="absolute inset-0 w-full h-full -rotate-90">
-              <circle
-                cx="20"
-                cy="20"
-                r="17"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={`${progress * 1.07} 107`}
-                className={getTrialColor()}
-              />
-            </svg>
-          )}
+          {/* Circular progress ring for article usage */}
+          <svg className="absolute inset-0 w-full h-full -rotate-90">
+            {/* Background circle */}
+            <circle
+              cx="20"
+              cy="20"
+              r="17"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              className="text-muted/30"
+            />
+            {/* Progress circle */}
+            <circle
+              cx="20"
+              cy="20"
+              r="17"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray={`${Math.min(usageProgress, 100) * 1.07} 107`}
+              className={isTrialing ? getTrialColor() : getUsageColor()}
+            />
+          </svg>
           
           {/* Center icon/content */}
           <div className="relative z-10">
@@ -111,10 +127,8 @@ export function TrialStatusWidget({ subaccountId }: TrialStatusWidgetProps) {
               <span className={cn("text-xs font-bold", getTrialColor())}>
                 {daysRemaining}
               </span>
-            ) : subscriptionStatus === "active" ? (
-              <Zap className="h-4 w-4 text-success" />
             ) : (
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <FileText className={cn("h-4 w-4", getUsageColor())} />
             )}
           </div>
         </button>
