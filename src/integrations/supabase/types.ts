@@ -225,6 +225,7 @@ export type Database = {
           keywords: Json | null
           meta_description: string | null
           meta_title: string | null
+          preview_token: string | null
           published_at: string | null
           published_url: string | null
           sections_content: Json | null
@@ -242,6 +243,7 @@ export type Database = {
           keywords?: Json | null
           meta_description?: string | null
           meta_title?: string | null
+          preview_token?: string | null
           published_at?: string | null
           published_url?: string | null
           sections_content?: Json | null
@@ -259,6 +261,7 @@ export type Database = {
           keywords?: Json | null
           meta_description?: string | null
           meta_title?: string | null
+          preview_token?: string | null
           published_at?: string | null
           published_url?: string | null
           sections_content?: Json | null
@@ -301,6 +304,8 @@ export type Database = {
           id: string
           name: string
           pages_generated: number | null
+          preview_settings: Json | null
+          static_pages: Json | null
           status: string
           subaccount_id: string
           template_config: Json | null
@@ -324,6 +329,8 @@ export type Database = {
           id?: string
           name: string
           pages_generated?: number | null
+          preview_settings?: Json | null
+          static_pages?: Json | null
           status?: string
           subaccount_id: string
           template_config?: Json | null
@@ -347,6 +354,8 @@ export type Database = {
           id?: string
           name?: string
           pages_generated?: number | null
+          preview_settings?: Json | null
+          static_pages?: Json | null
           status?: string
           subaccount_id?: string
           template_config?: Json | null

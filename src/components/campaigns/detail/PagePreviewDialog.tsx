@@ -237,6 +237,17 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
                   </a>
                 </Button>
               )}
+              {/* Open in new tab for preview */}
+              {page.preview_token && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => window.open(`/preview/${page.preview_token}`, '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Tab
+                </Button>
+              )}
             </div>
           </div>
         </DialogHeader>

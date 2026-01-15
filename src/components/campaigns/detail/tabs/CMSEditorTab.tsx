@@ -6,12 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Search, Eye, Loader2, Save, FileText } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sparkles, Search, Eye, Loader2, Save, FileText, Layers, Settings } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB, SectionContent } from "@/hooks/useCampaignPages";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { PagePreviewDialog } from "../PagePreviewDialog";
+import { SectionEditor } from "@/components/preview/SectionEditor";
 
 interface CMSEditorTabProps {
   campaign: CampaignDB;
@@ -28,6 +30,8 @@ export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpd
   const [metaDescription, setMetaDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [activeEditorTab, setActiveEditorTab] = useState<"seo" | "sections">("seo");
+  const [localSections, setLocalSections] = useState<SectionContent[]>([]);
 
   const selectedPage = pages.find(p => p.id === selectedPageId);
 
@@ -44,6 +48,7 @@ export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpd
     if (selectedPage) {
       setMetaTitle(selectedPage.meta_title || "");
       setMetaDescription(selectedPage.meta_description || "");
+      setLocalSections(selectedPage.sections_content || []);
     }
   }, [selectedPage]);
 
@@ -56,13 +61,27 @@ export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpd
     
     setIsSaving(true);
     try {
-      const success = await onUpdateSEO(selectedPageId, metaTitle, metaDescription);
-      if (success) {
+      // Save SEO changes
+      const seoSuccess = await onUpdateSEO(selectedPageId, metaTitle, metaDescription);
+      
+      // Save section changes if there are any
+      const sectionsChanged = JSON.stringify(localSections) !== JSON.stringify(selectedPage?.sections_content || []);
+      let sectionsSuccess = true;
+      
+      if (sectionsChanged) {
+        sectionsSuccess = await onUpdateContent(selectedPageId, localSections);
+      }
+      
+      if (seoSuccess && sectionsSuccess) {
         toast.success("Page settings saved!");
       }
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSectionsChange = (sections: SectionContent[]) => {
+    setLocalSections(sections);
   };
 
   const generateSlug = (title: string) => {
@@ -212,98 +231,107 @@ export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpd
                 </div>
               </div>
               
-              <ScrollArea className="flex-1">
-                <div className="p-6 space-y-6">
-                  {/* SEO Preview */}
-                  <div>
-                    <Label className="text-sm font-medium mb-3 block">Google Search Preview</Label>
-                    <div className="p-4 bg-white border rounded-lg space-y-1">
-                      <p className="text-lg text-blue-700 hover:underline cursor-pointer truncate">
-                        {metaTitle || selectedPage.title}
-                      </p>
-                      <p className="text-sm text-green-700">
-                        {campaign.website_url || "https://yoursite.com"}/{generateSlug(selectedPage.title)}
-                      </p>
-                      <p className="text-sm text-gray-600 line-clamp-2">
-                        {metaDescription || "No meta description set..."}
-                      </p>
-                    </div>
-                  </div>
+              <Tabs value={activeEditorTab} onValueChange={(v) => setActiveEditorTab(v as "seo" | "sections")} className="flex-1 flex flex-col min-h-0">
+                <div className="border-b px-4">
+                  <TabsList className="bg-transparent">
+                    <TabsTrigger value="seo" className="gap-2">
+                      <Settings className="h-4 w-4" />
+                      SEO Settings
+                    </TabsTrigger>
+                    <TabsTrigger value="sections" className="gap-2">
+                      <Layers className="h-4 w-4" />
+                      Sections
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-                  {/* Meta Title */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label className="text-sm font-medium">Meta Title</Label>
-                      <span className={cn(
-                        "text-xs",
-                        metaTitle.length > 60 ? "text-destructive" : "text-muted-foreground"
-                      )}>
-                        {metaTitle.length}/60
-                      </span>
-                    </div>
-                    <Input 
-                      placeholder="Enter SEO title..."
-                      value={metaTitle}
-                      onChange={(e) => setMetaTitle(e.target.value)}
-                      maxLength={70}
-                    />
-                  </div>
-
-                  {/* Meta Description */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label className="text-sm font-medium">Meta Description</Label>
-                      <span className={cn(
-                        "text-xs",
-                        metaDescription.length > 160 ? "text-destructive" : "text-muted-foreground"
-                      )}>
-                        {metaDescription.length}/160
-                      </span>
-                    </div>
-                    <Textarea 
-                      placeholder="Enter SEO description..."
-                      value={metaDescription}
-                      onChange={(e) => setMetaDescription(e.target.value)}
-                      maxLength={200}
-                      rows={3}
-                      className="resize-none"
-                    />
-                  </div>
-
-                  {/* Page Variables */}
-                  <div>
-                    <Label className="text-sm font-medium mb-3 block">Page Variables</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(selectedPage.data_values || {}).map(([key, value]) => (
-                        <div key={key} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
-                          <code className="font-mono text-primary text-xs">{`{{${key}}}`}</code>
-                          <span className="text-foreground truncate">{value}</span>
+                <TabsContent value="seo" className="flex-1 m-0 min-h-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-6 space-y-6">
+                      {/* SEO Preview */}
+                      <div>
+                        <Label className="text-sm font-medium mb-3 block">Google Search Preview</Label>
+                        <div className="p-4 bg-white border rounded-lg space-y-1">
+                          <p className="text-lg text-blue-700 hover:underline cursor-pointer truncate">
+                            {metaTitle || selectedPage.title}
+                          </p>
+                          <p className="text-sm text-green-700">
+                            {campaign.website_url || "https://yoursite.com"}/{generateSlug(selectedPage.title)}
+                          </p>
+                          <p className="text-sm text-gray-600 line-clamp-2">
+                            {metaDescription || "No meta description set..."}
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
 
-                  {/* Generated Content Preview */}
-                  {selectedPage.sections_content && selectedPage.sections_content.length > 0 && (
-                    <div>
-                      <Label className="text-sm font-medium mb-3 block">Generated Sections</Label>
-                      <div className="space-y-3">
-                        {selectedPage.sections_content.map((section, idx) => (
-                          <div key={idx} className="border rounded-lg p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline">{section.name || section.id}</Badge>
-                              <span className="text-xs text-muted-foreground">{section.type}</span>
+                      {/* Meta Title */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-sm font-medium">Meta Title</Label>
+                          <span className={cn(
+                            "text-xs",
+                            metaTitle.length > 60 ? "text-destructive" : "text-muted-foreground"
+                          )}>
+                            {metaTitle.length}/60
+                          </span>
+                        </div>
+                        <Input 
+                          placeholder="Enter SEO title..."
+                          value={metaTitle}
+                          onChange={(e) => setMetaTitle(e.target.value)}
+                          maxLength={70}
+                        />
+                      </div>
+
+                      {/* Meta Description */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-sm font-medium">Meta Description</Label>
+                          <span className={cn(
+                            "text-xs",
+                            metaDescription.length > 160 ? "text-destructive" : "text-muted-foreground"
+                          )}>
+                            {metaDescription.length}/160
+                          </span>
+                        </div>
+                        <Textarea 
+                          placeholder="Enter SEO description..."
+                          value={metaDescription}
+                          onChange={(e) => setMetaDescription(e.target.value)}
+                          maxLength={200}
+                          rows={3}
+                          className="resize-none"
+                        />
+                      </div>
+
+                      {/* Page Variables */}
+                      <div>
+                        <Label className="text-sm font-medium mb-3 block">Page Variables</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(selectedPage.data_values || {}).map(([key, value]) => (
+                            <div key={key} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                              <code className="font-mono text-primary text-xs">{`{{${key}}}`}</code>
+                              <span className="text-foreground truncate">{value}</span>
                             </div>
-                            <p className="text-sm text-muted-foreground line-clamp-3">
-                              {section.fields ? Object.values(section.fields).map(f => f.generated || f.rendered).filter(Boolean).join(' ').substring(0, 200) : 'No content'}
-                            </p>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  )}
-                </div>
-              </ScrollArea>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="sections" className="flex-1 m-0 min-h-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-6">
+                      <SectionEditor
+                        sections={localSections}
+                        onSectionsChange={handleSectionsChange}
+                        dataValues={selectedPage.data_values || {}}
+                      />
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
             </Card>
           ) : null}
         </div>
