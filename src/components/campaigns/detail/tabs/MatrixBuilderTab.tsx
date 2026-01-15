@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save } from "lucide-react";
+import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save, Wand2, Loader2 } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB } from "@/hooks/useCampaignPages";
 import { BUSINESS_TYPES } from "../../types";
@@ -41,6 +41,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
     (campaign.template_config as any)?.titlePattern || ""
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const businessType = BUSINESS_TYPES.find(bt => bt.id === campaign.business_type);
   const columnConfigs = businessType?.columns || BUSINESS_TYPES[2].columns;
@@ -93,6 +94,111 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
     }
   };
 
+  const handleRegeneratePages = async () => {
+    if (!titlePattern.trim()) {
+      toast.error("Please enter a title pattern first");
+      return;
+    }
+
+    setIsRegenerating(true);
+    try {
+      // First save the pattern
+      await handleSaveMatrix();
+
+      // Delete existing pages
+      const { error: deleteError } = await supabase
+        .from("campaign_pages")
+        .delete()
+        .eq("campaign_id", campaign.id);
+
+      if (deleteError) throw deleteError;
+
+      // Generate new pages based on column combinations
+      const newPages: Array<{
+        campaign_id: string;
+        subaccount_id: string;
+        title: string;
+        data_values: Record<string, string>;
+        status: string;
+      }> = [];
+
+      // Get column data
+      const columnData: Record<string, string[]> = {};
+      columnConfigs.forEach(col => {
+        columnData[col.id] = columns[col.id] || [];
+      });
+
+      // Generate all combinations
+      const generateCombinations = (
+        colIds: string[],
+        currentValues: Record<string, string>,
+        index: number
+      ) => {
+        if (index >= colIds.length) {
+          // Generate title from pattern
+          let title = titlePattern;
+          Object.entries(currentValues).forEach(([key, value]) => {
+            title = title.replace(new RegExp(`\\{\\{${key}\\}\\}`, "gi"), value);
+          });
+
+          newPages.push({
+            campaign_id: campaign.id,
+            subaccount_id: campaign.subaccount_id,
+            title: title,
+            data_values: { ...currentValues },
+            status: "draft",
+          });
+          return;
+        }
+
+        const colId = colIds[index];
+        const items = columnData[colId] || [];
+
+        if (items.length === 0) {
+          generateCombinations(colIds, currentValues, index + 1);
+        } else {
+          items.forEach(item => {
+            generateCombinations(
+              colIds,
+              { ...currentValues, [colId]: item },
+              index + 1
+            );
+          });
+        }
+      };
+
+      const colIds = columnConfigs.map(c => c.id);
+      generateCombinations(colIds, {}, 0);
+
+      // Insert new pages in batches
+      if (newPages.length > 0) {
+        const batchSize = 50;
+        for (let i = 0; i < newPages.length; i += batchSize) {
+          const batch = newPages.slice(i, i + batchSize);
+          const { error: insertError } = await supabase
+            .from("campaign_pages")
+            .insert(batch);
+
+          if (insertError) throw insertError;
+        }
+      }
+
+      // Update campaign total_pages
+      await supabase
+        .from("campaigns")
+        .update({ total_pages: newPages.length })
+        .eq("id", campaign.id);
+
+      toast.success(`Generated ${newPages.length} pages with new titles!`);
+      onRefreshPages();
+    } catch (err) {
+      console.error("Error regenerating pages:", err);
+      toast.error("Failed to regenerate pages");
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   // Generate sample combinations from actual pages or calculate from columns
   const sampleCombinations = pages.slice(0, 5).map(p => ({
     title: p.title,
@@ -134,19 +240,6 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
           {isSaving ? "Saving..." : "Save Changes"}
         </Button>
       </div>
-
-      {/* Title Pattern Configuration */}
-      <Card>
-        <CardContent className="p-4">
-          <TitlePatternInput
-            value={titlePattern}
-            onChange={setTitlePattern}
-            columns={columnConfigs}
-            label="Page Title Pattern"
-            placeholder={`e.g., {{${columnConfigs[0]?.id}}} in {{${columnConfigs[1]?.id}}}`}
-          />
-        </CardContent>
-      </Card>
 
       {/* Business Details */}
       <Card>
@@ -339,6 +432,36 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
           })}
         </div>
       </div>
+
+      {/* Title Pattern Configuration - moved above Generated Pages */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="p-4 space-y-4">
+          <TitlePatternInput
+            value={titlePattern}
+            onChange={setTitlePattern}
+            columns={columnConfigs}
+            label="Page Title Pattern"
+            placeholder={`e.g., {{${columnConfigs[0]?.id}}} in {{${columnConfigs[1]?.id}}}`}
+          />
+          <div className="flex items-center justify-between pt-2 border-t">
+            <p className="text-sm text-muted-foreground">
+              Update the pattern and regenerate to apply new titles to all pages
+            </p>
+            <Button 
+              onClick={handleRegeneratePages} 
+              disabled={isRegenerating || !titlePattern.trim()}
+              className="gap-2"
+            >
+              {isRegenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+              {isRegenerating ? "Regenerating..." : "Regenerate Pages"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Generated Combinations / Pages */}
       <Card>
