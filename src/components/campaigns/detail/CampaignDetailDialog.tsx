@@ -100,7 +100,7 @@ export function CampaignDetailDialog({
           {/* Main Content */}
           <div className="flex-1 flex flex-col bg-background overflow-hidden">
             <ScrollArea className="flex-1 h-[calc(90vh-80px)]">
-              <div className="p-6 max-h-full">
+              <div className="p-6">
                 {renderTabContent()}
               </div>
             </ScrollArea>
