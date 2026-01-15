@@ -21,6 +21,9 @@ import { DeploymentSettingsTab } from "./tabs/DeploymentSettingsTab";
 import { ReusableBlocksTab } from "./tabs/ReusableBlocksTab";
 import { PagesTab } from "./tabs/PagesTab";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
+import { toast } from "sonner";
 
 interface CampaignDetailDialogProps {
   open: boolean;
@@ -52,10 +55,49 @@ export function CampaignDetailDialog({
 
   if (!campaign) return null;
 
-  // Placeholder for content generation (will be connected to edge function later)
+  // Get template for this campaign's business type
+  const template = getTemplateForBusinessType(campaign.business_type || "local");
+
+  // Generate content using the edge function
   const handleGenerateContent = async (pageId: string) => {
-    console.log("Generate content for page:", pageId);
-    // TODO: Connect to generate-campaign-content edge function
+    const page = pages.find(p => p.id === pageId);
+    if (!page) {
+      toast.error("Page not found");
+      return;
+    }
+
+    try {
+      toast.info("Generating content with AI...", { duration: 10000 });
+
+      const { data, error } = await supabase.functions.invoke("generate-campaign-content", {
+        body: {
+          page_id: pageId,
+          business_name: campaign.business_name || "Your Company",
+          business_type: campaign.business_type || "local",
+          data_values: page.data_values || {},
+          template_sections: template.sections,
+          tone_of_voice: "Professional, friendly, and trustworthy",
+        },
+      });
+
+      if (error) {
+        console.error("Error generating content:", error);
+        if (error.message?.includes("429")) {
+          toast.error("Rate limit exceeded. Please try again in a moment.");
+        } else if (error.message?.includes("402")) {
+          toast.error("AI credits exhausted. Please add credits to continue.");
+        } else {
+          toast.error("Failed to generate content. Please try again.");
+        }
+        return;
+      }
+
+      toast.success("Content generated successfully!");
+      refetchPages();
+    } catch (err) {
+      console.error("Error calling generate-campaign-content:", err);
+      toast.error("Failed to generate content. Please try again.");
+    }
   };
 
   const renderTabContent = () => {

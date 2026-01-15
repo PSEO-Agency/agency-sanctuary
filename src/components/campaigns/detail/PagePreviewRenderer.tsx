@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { TemplateSection } from "@/lib/campaignTemplates";
-import { renderTemplateWithPlaceholders, hasPrompts, getPromptPlaceholder, parseStaticPlaceholders } from "@/lib/templateParser";
+import { hasPrompts, getPromptPlaceholder, parseStaticPlaceholders } from "@/lib/templateParser";
 import { SectionContent } from "@/hooks/useCampaignPages";
 
 interface PagePreviewRendererProps {
@@ -24,21 +24,20 @@ export function PagePreviewRenderer({
     return acc;
   }, {} as Record<string, string>);
 
-  const renderContent = (content: string): string => {
+  // Check if we have any generated content
+  const hasGeneratedContent = generatedContent.length > 0 && generatedContent.some(s => s.generated);
+
+  const renderContent = (content: string, sectionId: string): string => {
+    // If we have generated content for this section, use it
+    if (hasGeneratedContent && contentMap[sectionId]) {
+      return contentMap[sectionId];
+    }
+
     // First replace static placeholders
     let rendered = parseStaticPlaceholders(content, dataValues);
     
-    // If it's a prompt and we have generated content, show that
+    // If it's a prompt, show placeholder
     if (hasPrompts(content)) {
-      const sectionId = sections.find(s => 
-        Object.values(s.content).some(v => v === content)
-      )?.id;
-      
-      if (sectionId && contentMap[sectionId]) {
-        return contentMap[sectionId];
-      }
-      
-      // Show placeholder for ungenerated prompts
       const match = content.match(/prompt\(["'`]([^"'`]+)["'`]\)/);
       if (match) {
         const promptText = parseStaticPlaceholders(match[1], dataValues);
@@ -47,6 +46,11 @@ export function PagePreviewRenderer({
     }
     
     return rendered;
+  };
+
+  // For non-prompt content, just replace placeholders
+  const renderStaticContent = (content: string): string => {
+    return parseStaticPlaceholders(content, dataValues);
   };
 
   return (
@@ -58,13 +62,13 @@ export function PagePreviewRenderer({
               <section key={section.id} className="bg-gradient-to-br from-primary to-primary/80 text-white py-16 px-8">
                 <div className="max-w-4xl mx-auto text-center">
                   <h1 className="text-4xl font-bold mb-4">
-                    {renderContent(section.content.headline as string)}
+                    {renderStaticContent(section.content.headline as string)}
                   </h1>
                   <p className="text-xl text-white/90 mb-8">
-                    {renderContent(section.content.subheadline as string)}
+                    {renderContent(section.content.subheadline as string, section.id)}
                   </p>
                   <button className="bg-white text-primary font-semibold px-8 py-3 rounded-lg hover:bg-white/90 transition-colors">
-                    {parseStaticPlaceholders(section.content.cta_text as string, dataValues)}
+                    {renderStaticContent(section.content.cta_text as string)}
                   </button>
                 </div>
               </section>
@@ -75,7 +79,7 @@ export function PagePreviewRenderer({
               <section key={section.id} className="py-16 px-8 bg-gray-50">
                 <div className="max-w-4xl mx-auto">
                   <h2 className="text-2xl font-bold text-center mb-8">
-                    {parseStaticPlaceholders(section.content.title as string, dataValues)}
+                    {renderStaticContent(section.content.title as string)}
                   </h2>
                   <div className="grid grid-cols-2 gap-6">
                     {(section.content.items as string[]).map((item, index) => (
@@ -83,7 +87,7 @@ export function PagePreviewRenderer({
                         <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-sm">
                           ✓
                         </div>
-                        <span className="text-gray-700">{parseStaticPlaceholders(item, dataValues)}</span>
+                        <span className="text-gray-700">{renderStaticContent(item)}</span>
                       </div>
                     ))}
                   </div>
@@ -96,10 +100,10 @@ export function PagePreviewRenderer({
               <section key={section.id} className="py-16 px-8">
                 <div className="max-w-3xl mx-auto">
                   <h2 className="text-2xl font-bold mb-6">
-                    {parseStaticPlaceholders(section.content.title as string, dataValues)}
+                    {renderStaticContent(section.content.title as string)}
                   </h2>
                   <div className="prose prose-lg text-gray-600">
-                    <p>{renderContent(section.content.body as string)}</p>
+                    <p>{renderContent(section.content.body as string, section.id)}</p>
                   </div>
                 </div>
               </section>
@@ -110,13 +114,13 @@ export function PagePreviewRenderer({
               <section key={section.id} className="py-16 px-8 bg-primary/5">
                 <div className="max-w-2xl mx-auto text-center">
                   <h2 className="text-2xl font-bold mb-4">
-                    {parseStaticPlaceholders(section.content.title as string, dataValues)}
+                    {renderStaticContent(section.content.title as string)}
                   </h2>
                   <p className="text-gray-600 mb-8">
-                    {renderContent(section.content.description as string)}
+                    {renderContent(section.content.description as string, section.id)}
                   </p>
                   <button className="bg-primary text-white font-semibold px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors">
-                    {parseStaticPlaceholders(section.content.button_text as string, dataValues)}
+                    {renderStaticContent(section.content.button_text as string)}
                   </button>
                 </div>
               </section>
