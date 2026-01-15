@@ -4,11 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, Filter } from "lucide-react";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CreateCampaignDialog } from "@/components/campaigns/CreateCampaignDialog";
+import { CampaignDetailDialog } from "@/components/campaigns/detail/CampaignDetailDialog";
 import { Campaign, CampaignFormData } from "@/components/campaigns/types";
 import { toast } from "sonner";
 
 export default function Campaigns() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Mock data - will be replaced with real data from database
@@ -73,8 +76,17 @@ export default function Campaigns() {
   };
 
   const handleViewCampaign = (id: string) => {
-    // TODO: Navigate to campaign detail page
-    toast.info("Campaign detail view coming soon!");
+    const campaign = campaigns.find(c => c.id === id);
+    if (campaign) {
+      setSelectedCampaign(campaign);
+      setIsDetailDialogOpen(true);
+    }
+  };
+
+  const handleSaveCampaign = (campaign: Campaign) => {
+    setCampaigns(prev => prev.map(c => c.id === campaign.id ? campaign : c));
+    setIsDetailDialogOpen(false);
+    toast.success("Campaign saved successfully!");
   };
 
   const handleDeleteCampaign = (id: string) => {
@@ -137,6 +149,14 @@ export default function Campaigns() {
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         onComplete={handleCreateCampaign}
+      />
+
+      {/* Campaign Detail Dialog */}
+      <CampaignDetailDialog
+        open={isDetailDialogOpen}
+        onOpenChange={setIsDetailDialogOpen}
+        campaign={selectedCampaign}
+        onSave={handleSaveCampaign}
       />
     </div>
   );
