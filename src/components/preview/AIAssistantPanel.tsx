@@ -181,8 +181,8 @@ export default function AIAssistantPanel({
   return (
     <div
       className={cn(
-        "fixed top-0 right-0 h-full w-96 bg-background border-l shadow-xl z-[60] flex flex-col transition-transform duration-300",
-        isOpen ? "translate-x-0" : "translate-x-full"
+        "fixed top-0 left-0 h-full w-96 bg-background border-r shadow-xl z-[60] flex flex-col transition-transform duration-300",
+        isOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
       {/* Header */}
