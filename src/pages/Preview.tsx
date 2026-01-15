@@ -3,7 +3,10 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import WebsiteShell from "@/components/preview/WebsiteShell";
 import PreviewPageContent from "@/components/preview/PreviewPageContent";
-import { Loader2 } from "lucide-react";
+import AIAssistantPanel from "@/components/preview/AIAssistantPanel";
+import { Loader2, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface CampaignPage {
   id: string;
@@ -42,6 +45,60 @@ export default function Preview() {
   const [siblingPages, setSiblingPages] = useState<SiblingPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+
+  const handleApplyAIChanges = async (changes: any) => {
+    if (!page || !changes) return;
+
+    try {
+      // Update sections_content with the new changes
+      const updatedSections = [...(page.sections_content || [])];
+      const sectionIndex = updatedSections.findIndex(s => s.id === changes.sectionId);
+      
+      if (sectionIndex !== -1) {
+        updatedSections[sectionIndex] = {
+          ...updatedSections[sectionIndex],
+          fields: {
+            ...updatedSections[sectionIndex].fields,
+            [changes.field]: {
+              original: changes.newValue,
+              rendered: changes.newValue,
+              isPrompt: false,
+              generated: changes.newValue,
+            },
+          },
+        };
+      } else {
+        // Add new section entry
+        updatedSections.push({
+          id: changes.sectionId,
+          fields: {
+            [changes.field]: {
+              original: changes.newValue,
+              rendered: changes.newValue,
+              isPrompt: false,
+              generated: changes.newValue,
+            },
+          },
+        });
+      }
+
+      // Update in database
+      const { error: updateError } = await supabase
+        .from("campaign_pages")
+        .update({ sections_content: updatedSections })
+        .eq("id", page.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setPage({ ...page, sections_content: updatedSections });
+      toast.success("Content updated successfully!");
+    } catch (err) {
+      console.error("Failed to apply changes:", err);
+      toast.error("Failed to apply changes");
+    }
+  };
 
   useEffect(() => {
     async function fetchPreviewData() {
@@ -136,15 +193,38 @@ export default function Preview() {
   }
 
   return (
-    <WebsiteShell
-      campaign={campaign}
-      currentPage={page}
-      siblingPages={siblingPages}
-    >
-      <PreviewPageContent
-        page={page}
+    <>
+      <WebsiteShell
         campaign={campaign}
+        currentPage={page}
+        siblingPages={siblingPages}
+      >
+        <PreviewPageContent
+          page={page}
+          campaign={campaign}
+        />
+      </WebsiteShell>
+
+      {/* AI Assistant Toggle Button */}
+      <Button
+        onClick={() => setIsAIAssistantOpen(true)}
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-40"
+        size="icon"
+      >
+        <Sparkles className="h-6 w-6" />
+      </Button>
+
+      {/* AI Assistant Panel */}
+      <AIAssistantPanel
+        isOpen={isAIAssistantOpen}
+        onClose={() => setIsAIAssistantOpen(false)}
+        pageId={page.id}
+        currentContent={{
+          sections: page.sections_content || [],
+          dataValues: page.data_values || {},
+        }}
+        onApplyChanges={handleApplyAIChanges}
       />
-    </WebsiteShell>
+    </>
   );
 }
