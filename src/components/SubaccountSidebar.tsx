@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, MessageSquare, BookOpen } from "lucide-react";
+import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -300,17 +300,6 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                 <Settings className={getIconClassName(isRouteActive(`/subaccount/${subaccountId}/settings`))} />
                 {!collapsed && <span>Settings</span>}
               </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton 
-              asChild 
-              className="text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"
-            >
-              <a href="#" onClick={(e) => e.preventDefault()}>
-                <MessageSquare className="h-5 w-5" />
-                {!collapsed && <span>Support</span>}
-              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
