@@ -74,7 +74,6 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   };
 
   const generateTitles = () => {
-    const pattern = formData.titlePattern || `{{${columns[0]?.id}}}`;
     const titles: { id: string; title: string; language: string }[] = [];
     
     // Get all column data that has items
@@ -92,18 +91,26 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     // If no data, return
     if (activeColumnIds.length === 0) return;
 
-    // Check if pattern uses multiple columns or just one
+    // Use pattern if set, otherwise default to first column
+    const pattern = formData.titlePattern?.trim() || `{{${activeColumnIds[0]}}}`;
+
+    // Find which columns are used in the pattern (case-insensitive)
+    const patternLower = pattern.toLowerCase();
     const usedColumns = activeColumnIds.filter(colId => 
-      pattern.toLowerCase().includes(`{{${colId.toLowerCase()}}}`)
+      patternLower.includes(`{{${colId.toLowerCase()}}}`)
     );
 
-    if (usedColumns.length <= 1) {
-      // Single column mode - just list items from the first active column
-      const primaryColumn = usedColumns[0] || activeColumnIds[0];
+    // If pattern doesn't match any columns, use all active columns
+    const columnsToUse = usedColumns.length > 0 ? usedColumns : activeColumnIds;
+
+    if (columnsToUse.length === 1) {
+      // Single column mode - just list items
+      const primaryColumn = columnsToUse[0];
       const items = columnData[primaryColumn] || [];
       
       items.forEach(item => {
         let title = pattern;
+        // Replace the column placeholder with the item value
         title = title.replace(new RegExp(`\\{\\{${primaryColumn}\\}\\}`, "gi"), item);
         // Clear any remaining placeholders
         columns.forEach(col => {
@@ -111,8 +118,11 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         });
         title = title.trim();
         
+        // If title is empty after replacement, just use the item
+        if (!title) title = item;
+        
         titles.push({
-          id: `${primaryColumn}-${item}`,
+          id: `${primaryColumn}-${item}-${Date.now()}`,
           title: title,
           language: "Default",
         });
@@ -131,7 +141,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
           });
           
           titles.push({
-            id: Object.values(currentValues).join("-"),
+            id: `${Object.values(currentValues).join("-")}-${Date.now()}-${Math.random()}`,
             title: title,
             language: "Default",
           });
@@ -154,7 +164,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         }
       };
 
-      generateCombinations(usedColumns, {}, 0);
+      generateCombinations(columnsToUse, {}, 0);
     }
 
     // Preserve existing custom titles and add new generated ones
