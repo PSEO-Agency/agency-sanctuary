@@ -65,14 +65,12 @@ export default function SubaccountDashboard() {
       });
 
       const articles = articlesResponse?.articles || [];
+      // Only count as "published" if actually published to CMS
       const published = articles.filter((a: any) => 
-        a.status?.toLowerCase() === "published" || 
-        a.status?.toLowerCase() === "content ready" ||
-        a.status?.toLowerCase() === "article ready"
+        a.status?.toLowerCase() === "published"
       ).length;
-      const drafts = articles.filter((a: any) => 
-        a.status?.toLowerCase() === "draft"
-      ).length;
+      // Everything else is a draft (including content ready, article ready, draft, etc.)
+      const drafts = articles.length - published;
 
       return { published, drafts };
     },
