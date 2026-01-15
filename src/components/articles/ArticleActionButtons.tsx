@@ -220,18 +220,19 @@ export function ArticleActionButtons({
 
   return (
     <>
-      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
         {/* Primary Action Button */}
         <Button
           variant="default"
-          size={compact ? "sm" : "default"}
+          size="sm"
           onClick={() => handleAction(actionConfig.action)}
           disabled={isUpdating}
+          className="h-7 px-2.5 text-xs whitespace-nowrap"
         >
           {isUpdating ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
           ) : (
-            <Icon className="h-4 w-4 mr-2" />
+            <Icon className="h-3.5 w-3.5 mr-1.5" />
           )}
           {actionConfig.label}
         </Button>
@@ -239,16 +240,16 @@ export function ArticleActionButtons({
         {/* Secondary Action Button (for outline ready and article ready states) */}
         {'secondaryAction' in actionConfig && actionConfig.secondaryAction && SecondaryIcon && (
           <Button
-            variant={actionConfig.secondaryAction === 'approve-publish' ? 'default' : 'default'}
-            size={compact ? "sm" : "default"}
+            variant="default"
+            size="sm"
             onClick={() => handleAction(actionConfig.secondaryAction!)}
             disabled={isUpdating}
-            className={actionConfig.secondaryAction === 'approve-publish' ? 'bg-green-600 hover:bg-green-700' : ''}
+            className={`h-7 px-2.5 text-xs whitespace-nowrap ${actionConfig.secondaryAction === 'approve-publish' ? 'bg-green-600 hover:bg-green-700' : ''}`}
           >
             {isUpdating ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
             ) : (
-              <SecondaryIcon className="h-4 w-4 mr-2" />
+              <SecondaryIcon className="h-3.5 w-3.5 mr-1.5" />
             )}
             {actionConfig.secondaryLabel}
           </Button>

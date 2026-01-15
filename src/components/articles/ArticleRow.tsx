@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2 } from "lucide-react";
 import { ArticleActionButtons } from "./ArticleActionButtons";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface Article {
   id: string;
@@ -84,6 +85,8 @@ export function ArticleRow({
   onStatusChange,
   onArticleUpdate
 }: ArticleRowProps) {
+  const { profile } = useAuth();
+  
   const formattedDate = article.createdAt 
     ? new Date(article.createdAt).toLocaleDateString('en-US', { 
         month: 'short', 
@@ -93,8 +96,9 @@ export function ArticleRow({
     : '-';
 
   const statusStyle = getStatusVariant(article.status);
-  const keyword = article.slug?.replace(/-/g, ' ') || '-';
-  const creatorName = article.createdBy?.[0] || 'Unknown';
+  
+  // Use createdBy from Airtable, fallback to current logged-in user's name
+  const creatorName = article.createdBy?.[0] || profile?.full_name || profile?.email || 'Unknown';
   const creatorInitial = creatorName.charAt(0).toUpperCase();
   const { step, total, eta } = getStatusStep(article.status);
 
@@ -117,11 +121,8 @@ export function ArticleRow({
           onCheckedChange={onToggleSelect}
         />
       </TableCell>
-      <TableCell className="py-2 font-medium text-sm max-w-[200px] truncate">
+      <TableCell className="py-2 font-medium text-sm max-w-[250px] truncate">
         {article.name}
-      </TableCell>
-      <TableCell className="py-2 text-sm text-muted-foreground max-w-[140px] truncate">
-        {keyword}
       </TableCell>
       <TableCell className="py-2">
         <div className="flex flex-col gap-0.5">
