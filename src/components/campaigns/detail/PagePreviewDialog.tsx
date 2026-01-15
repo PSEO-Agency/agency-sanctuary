@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Eye, Code, Search, Loader2, Sparkles, ExternalLink } from "lucide-react";
+import { Eye, Code, Search, Loader2, Sparkles, ExternalLink, Settings2, CheckCircle2, Clock } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB } from "@/hooks/useCampaignPages";
 import { PagePreviewRenderer } from "./PagePreviewRenderer";
-import { getTemplateForBusinessType, TemplateSection } from "@/lib/campaignTemplates";
+import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
+import { parseStaticPlaceholders, extractPrompts } from "@/lib/templateParser";
 
 interface PagePreviewDialogProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface PagePreviewDialogProps {
   page: CampaignPageDB | null;
   campaign: CampaignDB;
   onGenerateContent?: (pageId: string) => Promise<void>;
+  isGenerating?: boolean;
 }
 
 export function PagePreviewDialog({
@@ -24,11 +26,14 @@ export function PagePreviewDialog({
   page,
   campaign,
   onGenerateContent,
+  isGenerating = false,
 }: PagePreviewDialogProps) {
-  const [activeTab, setActiveTab] = useState("preview");
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState("setup");
+  const [localGenerating, setLocalGenerating] = useState(false);
 
   if (!page) return null;
+
+  const generating = isGenerating || localGenerating;
 
   // Get template based on campaign business type
   const template = getTemplateForBusinessType(campaign.business_type || "local");
@@ -41,11 +46,14 @@ export function PagePreviewDialog({
 
   const handleGenerate = async () => {
     if (!onGenerateContent) return;
-    setIsGenerating(true);
+    setLocalGenerating(true);
     try {
       await onGenerateContent(page.id);
+      setActiveTab("preview");
+    } catch (error) {
+      console.error("Generation failed:", error);
     } finally {
-      setIsGenerating(false);
+      setLocalGenerating(false);
     }
   };
 
@@ -66,8 +74,17 @@ export function PagePreviewDialog({
     }
   };
 
-  // Generate HTML source for preview
+  // Generate full HTML source with generated content
   const generateHTMLSource = () => {
+    const sectionsContent = page.sections_content || [];
+    const sectionHTML = sectionsContent.map(section => {
+      const content = section.content || "";
+      return `  <!-- ${section.name || section.id} -->
+  <section class="${section.type || section.id}">
+    ${content.split("\n").map(line => `    <p>${line}</p>`).join("\n")}
+  </section>`;
+    }).join("\n\n");
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -77,21 +94,59 @@ export function PagePreviewDialog({
   <meta name="description" content="${page.meta_description || ""}">
 </head>
 <body>
-  <!-- Hero Section -->
-  <section class="hero">
+  <header>
     <h1>${page.title}</h1>
-    <!-- Content will be rendered here -->
-  </section>
-  
-  <!-- Additional sections... -->
+  </header>
+
+${sectionHTML || "  <!-- No content generated yet -->"}
+
+  <footer>
+    <p>&copy; ${new Date().getFullYear()} ${campaign.business_name || "Your Company"}</p>
+  </footer>
 </body>
 </html>`;
   };
 
+  // Extract all prompts from template for Setup tab
+  const getAllPrompts = () => {
+    const prompts: Array<{
+      sectionId: string;
+      sectionName: string;
+      field: string;
+      rawPrompt: string;
+      resolvedPrompt: string;
+      generatedContent: string | null;
+    }> = [];
+
+    template.sections.forEach(section => {
+      Object.entries(section.content).forEach(([field, value]) => {
+        if (typeof value === "string" && value.includes("prompt(")) {
+          const extracted = extractPrompts(value, dataValues);
+          extracted.forEach(p => {
+            const sectionContent = page.sections_content?.find(s => s.id === section.id);
+            prompts.push({
+              sectionId: section.id,
+              sectionName: section.name,
+              field,
+              rawPrompt: p.prompt,
+              resolvedPrompt: p.placeholdersReplaced,
+              generatedContent: sectionContent?.content || null,
+            });
+          });
+        }
+      });
+    });
+
+    return prompts;
+  };
+
+  const prompts = getAllPrompts();
+  const hasGeneratedContent = page.status === "generated" || page.status === "published" || page.status === "reviewed";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[90vh] p-0 gap-0 overflow-hidden">
-        <DialogHeader className="p-4 border-b">
+      <DialogContent className="max-w-5xl h-[90vh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader className="p-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <DialogTitle className="text-lg">{page.title}</DialogTitle>
@@ -99,7 +154,7 @@ export function PagePreviewDialog({
                 variant="secondary" 
                 className={`${getStatusColor(page.status)} text-white`}
               >
-                {page.status}
+                {generating ? "Generating..." : page.status}
               </Badge>
             </div>
             <div className="flex items-center gap-2">
@@ -107,14 +162,29 @@ export function PagePreviewDialog({
                 <Button 
                   size="sm" 
                   onClick={handleGenerate}
-                  disabled={isGenerating}
+                  disabled={generating}
                 >
-                  {isGenerating ? (
+                  {generating ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Sparkles className="h-4 w-4 mr-2" />
                   )}
                   Generate Content
+                </Button>
+              )}
+              {hasGeneratedContent && onGenerateContent && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                >
+                  {generating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Regenerate
                 </Button>
               )}
               {page.published_url && (
@@ -129,9 +199,13 @@ export function PagePreviewDialog({
           </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <div className="border-b px-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <div className="border-b px-4 flex-shrink-0">
             <TabsList className="bg-transparent">
+              <TabsTrigger value="setup" className="gap-2">
+                <Settings2 className="h-4 w-4" />
+                Setup
+              </TabsTrigger>
               <TabsTrigger value="preview" className="gap-2">
                 <Eye className="h-4 w-4" />
                 Visual Preview
@@ -147,8 +221,103 @@ export function PagePreviewDialog({
             </TabsList>
           </div>
 
-          <TabsContent value="preview" className="flex-1 m-0 overflow-hidden">
-            <ScrollArea className="h-[calc(90vh-140px)]">
+          <TabsContent value="setup" className="flex-1 m-0 min-h-0">
+            <ScrollArea className="h-full">
+              <div className="p-6 space-y-6">
+                {/* Page Variables */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Page Variables</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(page.data_values || {}).map(([key, value]) => (
+                      <div key={key} className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm">
+                        <code className="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">{`{{${key}}}`}</code>
+                        <span className="text-foreground font-medium">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Resolved Title */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Page Title (Resolved)</h3>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="font-medium">{parseStaticPlaceholders(page.title, dataValues)}</p>
+                  </div>
+                </div>
+
+                {/* AI Prompts */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                    AI Generation Prompts ({prompts.length} total)
+                  </h3>
+                  <div className="space-y-4">
+                    {prompts.map((prompt, index) => (
+                      <div key={index} className="border rounded-lg overflow-hidden">
+                        <div className="bg-muted/50 px-4 py-2 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">{prompt.sectionName}</Badge>
+                            <span className="text-xs text-muted-foreground">{prompt.field}</span>
+                          </div>
+                          {prompt.generatedContent ? (
+                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Generated
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Pending
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Resolved Prompt:</p>
+                            <p className="text-sm bg-amber-50 dark:bg-amber-950/30 p-2 rounded border border-amber-200 dark:border-amber-800">
+                              "{prompt.resolvedPrompt}"
+                            </p>
+                          </div>
+                          {prompt.generatedContent && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Generated Content:</p>
+                              <p className="text-sm bg-green-50 dark:bg-green-950/30 p-2 rounded border border-green-200 dark:border-green-800">
+                                {prompt.generatedContent.substring(0, 300)}
+                                {prompt.generatedContent.length > 300 && "..."}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Generation Status */}
+                {!hasGeneratedContent && (
+                  <div className="flex items-center justify-center p-8 bg-muted/30 rounded-lg border-2 border-dashed">
+                    <div className="text-center">
+                      <Sparkles className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="font-medium">Ready to Generate</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Click "Generate Content" to create AI-powered content for this page
+                      </p>
+                      <Button onClick={handleGenerate} disabled={generating}>
+                        {generating ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-2" />
+                        )}
+                        Generate Content
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="preview" className="flex-1 m-0 min-h-0">
+            <ScrollArea className="h-full">
               <PagePreviewRenderer
                 sections={template.sections}
                 dataValues={dataValues}
@@ -158,16 +327,16 @@ export function PagePreviewDialog({
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="html" className="flex-1 m-0 p-4 overflow-hidden">
-            <ScrollArea className="h-[calc(90vh-160px)]">
-              <pre className="bg-muted p-4 rounded-lg text-sm font-mono overflow-x-auto">
+          <TabsContent value="html" className="flex-1 m-0 p-4 min-h-0">
+            <ScrollArea className="h-full">
+              <pre className="bg-muted p-4 rounded-lg text-sm font-mono overflow-x-auto whitespace-pre-wrap">
                 <code>{generateHTMLSource()}</code>
               </pre>
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="seo" className="flex-1 m-0 p-4 overflow-hidden">
-            <ScrollArea className="h-[calc(90vh-160px)]">
+          <TabsContent value="seo" className="flex-1 m-0 p-4 min-h-0">
+            <ScrollArea className="h-full">
               <div className="max-w-2xl space-y-6">
                 {/* Google Search Preview */}
                 <div>
@@ -205,6 +374,12 @@ export function PagePreviewDialog({
                       <span className="text-sm">Target Keywords</span>
                       <Badge variant={page.keywords?.length ? "default" : "secondary"}>
                         {page.keywords?.filter(k => k.selected).length || 0} selected
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <span className="text-sm">Content Status</span>
+                      <Badge variant={hasGeneratedContent ? "default" : "secondary"}>
+                        {hasGeneratedContent ? "Generated" : "Pending"}
                       </Badge>
                     </div>
                   </div>
