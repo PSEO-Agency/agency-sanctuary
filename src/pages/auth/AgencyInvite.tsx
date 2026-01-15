@@ -41,7 +41,7 @@ export default function AgencyInvite() {
       const { data, error } = await supabase.functions.invoke("validate-invite-token", {
         body: {
           token,
-          inviteType: "agency",
+          inviteType: "new_agency",
         },
       });
 
