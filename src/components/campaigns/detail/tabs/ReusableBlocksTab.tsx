@@ -3,16 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Check } from "lucide-react";
-import { Campaign, TEMPLATES } from "../../types";
+import { CampaignDB } from "@/hooks/useCampaigns";
+import { TEMPLATES } from "../../types";
 import { cn } from "@/lib/utils";
 
 interface ReusableBlocksTabProps {
-  campaign: Campaign;
+  campaign: CampaignDB;
 }
 
 export function ReusableBlocksTab({ campaign }: ReusableBlocksTabProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState(campaign.template || "modern-local");
-
+  const [selectedTemplate, setSelectedTemplate] = useState(campaign.template_id || "modern-local");
   const currentTemplate = TEMPLATES.find(t => t.id === selectedTemplate);
 
   return (
