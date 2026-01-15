@@ -197,7 +197,6 @@ export function ArticlesTable({
               />
             </TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Article</TableHead>
-            <TableHead className="py-2 text-xs font-medium text-muted-foreground">Keyword</TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Actions</TableHead>
             <TableHead className="py-2 text-xs font-medium text-muted-foreground">Created by</TableHead>
