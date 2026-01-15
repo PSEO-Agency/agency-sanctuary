@@ -460,7 +460,7 @@ export default function ArticleEditor() {
                   />
                 ) : (
                   <article 
-                    className="prose prose-slate max-w-none"
+                    className="article-preview prose prose-slate prose-sm sm:prose lg:prose-lg max-w-none dark:prose-invert prose-headings:font-semibold prose-p:leading-relaxed prose-li:my-1"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(htmlContent, {
                       ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'br', 'span', 'div'],
                       ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel']

@@ -194,3 +194,8 @@ All colors MUST be HSL.
   background-color: transparent;
   padding: 0;
 }
+
+/* Article Preview Styles - hide duplicate first h1 since title is shown above */
+.article-preview > h1:first-child {
+  display: none;
+}
