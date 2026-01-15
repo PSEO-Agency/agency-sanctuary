@@ -204,14 +204,14 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
     if (isActive) {
       return "bg-primary/10 text-sidebar-foreground font-medium hover:bg-primary/10";
     }
-    return "text-sidebar-foreground/70 hover:bg-primary/10 hover:text-sidebar-foreground";
+    return "text-sidebar-foreground hover:bg-primary/10 hover:text-sidebar-foreground";
   };
 
   const getIconClassName = (isActive: boolean) => {
     if (isActive) {
       return "h-5 w-5 text-primary";
     }
-    return "h-5 w-5";
+    return "h-5 w-5 text-sidebar-foreground/70";
   };
 
   return (
@@ -254,10 +254,10 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                   <p className="text-sm font-semibold text-sidebar-foreground whitespace-nowrap">
                     {activeMode === "content-machine" ? "pSEO Builder" : "Content Machine"}
                   </p>
-                  <p className="text-xs text-sidebar-foreground/60 whitespace-nowrap">
+                  <p className="text-xs text-sidebar-foreground/60 leading-tight">
                     {activeMode === "content-machine" 
-                      ? "Switch to exclusive builder" 
-                      : "Back to content tools"}
+                      ? "Switch to our industry leading most powerful builder" 
+                      : "Write in-depth researched SEO optimized articles"}
                   </p>
                 </div>
                 <ArrowRightLeft className="h-4 w-4 text-sidebar-foreground/40 group-hover:text-primary transition-colors" />
@@ -292,9 +292,11 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
         {/* Content Machine Section - Show when in content-machine mode */}
         <div className={cn(
-          "transition-all duration-300 ease-out",
-          activeMode === "content-machine" ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 absolute pointer-events-none",
-          isTransitioning && "opacity-0"
+          "transition-all duration-500 ease-out transform-gpu",
+          activeMode === "content-machine" 
+            ? "opacity-100 translate-x-0 scale-100" 
+            : "opacity-0 -translate-x-4 scale-95 absolute pointer-events-none",
+          isTransitioning && "opacity-0 scale-95"
         )}>
           {activeMode === "content-machine" && (
             <SidebarGroup>
@@ -327,9 +329,11 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
         {/* pSEO Builder Section - Show when in pseo-builder mode AND feature is enabled */}
         <div className={cn(
-          "transition-all duration-300 ease-out",
-          activeMode === "pseo-builder" && pseoBuilderEnabled ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 absolute pointer-events-none",
-          isTransitioning && "opacity-0"
+          "transition-all duration-500 ease-out transform-gpu",
+          activeMode === "pseo-builder" && pseoBuilderEnabled 
+            ? "opacity-100 translate-x-0 scale-100" 
+            : "opacity-0 translate-x-4 scale-95 absolute pointer-events-none",
+          isTransitioning && "opacity-0 scale-95"
         )}>
           {activeMode === "pseo-builder" && pseoBuilderEnabled && (
             <SidebarGroup>
