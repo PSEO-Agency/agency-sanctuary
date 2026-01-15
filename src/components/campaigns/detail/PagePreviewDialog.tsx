@@ -385,13 +385,15 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
                   <h3 className="text-sm font-medium text-muted-foreground mb-3">Google Search Preview</h3>
                   <div className="p-4 bg-white rounded-lg border space-y-1">
                     <p className="text-xl text-blue-700 hover:underline cursor-pointer">
-                      {page.meta_title || page.title}
+                      {parseStaticPlaceholders(page.meta_title || page.title, dataValues)}
                     </p>
                     <p className="text-sm text-green-700">
-                      {campaign.website_url || "https://yoursite.com"}/{generateSlug(page.title)}
+                      {campaign.website_url || "https://yoursite.com"}/{generateSlug(parseStaticPlaceholders(page.title, dataValues))}
                     </p>
                     <p className="text-sm text-gray-600">
-                      {page.meta_description || "No meta description set. Add one to improve your click-through rate from search results."}
+                      {page.meta_description
+                        ? parseStaticPlaceholders(page.meta_description, dataValues)
+                        : "No meta description set. Add one to improve your click-through rate from search results."}
                     </p>
                   </div>
                 </div>

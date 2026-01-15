@@ -11,14 +11,36 @@ export function parseStaticPlaceholders(
   template: string,
   data: Record<string, string>
 ): string {
-  // Create lowercase key map for case-insensitive lookup
+  // Create lowercase key map for case-insensitive lookup (with singular/plural aliases)
   const lowercaseData: Record<string, string> = {};
+
+  const toSingular = (k: string) => {
+    if (k.endsWith("ies") && k.length > 3) return k.slice(0, -3) + "y"; // cities -> city
+    if (k.endsWith("ses") && k.length > 3) return k.slice(0, -2); // addresses -> address (best-effort)
+    if (k.endsWith("s") && !k.endsWith("ss") && k.length > 1) return k.slice(0, -1); // services -> service
+    return k;
+  };
+
+  const toPlural = (k: string) => {
+    if (k.endsWith("y") && k.length > 1) return k.slice(0, -1) + "ies"; // city -> cities
+    if (k.endsWith("s")) return k;
+    return k + "s";
+  };
+
+  const addIfMissing = (k: string, value: string) => {
+    const key = k.toLowerCase();
+    if (lowercaseData[key] === undefined) lowercaseData[key] = value;
+  };
+
   Object.entries(data).forEach(([key, value]) => {
-    lowercaseData[key.toLowerCase()] = value;
+    const k = key.toLowerCase();
+    addIfMissing(k, value);
+    addIfMissing(toSingular(k), value);
+    addIfMissing(toPlural(k), value);
   });
 
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    return lowercaseData[key.toLowerCase()] || match;
+    return lowercaseData[String(key).toLowerCase()] || match;
   });
 }
 
