@@ -24,6 +24,12 @@ import type { Article } from "@/components/articles/ArticleRow";
 import { ArticleActionButtons } from "@/components/articles/ArticleActionButtons";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
+// Check if content is already HTML (contains common HTML tags)
+const isHTML = (str: string): boolean => {
+  if (!str) return false;
+  return /<[a-z][\s\S]*>/i.test(str);
+};
+
 // Convert markdown-like content to HTML for preview and editing
 const convertContentToHTML = (content: string): string => {
   if (!content) return '';
@@ -194,9 +200,10 @@ export default function ArticleEditor() {
         const foundArticle = data.articles.find((a: Article) => a.id === articleId);
         if (foundArticle) {
           setArticle(foundArticle);
-          setContent(foundArticle.content || "");
-          // Convert markdown to HTML for the editor
-          const html = convertContentToHTML(foundArticle.content || "");
+          const articleContent = foundArticle.content || "";
+          setContent(articleContent);
+          // If content is already HTML, use it directly; otherwise convert from Markdown
+          const html = isHTML(articleContent) ? articleContent : convertContentToHTML(articleContent);
           setHtmlContent(html);
           setOriginalHtmlContent(html);
         } else {
@@ -454,7 +461,7 @@ export default function ArticleEditor() {
                 ) : (
                   <article 
                     className="prose prose-slate max-w-none"
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(htmlContent || convertContentToHTML(content), {
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(htmlContent, {
                       ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'br', 'span', 'div'],
                       ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel']
                     }) }}
