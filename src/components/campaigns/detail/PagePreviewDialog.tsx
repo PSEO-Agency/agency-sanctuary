@@ -281,12 +281,14 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-3">Page Variables</h3>
                   <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(page.data_values || {}).map(([key, value]) => (
-                      <div key={key} className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm">
-                        <code className="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">{`{{${key}}}`}</code>
-                        <span className="text-foreground font-medium">{value}</span>
-                      </div>
-                    ))}
+                    {Object.entries(page.data_values || {})
+                      .filter(([key]) => !key.startsWith('_') && key !== 'patternId')
+                      .map(([key, value]) => (
+                        <div key={key} className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm">
+                          <code className="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">{`{{${key}}}`}</code>
+                          <span className="text-foreground font-medium">{value}</span>
+                        </div>
+                      ))}
                   </div>
                 </div>
 
