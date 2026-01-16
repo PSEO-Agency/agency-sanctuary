@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
-import { Plus, Wand2, X } from "lucide-react";
+import { Plus, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CampaignFormData, BUSINESS_TYPES, ColumnConfig } from "../types";
+import { Label } from "@/components/ui/label";
+import { CampaignFormData, BUSINESS_TYPES, ColumnConfig, TitlePattern } from "../types";
 import { cn } from "@/lib/utils";
 
 interface BuildFromScratchStepProps {
@@ -14,8 +15,9 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   const [newItems, setNewItems] = useState<Record<string, string>>({});
   const [editingColumn, setEditingColumn] = useState<{ columnId: string; name: string } | null>(null);
   const [columnNames, setColumnNames] = useState<Record<string, string>>({});
-  const [newCustomTitle, setNewCustomTitle] = useState("");
-  const customTitleInputRef = useRef<HTMLInputElement>(null);
+  const [newPattern, setNewPattern] = useState("");
+  const [newUrlPrefix, setNewUrlPrefix] = useState("");
+  const patternInputRef = useRef<HTMLInputElement>(null);
 
   // Get columns based on business type
   const businessType = BUSINESS_TYPES.find((t) => t.id === formData.businessType);
@@ -53,171 +55,75 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
 
   const insertVariable = (columnId: string) => {
     const placeholder = `{{${columnId}}}`;
-    const input = customTitleInputRef.current;
+    const input = patternInputRef.current;
     
     if (input) {
       const start = input.selectionStart || 0;
       const end = input.selectionEnd || 0;
-      const newValue = newCustomTitle.slice(0, start) + placeholder + newCustomTitle.slice(end);
-      setNewCustomTitle(newValue);
+      const newValue = newPattern.slice(0, start) + placeholder + newPattern.slice(end);
+      setNewPattern(newValue);
       
-      // Focus and set cursor position after the inserted placeholder
       setTimeout(() => {
         input.focus();
         const newPos = start + placeholder.length;
         input.setSelectionRange(newPos, newPos);
       }, 0);
     } else {
-      setNewCustomTitle(newCustomTitle + placeholder);
+      setNewPattern(newPattern + placeholder);
     }
   };
 
-  const addCustomTitle = () => {
-    const title = newCustomTitle.trim();
-    if (!title) return;
+  const addTitlePattern = () => {
+    const pattern = newPattern.trim();
+    if (!pattern) return;
 
-    const newTitle = {
-      id: `custom-${Date.now()}`,
-      title: title,
-      language: "Default",
+    const newTitlePattern: TitlePattern = {
+      id: `pattern-${Date.now()}`,
+      pattern: pattern,
+      urlPrefix: newUrlPrefix.trim() || undefined,
     };
 
     updateFormData({
-      generatedTitles: [...formData.generatedTitles, newTitle],
+      titlePatterns: [...(formData.titlePatterns || []), newTitlePattern],
     });
-    setNewCustomTitle("");
+    setNewPattern("");
+    setNewUrlPrefix("");
   };
 
-  const removeTitle = (titleId: string) => {
+  const removeTitlePattern = (patternId: string) => {
     updateFormData({
-      generatedTitles: formData.generatedTitles.filter((t) => t.id !== titleId),
+      titlePatterns: (formData.titlePatterns || []).filter((p) => p.id !== patternId),
     });
   };
 
-  const generateTitles = () => {
-    const titles: { id: string; title: string; language: string }[] = [];
-    
-    // Get all column data that has items
-    const columnData: Record<string, string[]> = {};
-    const activeColumnIds: string[] = [];
-    
-    columns.forEach(col => {
-      const items = formData.scratchData[col.id] || [];
-      if (items.length > 0) {
-        columnData[col.id] = items;
-        activeColumnIds.push(col.id);
-      }
-    });
+  // Calculate estimated pages for a pattern
+  const calculatePagesForPattern = (pattern: TitlePattern): number => {
+    const patternLower = pattern.pattern.toLowerCase();
+    const usedColumnIds = columns.filter(col => 
+      patternLower.includes(`{{${col.id.toLowerCase()}}}`)
+    ).map(col => col.id);
 
-    // If no data, return
-    if (activeColumnIds.length === 0) return;
+    if (usedColumnIds.length === 0) return 0;
 
-    // Check if there's a title pattern set
-    const pattern = formData.titlePattern?.trim();
-
-    if (pattern) {
-      // Use pattern mode - find which columns are used
-      const patternLower = pattern.toLowerCase();
-      const usedColumns = activeColumnIds.filter(colId => 
-        patternLower.includes(`{{${colId.toLowerCase()}}}`)
-      );
-
-      if (usedColumns.length === 0) {
-        // Pattern doesn't match any columns - just use the pattern as-is for each item in first column
-        const items = columnData[activeColumnIds[0]] || [];
-        items.forEach((item, idx) => {
-          titles.push({
-            id: `gen-${idx}-${Date.now()}`,
-            title: pattern,
-            language: "Default",
-          });
-        });
-      } else if (usedColumns.length === 1) {
-        // Single column in pattern
-        const primaryColumn = usedColumns[0];
-        const items = columnData[primaryColumn] || [];
-        
-        items.forEach((item, idx) => {
-          let title = pattern;
-          title = title.replace(new RegExp(`\\{\\{${primaryColumn}\\}\\}`, "gi"), item);
-          columns.forEach(col => {
-            title = title.replace(new RegExp(`\\{\\{${col.id}\\}\\}`, "gi"), "");
-          });
-          title = title.trim();
-          if (!title) title = item;
-          
-          titles.push({
-            id: `gen-${primaryColumn}-${idx}-${Date.now()}`,
-            title: title,
-            language: "Default",
-          });
-        });
-      } else {
-        // Multiple columns - generate combinations
-        const generateCombinations = (
-          columnIds: string[],
-          currentValues: Record<string, string>,
-          index: number
-        ) => {
-          if (index >= columnIds.length) {
-            let title = pattern;
-            Object.entries(currentValues).forEach(([key, value]) => {
-              title = title.replace(new RegExp(`\\{\\{${key}\\}\\}`, "gi"), value);
-            });
-            
-            titles.push({
-              id: `gen-${Object.values(currentValues).join("-")}-${Date.now()}-${Math.random()}`,
-              title: title,
-              language: "Default",
-            });
-            return;
-          }
-
-          const colId = columnIds[index];
-          const items = columnData[colId] || [];
-          
-          if (items.length === 0) {
-            generateCombinations(columnIds, currentValues, index + 1);
-          } else {
-            items.forEach(item => {
-              generateCombinations(
-                columnIds, 
-                { ...currentValues, [colId]: item }, 
-                index + 1
-              );
-            });
-          }
-        };
-
-        generateCombinations(usedColumns, {}, 0);
-      }
-    } else {
-      // No pattern - just list all items from all columns as individual titles
-      activeColumnIds.forEach(colId => {
-        const items = columnData[colId] || [];
-        items.forEach((item, idx) => {
-          titles.push({
-            id: `gen-${colId}-${idx}-${Date.now()}`,
-            title: item,
-            language: "Default",
-          });
-        });
-      });
-    }
-
-    // Preserve existing custom titles and add new generated ones
-    const existingCustomTitles = formData.generatedTitles.filter(t => t.id.startsWith('custom-'));
-    updateFormData({ generatedTitles: [...titles.slice(0, 100), ...existingCustomTitles] });
+    // Calculate product of all used columns
+    return usedColumnIds.reduce((acc, colId) => {
+      const items = formData.scratchData[colId] || [];
+      return acc * (items.length || 1);
+    }, 1);
   };
 
-  const totalTitles = formData.generatedTitles.length;
+  // Calculate total pages across all patterns
+  const totalEstimatedPages = (formData.titlePatterns || []).reduce(
+    (acc, pattern) => acc + calculatePagesForPattern(pattern),
+    0
+  );
 
   return (
     <div className="space-y-8">
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold">Add Your Data</h2>
         <p className="text-muted-foreground">
-          Enter your data in the columns below. We'll generate your campaign pages.
+          Enter your data in the columns below, then add title patterns to generate pages.
         </p>
       </div>
 
@@ -305,29 +211,66 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         })}
       </div>
 
-      {/* Generate Titles Button */}
-      <Button onClick={generateTitles} className="bg-primary">
-        <Wand2 className="h-4 w-4 mr-2" />
-        Generate Titles
-      </Button>
-
-      {/* Generated Titles Section */}
-      <div className="border rounded-xl p-6 space-y-4">
+      {/* Title Patterns Section */}
+      <div className="border rounded-xl p-6 space-y-4 bg-primary/5 border-primary/20">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Generated Titles</h3>
-          <span className="text-sm text-primary">{totalTitles} titles</span>
+          <h3 className="font-semibold">Title Patterns</h3>
+          <span className="text-sm text-primary font-medium">
+            {totalEstimatedPages} pages will be created
+          </span>
         </div>
 
-        {/* Title Pattern Input with Variable Buttons */}
-        <div className="space-y-3">
+        {/* Existing Patterns List */}
+        {(formData.titlePatterns || []).length > 0 && (
+          <div className="space-y-2">
+            {(formData.titlePatterns || []).map((pattern) => {
+              const pageCount = calculatePagesForPattern(pattern);
+              return (
+                <div
+                  key={pattern.id}
+                  className="flex items-center justify-between p-3 bg-background rounded-lg border group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <code className="text-sm font-mono truncate">{pattern.pattern}</code>
+                      {pattern.urlPrefix && (
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                          {pattern.urlPrefix}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      → Will generate {pageCount} pages
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeTitlePattern(pattern.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Add New Pattern */}
+        <div className="space-y-3 pt-3 border-t">
+          <Label className="text-sm">Add New Pattern</Label>
+          
+          {/* Variable Buttons */}
           <div className="flex flex-wrap gap-2">
-            <span className="text-sm text-muted-foreground">Insert variable:</span>
+            <span className="text-xs text-muted-foreground">Insert variable:</span>
             {columns.map((col) => (
               <Button
                 key={col.id}
+                type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs font-mono"
+                className="h-7 px-2 text-xs font-mono bg-primary/5 hover:bg-primary/10 border-primary/20"
                 onClick={() => insertVariable(col.id)}
               >
                 {`{{${col.id}}}`}
@@ -335,62 +278,58 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
             ))}
           </div>
           
+          {/* Pattern Input with URL Prefix */}
           <div className="flex gap-2">
-            <Input
-              ref={customTitleInputRef}
-              placeholder="Add a custom title pattern (e.g., Best {{features}} for {{useCases}})"
-              value={newCustomTitle}
-              onChange={(e) => setNewCustomTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addCustomTitle();
-                }
-              }}
-              className="text-sm font-mono"
-            />
+            <div className="flex-1">
+              <Input
+                ref={patternInputRef}
+                placeholder="e.g., What is {{services}} or Best {{services}} in {{cities}}"
+                value={newPattern}
+                onChange={(e) => setNewPattern(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTitlePattern();
+                  }
+                }}
+                className="text-sm font-mono"
+              />
+            </div>
+            <div className="w-32">
+              <Input
+                placeholder="/url-prefix/"
+                value={newUrlPrefix}
+                onChange={(e) => setNewUrlPrefix(e.target.value)}
+                className="text-sm font-mono"
+              />
+            </div>
             <Button
-              variant="outline"
+              variant="default"
               size="icon"
-              onClick={addCustomTitle}
-              disabled={!newCustomTitle.trim()}
+              onClick={addTitlePattern}
+              disabled={!newPattern.trim()}
             >
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+          
+          {/* Preview */}
+          {newPattern && (
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+              <p className="text-sm font-medium">
+                {newPattern.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+                  const col = columns.find(c => c.id.toLowerCase() === key.toLowerCase());
+                  return col ? `[${col.name}]` : `{{${key}}}`;
+                })}
+              </p>
+            </div>
+          )}
         </div>
 
-        {formData.generatedTitles.length > 0 ? (
-          <div className="border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[1fr,auto,auto] gap-4 p-3 bg-muted/50 text-sm font-medium">
-              <span>Title</span>
-              <span>Type</span>
-              <span></span>
-            </div>
-            {formData.generatedTitles.map((title, index) => (
-              <div
-                key={title.id}
-                className={cn(
-                  "grid grid-cols-[1fr,auto,auto] gap-4 p-3 text-sm items-center group",
-                  index !== formData.generatedTitles.length - 1 && "border-b"
-                )}
-              >
-                <span>{title.title}</span>
-                <span className="text-muted-foreground text-xs px-2 py-0.5 bg-muted rounded">
-                  {title.id.startsWith('custom-') ? 'Custom' : 'Generated'}
-                </span>
-                <button
-                  onClick={() => removeTitle(title.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
+        {(formData.titlePatterns || []).length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No titles yet. Add data and click "Generate Titles", or add custom titles manually.
+            No patterns yet. Add a title pattern above to start generating pages.
           </p>
         )}
       </div>
