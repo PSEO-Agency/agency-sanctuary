@@ -308,12 +308,14 @@ export function CMSEditorTab({ campaign, pages, pagesLoading, onUpdateSEO, onUpd
                       <div>
                         <Label className="text-sm font-medium mb-3 block">Page Variables</Label>
                         <div className="grid grid-cols-2 gap-2">
-                          {Object.entries(selectedPage.data_values || {}).map(([key, value]) => (
-                            <div key={key} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
-                              <code className="font-mono text-primary text-xs">{`{{${key}}}`}</code>
-                              <span className="text-foreground truncate">{value}</span>
-                            </div>
-                          ))}
+                          {Object.entries(selectedPage.data_values || {})
+                            .filter(([key]) => !key.startsWith('_') && key !== 'patternId')
+                            .map(([key, value]) => (
+                              <div key={key} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                                <code className="font-mono text-primary text-xs">{`{{${key}}}`}</code>
+                                <span className="text-foreground truncate">{value}</span>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     </div>
