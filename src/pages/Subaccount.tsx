@@ -4,6 +4,7 @@ import { SubaccountLayout } from "@/components/layout/SubaccountLayout";
 import { SubaccountSettingsLayout } from "@/components/layout/SubaccountSettingsLayout";
 import SubaccountDashboard from "./subaccount/Dashboard";
 import Campaigns from "./subaccount/Campaigns";
+import Pages from "./subaccount/Pages";
 import BlogProjects from "./subaccount/BlogProjects";
 import Blogs from "./subaccount/Blogs";
 import Reports from "./subaccount/Reports";
@@ -39,6 +40,7 @@ export default function Subaccount() {
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="dashboard" element={<SubaccountDashboard />} />
               <Route path="campaigns" element={<Campaigns />} />
+              <Route path="pages" element={<Pages />} />
               <Route path="reports" element={<Reports />} />
               <Route path="*" element={<Navigate to="launchpad" replace />} />
             </Routes>

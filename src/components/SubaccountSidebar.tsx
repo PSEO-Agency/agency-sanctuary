@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen, ArrowRightLeft, Zap, Layers } from "lucide-react";
+import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen, ArrowRightLeft, Zap, Layers, FileStack } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -193,6 +193,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const pseoBuilderItems = [
     { title: "Campaigns", url: `/subaccount/${subaccountId}/campaigns`, icon: FolderKanban, disabled: false },
+    { title: "Pages", url: `/subaccount/${subaccountId}/pages`, icon: FileStack, disabled: false },
     { title: "Reports", url: `/subaccount/${subaccountId}/reports`, icon: BarChart3, disabled: true },
   ];
 
