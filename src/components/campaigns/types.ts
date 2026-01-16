@@ -37,6 +37,12 @@ export interface TemplateContentConfig {
   images?: TemplateImagesConfig;
 }
 
+export interface TitlePattern {
+  id: string;
+  pattern: string;        // e.g., "What is {{services}}"
+  urlPrefix?: string;     // e.g., "/services/"
+}
+
 export interface CampaignFormData {
   // Step 1: Business Details
   businessName: string;
@@ -59,8 +65,7 @@ export interface CampaignFormData {
 
   // Step 3B: Build From Scratch
   scratchData: Record<string, string[]>;
-  generatedTitles: GeneratedTitle[];
-  titlePattern: string; // e.g., "{{service}} in {{city}}"
+  titlePatterns: TitlePattern[];  // Multiple patterns with optional URL prefix
 
   // Step 4: Template Selection
   selectedTemplate: string;
@@ -72,7 +77,8 @@ export interface CampaignFormData {
 export interface GeneratedTitle {
   id: string;
   title: string;
-  language: string;
+  urlPrefix?: string;
+  patternId: string;
 }
 
 export interface Campaign {
@@ -178,8 +184,7 @@ export const initialFormData: CampaignFormData = {
   columnMappings: {},
   csvColumns: [],
   scratchData: {},
-  generatedTitles: [],
-  titlePattern: "",
+  titlePatterns: [],
   selectedTemplate: "",
   templateContent: undefined,
 };

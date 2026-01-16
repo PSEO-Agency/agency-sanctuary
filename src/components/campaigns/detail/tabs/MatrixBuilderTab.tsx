@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,11 +13,10 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save, Wand2, Loader2 } from "lucide-react";
+import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save, Wand2, Loader2, Trash2 } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB } from "@/hooks/useCampaignPages";
-import { BUSINESS_TYPES } from "../../types";
-import { TitlePatternInput } from "../../TitlePatternInput";
+import { BUSINESS_TYPES, TitlePattern } from "../../types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -37,19 +36,76 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   );
 
   const [newItems, setNewItems] = useState<Record<string, string>>({});
-  const [titlePattern, setTitlePattern] = useState<string>(
-    (campaign.template_config as any)?.titlePattern || ""
+  const [titlePatterns, setTitlePatterns] = useState<TitlePattern[]>(
+    (campaign.template_config as any)?.titlePatterns || []
   );
+  const [newPattern, setNewPattern] = useState("");
+  const [newUrlPrefix, setNewUrlPrefix] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const patternInputRef = useRef<HTMLInputElement>(null);
 
   const businessType = BUSINESS_TYPES.find(bt => bt.id === campaign.business_type);
   const columnConfigs = businessType?.columns || BUSINESS_TYPES[2].columns;
 
-  const totalCombinations = Object.values(columns).reduce(
-    (acc, col) => acc * (col.length || 1),
-    1
+  // Calculate pages for a single pattern - only using variables IN that pattern
+  const calculatePagesForPattern = (pattern: TitlePattern): number => {
+    const patternLower = pattern.pattern.toLowerCase();
+    const usedColumnIds = columnConfigs.filter(col => 
+      patternLower.includes(`{{${col.id.toLowerCase()}}}`)
+    ).map(col => col.id);
+
+    if (usedColumnIds.length === 0) return 0;
+
+    return usedColumnIds.reduce((acc, colId) => {
+      const items = columns[colId] || [];
+      return acc * (items.length || 1);
+    }, 1);
+  };
+
+  const totalEstimatedPages = titlePatterns.reduce(
+    (acc, pattern) => acc + calculatePagesForPattern(pattern),
+    0
   );
+
+  const insertVariable = (columnId: string) => {
+    const placeholder = `{{${columnId}}}`;
+    const input = patternInputRef.current;
+    
+    if (input) {
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
+      const newValue = newPattern.slice(0, start) + placeholder + newPattern.slice(end);
+      setNewPattern(newValue);
+      
+      setTimeout(() => {
+        input.focus();
+        const newPos = start + placeholder.length;
+        input.setSelectionRange(newPos, newPos);
+      }, 0);
+    } else {
+      setNewPattern(newPattern + placeholder);
+    }
+  };
+
+  const addTitlePattern = () => {
+    const pattern = newPattern.trim();
+    if (!pattern) return;
+
+    const newTitlePattern: TitlePattern = {
+      id: `pattern-${Date.now()}`,
+      pattern: pattern,
+      urlPrefix: newUrlPrefix.trim() || undefined,
+    };
+
+    setTitlePatterns([...titlePatterns, newTitlePattern]);
+    setNewPattern("");
+    setNewUrlPrefix("");
+  };
+
+  const removeTitlePattern = (patternId: string) => {
+    setTitlePatterns(titlePatterns.filter((p) => p.id !== patternId));
+  };
 
   const handleAddItem = (columnId: string) => {
     const value = newItems[columnId]?.trim();
@@ -72,14 +128,17 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   const handleSaveMatrix = async () => {
     setIsSaving(true);
     try {
-      // Update campaign with new data_columns and title pattern
       const { error } = await supabase
         .from("campaigns")
         .update({
           data_columns: columns,
           template_config: {
             ...(campaign.template_config as object || {}),
-            titlePattern: titlePattern,
+            titlePatterns: titlePatterns.map(p => ({
+              id: p.id,
+              pattern: p.pattern,
+              urlPrefix: p.urlPrefix || null,
+            })),
           },
         })
         .eq("id", campaign.id);
@@ -95,14 +154,13 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   };
 
   const handleRegeneratePages = async () => {
-    if (!titlePattern.trim()) {
-      toast.error("Please enter a title pattern first");
+    if (titlePatterns.length === 0) {
+      toast.error("Please add at least one title pattern first");
       return;
     }
 
     setIsRegenerating(true);
     try {
-      // First save the pattern
       await handleSaveMatrix();
 
       // Delete existing pages
@@ -113,62 +171,74 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
 
       if (deleteError) throw deleteError;
 
-      // Generate new pages based on column combinations
+      // Generate new pages based on each pattern
       const newPages: Array<{
         campaign_id: string;
         subaccount_id: string;
         title: string;
+        slug: string;
         data_values: Record<string, string>;
         status: string;
       }> = [];
 
-      // Get column data
-      const columnData: Record<string, string[]> = {};
-      columnConfigs.forEach(col => {
-        columnData[col.id] = columns[col.id] || [];
+      titlePatterns.forEach(pattern => {
+        const patternLower = pattern.pattern.toLowerCase();
+        
+        // Find which columns this specific pattern uses
+        const usedColumnIds = columnConfigs
+          .filter(col => patternLower.includes(`{{${col.id.toLowerCase()}}}`))
+          .map(col => col.id);
+
+        if (usedColumnIds.length === 0) return;
+
+        // Generate combinations ONLY for the columns used in this pattern
+        const generateCombinations = (
+          colIds: string[],
+          currentValues: Record<string, string>,
+          index: number
+        ) => {
+          if (index >= colIds.length) {
+            // Generate title from pattern
+            let title = pattern.pattern;
+            Object.entries(currentValues).forEach(([key, value]) => {
+              title = title.replace(new RegExp(`\\{\\{${key}\\}\\}`, "gi"), value);
+            });
+
+            // Generate slug from title
+            const slug = (pattern.urlPrefix || "/") + title
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "");
+
+            newPages.push({
+              campaign_id: campaign.id,
+              subaccount_id: campaign.subaccount_id,
+              title: title,
+              slug: slug,
+              data_values: { ...currentValues, patternId: pattern.id },
+              status: "draft",
+            });
+            return;
+          }
+
+          const colId = colIds[index];
+          const items = columns[colId] || [];
+
+          if (items.length === 0) {
+            generateCombinations(colIds, currentValues, index + 1);
+          } else {
+            items.forEach(item => {
+              generateCombinations(
+                colIds,
+                { ...currentValues, [colId]: item },
+                index + 1
+              );
+            });
+          }
+        };
+
+        generateCombinations(usedColumnIds, {}, 0);
       });
-
-      // Generate all combinations
-      const generateCombinations = (
-        colIds: string[],
-        currentValues: Record<string, string>,
-        index: number
-      ) => {
-        if (index >= colIds.length) {
-          // Generate title from pattern
-          let title = titlePattern;
-          Object.entries(currentValues).forEach(([key, value]) => {
-            title = title.replace(new RegExp(`\\{\\{${key}\\}\\}`, "gi"), value);
-          });
-
-          newPages.push({
-            campaign_id: campaign.id,
-            subaccount_id: campaign.subaccount_id,
-            title: title,
-            data_values: { ...currentValues },
-            status: "draft",
-          });
-          return;
-        }
-
-        const colId = colIds[index];
-        const items = columnData[colId] || [];
-
-        if (items.length === 0) {
-          generateCombinations(colIds, currentValues, index + 1);
-        } else {
-          items.forEach(item => {
-            generateCombinations(
-              colIds,
-              { ...currentValues, [colId]: item },
-              index + 1
-            );
-          });
-        }
-      };
-
-      const colIds = columnConfigs.map(c => c.id);
-      generateCombinations(colIds, {}, 0);
 
       // Insert new pages in batches
       if (newPages.length > 0) {
@@ -189,7 +259,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
         .update({ total_pages: newPages.length })
         .eq("id", campaign.id);
 
-      toast.success(`Generated ${newPages.length} pages with new titles!`);
+      toast.success(`Generated ${newPages.length} pages from ${titlePatterns.length} pattern(s)!`);
       onRefreshPages();
     } catch (err) {
       console.error("Error regenerating pages:", err);
@@ -199,7 +269,6 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
     }
   };
 
-  // Generate sample combinations from actual pages or calculate from columns
   const sampleCombinations = pages.slice(0, 5).map(p => ({
     title: p.title,
     status: p.status,
@@ -433,23 +502,136 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
         </div>
       </div>
 
-      {/* Title Pattern Configuration - moved above Generated Pages */}
+      {/* Title Patterns Section */}
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="p-4 space-y-4">
-          <TitlePatternInput
-            value={titlePattern}
-            onChange={setTitlePattern}
-            columns={columnConfigs}
-            label="Page Title Pattern"
-            placeholder={`e.g., {{${columnConfigs[0]?.id}}} in {{${columnConfigs[1]?.id}}}`}
-          />
-          <div className="flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Title Patterns</h3>
+              <p className="text-xs text-muted-foreground">
+                Each pattern generates pages using only the variables it contains
+              </p>
+            </div>
+            <span className="text-sm text-primary font-medium">
+              {totalEstimatedPages} pages will be created
+            </span>
+          </div>
+
+          {/* Existing Patterns List */}
+          {titlePatterns.length > 0 && (
+            <div className="space-y-2">
+              {titlePatterns.map((pattern) => {
+                const pageCount = calculatePagesForPattern(pattern);
+                return (
+                  <div
+                    key={pattern.id}
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <code className="text-sm font-mono truncate">{pattern.pattern}</code>
+                        {pattern.urlPrefix && (
+                          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                            {pattern.urlPrefix}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        → Will generate {pageCount} pages
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeTitlePattern(pattern.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Add New Pattern */}
+          <div className="space-y-3 pt-3 border-t">
+            <Label className="text-sm">Add New Pattern</Label>
+            
+            {/* Variable Buttons */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground">Insert variable:</span>
+              {columnConfigs.map((col) => (
+                <Button
+                  key={col.id}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs font-mono bg-primary/5 hover:bg-primary/10 border-primary/20"
+                  onClick={() => insertVariable(col.id)}
+                >
+                  {`{{${col.id}}}`}
+                </Button>
+              ))}
+            </div>
+            
+            {/* Pattern Input with URL Prefix */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  ref={patternInputRef}
+                  placeholder="e.g., What is {{services}} or Best {{services}} in {{cities}}"
+                  value={newPattern}
+                  onChange={(e) => setNewPattern(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTitlePattern();
+                    }
+                  }}
+                  className="text-sm font-mono"
+                />
+              </div>
+              <div className="w-32">
+                <Input
+                  placeholder="/url-prefix/"
+                  value={newUrlPrefix}
+                  onChange={(e) => setNewUrlPrefix(e.target.value)}
+                  className="text-sm font-mono"
+                />
+              </div>
+              <Button
+                variant="default"
+                size="icon"
+                onClick={addTitlePattern}
+                disabled={!newPattern.trim()}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            {/* Preview */}
+            {newPattern && (
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                <p className="text-sm font-medium">
+                  {newPattern.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+                    const col = columnConfigs.find(c => c.id.toLowerCase() === key.toLowerCase());
+                    return col ? `[${col.name}]` : `{{${key}}}`;
+                  })}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Regenerate Button */}
+          <div className="flex items-center justify-between pt-3 border-t">
             <p className="text-sm text-muted-foreground">
-              Update the pattern and regenerate to apply new titles to all pages
+              Update patterns and regenerate to apply changes
             </p>
             <Button 
               onClick={handleRegeneratePages} 
-              disabled={isRegenerating || !titlePattern.trim()}
+              disabled={isRegenerating || titlePatterns.length === 0}
               className="gap-2"
             >
               {isRegenerating ? (
@@ -463,7 +645,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
         </CardContent>
       </Card>
 
-      {/* Generated Combinations / Pages */}
+      {/* Generated Pages Preview */}
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-4">
@@ -477,11 +659,11 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
             </div>
           </div>
 
-          {totalCombinations > 200 && (
+          {totalEstimatedPages > 200 && (
             <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               <span className="text-sm text-amber-700">
-                You are approaching the 200 page limit ({totalCombinations} combinations)
+                You are approaching the 200 page limit ({totalEstimatedPages} pages estimated)
               </span>
             </div>
           )}
@@ -513,7 +695,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
                 ) : (
                   <tr className="border-t">
                     <td colSpan={2} className="p-3 text-center text-muted-foreground">
-                      No pages generated yet. Add data to columns and save to generate pages.
+                      No pages generated yet. Add title patterns and click Regenerate Pages.
                     </td>
                   </tr>
                 )}
@@ -521,7 +703,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
             </table>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Showing first 5 of {pages.length} pages. Your final campaign will include all permutations.
+            Showing first 5 of {pages.length} pages.
           </p>
         </CardContent>
       </Card>

@@ -65,13 +65,20 @@ export function useCampaigns() {
     if (!subaccountId) return null;
 
     try {
-      // Calculate total pages from combinations
+      // Calculate total pages from title patterns
       const totalPages = formData.dataUploadMethod === "scratch"
-        ? Object.values(formData.scratchData).reduce(
-            (acc, arr) => acc * (arr.length || 1),
-            1
-          )
-        : formData.generatedTitles.length || 0;
+        ? (formData.titlePatterns || []).reduce((acc, pattern) => {
+            const patternLower = pattern.pattern.toLowerCase();
+            const usedColumnIds = Object.keys(formData.scratchData).filter(colId =>
+              patternLower.includes(`{{${colId.toLowerCase()}}}`)
+            );
+            if (usedColumnIds.length === 0) return acc;
+            const patternPages = usedColumnIds.reduce((pAcc, colId) => {
+              return pAcc * (formData.scratchData[colId]?.length || 1);
+            }, 1);
+            return acc + patternPages;
+          }, 0)
+        : 0;
 
       const { data, error: insertError } = await supabase
         .from("campaigns")
