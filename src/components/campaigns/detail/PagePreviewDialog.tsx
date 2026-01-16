@@ -7,11 +7,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Pencil, Code, Search, Loader2, Sparkles, ExternalLink, Settings2, CheckCircle2, Clock } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB, SectionContent } from "@/hooks/useCampaignPages";
-import { PagePreviewRenderer } from "./PagePreviewRenderer";
+import { PreviewCanvas } from "@/components/page-builder/PreviewCanvas";
 import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
 import { parseStaticPlaceholders, extractPrompts } from "@/lib/templateParser";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DEFAULT_STYLE_CONFIG, DEFAULT_IMAGES_CONFIG } from "@/components/page-builder/types";
 
 interface PagePreviewDialogProps {
   open: boolean;
@@ -440,16 +441,17 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
           </TabsContent>
 
           <TabsContent value="preview" className="flex-1 m-0 min-h-0">
-            <ScrollArea className="h-full">
-              <PagePreviewRenderer
-                sections={template.sections}
-                dataValues={dataValues}
-                generatedContent={localSections}
-                businessName={campaign.business_name || undefined}
-                isEditable={true}
-                onFieldEdit={handleFieldEdit}
-              />
-            </ScrollArea>
+            <PreviewCanvas
+              sections={template.sections}
+              styleConfig={DEFAULT_STYLE_CONFIG}
+              imagesConfig={DEFAULT_IMAGES_CONFIG}
+              dataValues={dataValues}
+              generatedContent={localSections}
+              viewport="desktop"
+              isEditable={true}
+              onFieldEdit={handleFieldEdit}
+              mode="page"
+            />
           </TabsContent>
 
           <TabsContent value="html" className="flex-1 m-0 p-4 min-h-0">

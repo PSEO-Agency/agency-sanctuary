@@ -1,13 +1,8 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState, useEffect } from "react";
 import { CampaignFormData, TemplateStyleConfig, TemplateImagesConfig } from "../types";
 import { getTemplateForBusinessType, TemplateSection } from "@/lib/campaignTemplates";
-import { TemplateContentTab } from "./template-editor/TemplateContentTab";
-import { TemplateStyleTab } from "./template-editor/TemplateStyleTab";
-import { TemplateImagesTab } from "./template-editor/TemplateImagesTab";
-import { TemplatePreviewPanel } from "./template-editor/TemplatePreviewPanel";
-import { Monitor, Tablet, Smartphone, RotateCcw } from "lucide-react";
+import { UnifiedPageBuilder, DEFAULT_STYLE_CONFIG, DEFAULT_IMAGES_CONFIG } from "@/components/page-builder";
+import { loadGoogleFont } from "@/lib/fontLoader";
 
 interface TemplateEditorStepProps {
   formData: CampaignFormData;
@@ -15,25 +10,7 @@ interface TemplateEditorStepProps {
   onBack: () => void;
 }
 
-export type ViewportSize = "desktop" | "tablet" | "mobile";
-
-const DEFAULT_STYLE: TemplateStyleConfig = {
-  primaryColor: "#8B5CF6",
-  backgroundColor: "#FFFFFF",
-  typography: "Inter",
-  buttonStyle: "rounded",
-  buttonFill: "solid",
-  darkMode: false,
-};
-
-const DEFAULT_IMAGES: TemplateImagesConfig = {
-  sectionImages: [],
-};
-
 export function TemplateEditorStep({ formData, updateFormData, onBack }: TemplateEditorStepProps) {
-  const [viewport, setViewport] = useState<ViewportSize>("desktop");
-  const [activeTab, setActiveTab] = useState("content");
-  
   // Get template based on business type or selected template
   const baseTemplate = getTemplateForBusinessType(formData.businessType);
   
@@ -49,49 +26,65 @@ export function TemplateEditorStep({ formData, updateFormData, onBack }: Templat
     if (formData.templateContent?.style) {
       return formData.templateContent.style;
     }
-    return DEFAULT_STYLE;
+    return DEFAULT_STYLE_CONFIG;
   });
 
   const [imagesConfig, setImagesConfig] = useState<TemplateImagesConfig>(() => {
     if (formData.templateContent?.images) {
       return formData.templateContent.images;
     }
-    return DEFAULT_IMAGES;
+    return DEFAULT_IMAGES_CONFIG;
   });
 
+  // Load font on mount
+  useEffect(() => {
+    loadGoogleFont(styleConfig.typography);
+  }, []);
+
   // Sync changes to parent form data
-  const syncToFormData = () => {
+  const syncToFormData = (
+    sections: TemplateSection[],
+    style: TemplateStyleConfig,
+    images: TemplateImagesConfig
+  ) => {
     updateFormData({
       templateContent: {
-        sections: templateSections,
-        style: styleConfig,
-        images: imagesConfig,
+        sections,
+        style,
+        images,
       },
     });
   };
 
-  // Update section content
-  const updateSectionContent = (sectionId: string, field: string, value: string | string[]) => {
-    setTemplateSections((prev) =>
-      prev.map((section) =>
-        section.id === sectionId
-          ? { ...section, content: { ...section.content, [field]: value } }
-          : section
-      )
-    );
+  // Handle sections change
+  const handleSectionsChange = (sections: TemplateSection[]) => {
+    setTemplateSections(sections);
+    syncToFormData(sections, styleConfig, imagesConfig);
+  };
+
+  // Handle style change
+  const handleStyleChange = (config: TemplateStyleConfig) => {
+    setStyleConfig(config);
+    loadGoogleFont(config.typography);
+    syncToFormData(templateSections, config, imagesConfig);
+  };
+
+  // Handle images change
+  const handleImagesChange = (config: TemplateImagesConfig) => {
+    setImagesConfig(config);
+    syncToFormData(templateSections, styleConfig, config);
   };
 
   // Reset to default template
   const handleReset = () => {
-    setTemplateSections([...baseTemplate.sections]);
-    setStyleConfig(DEFAULT_STYLE);
-    setImagesConfig(DEFAULT_IMAGES);
-  };
-
-  // Save and sync on tab change or viewport change
-  const handleTabChange = (tab: string) => {
-    syncToFormData();
-    setActiveTab(tab);
+    const newSections = [...baseTemplate.sections];
+    const newStyle = DEFAULT_STYLE_CONFIG;
+    const newImages = DEFAULT_IMAGES_CONFIG;
+    
+    setTemplateSections(newSections);
+    setStyleConfig(newStyle);
+    setImagesConfig(newImages);
+    syncToFormData(newSections, newStyle, newImages);
   };
 
   // Get sample data for preview
@@ -119,103 +112,26 @@ export function TemplateEditorStep({ formData, updateFormData, onBack }: Templat
 
   return (
     <div className="flex flex-col h-full -mx-6 -my-8">
-      {/* Top Toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b bg-muted/30">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
-          ← Back to Templates
-        </Button>
-        
-        <div className="flex items-center gap-1 bg-background rounded-lg p-1 border">
-          <Button
-            variant={viewport === "desktop" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewport("desktop")}
-            className="gap-1.5"
-          >
-            <Monitor className="h-4 w-4" />
-            <span className="hidden sm:inline">Desktop</span>
-          </Button>
-          <Button
-            variant={viewport === "tablet" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewport("tablet")}
-            className="gap-1.5"
-          >
-            <Tablet className="h-4 w-4" />
-            <span className="hidden sm:inline">Tablet</span>
-          </Button>
-          <Button
-            variant={viewport === "mobile" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewport("mobile")}
-            className="gap-1.5"
-          >
-            <Smartphone className="h-4 w-4" />
-            <span className="hidden sm:inline">Mobile</span>
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={handleReset} className="gap-1.5 text-muted-foreground">
-            <RotateCcw className="h-4 w-4" />
-            Reset
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Split Panel */}
-      <div className="flex flex-1 min-h-0">
-        {/* Left: Live Preview */}
-        <div className="flex-1 bg-muted/20 p-6 overflow-auto">
-          <TemplatePreviewPanel
-            sections={templateSections}
-            styleConfig={styleConfig}
-            imagesConfig={imagesConfig}
-            sampleData={getSampleData()}
-            viewport={viewport}
-          />
-        </div>
-
-        {/* Right: Editor Panel */}
-        <div className="w-[420px] border-l bg-background flex flex-col">
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
-            <TabsList className="grid grid-cols-3 mx-4 mt-4">
-              <TabsTrigger value="content">Content</TabsTrigger>
-              <TabsTrigger value="style">Style</TabsTrigger>
-              <TabsTrigger value="images">Images</TabsTrigger>
-            </TabsList>
-
-            <div className="flex-1 overflow-auto">
-              <TabsContent value="content" className="m-0 p-4 h-full">
-                <TemplateContentTab
-                  sections={templateSections}
-                  onUpdateSection={updateSectionContent}
-                  sampleData={getSampleData()}
-                />
-              </TabsContent>
-
-              <TabsContent value="style" className="m-0 p-4 h-full">
-                <TemplateStyleTab
-                  styleConfig={styleConfig}
-                  onUpdateStyle={setStyleConfig}
-                />
-              </TabsContent>
-
-              <TabsContent value="images" className="m-0 p-4 h-full">
-                <TemplateImagesTab
-                  imagesConfig={imagesConfig}
-                  onUpdateImages={setImagesConfig}
-                />
-              </TabsContent>
-            </div>
-          </Tabs>
-
-          {/* Save indicator */}
-          <div className="px-4 py-3 border-t text-center">
-            <span className="text-xs text-muted-foreground">✓ All changes saved automatically</span>
-          </div>
-        </div>
-      </div>
+      <UnifiedPageBuilder
+        mode="template"
+        sections={templateSections}
+        styleConfig={styleConfig}
+        imagesConfig={imagesConfig}
+        dataValues={getSampleData()}
+        onSectionsChange={handleSectionsChange}
+        onStyleUpdate={handleStyleChange}
+        onImagesUpdate={handleImagesChange}
+        onBack={onBack}
+        backLabel="Back to Templates"
+        showBlocksPanel={true}
+        showSettingsPanel={true}
+        showViewportSwitcher={true}
+        showResetButton={true}
+        onReset={handleReset}
+      />
     </div>
   );
 }
+
+// Export ViewportSize for backward compatibility
+export type { ViewportSize } from "@/components/page-builder/types";
