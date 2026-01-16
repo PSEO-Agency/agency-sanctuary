@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { TemplateSection } from "@/lib/campaignTemplates";
 import { hasPrompts, getPromptPlaceholder, parseStaticPlaceholders } from "@/lib/templateParser";
 import { SectionContent } from "@/hooks/useCampaignPages";
+import { EditableText } from "./EditableText";
 
 interface PagePreviewRendererProps {
   sections: TemplateSection[];
@@ -12,6 +13,8 @@ interface PagePreviewRendererProps {
   isVisualMode?: boolean;
   selectedSection?: string | null;
   onSectionSelect?: (sectionId: string) => void;
+  isEditable?: boolean;
+  onFieldEdit?: (sectionId: string, fieldName: string, value: string) => void;
 }
 
 export function PagePreviewRenderer({
@@ -23,8 +26,44 @@ export function PagePreviewRenderer({
   isVisualMode = false,
   selectedSection = null,
   onSectionSelect,
+  isEditable = false,
+  onFieldEdit,
 }: PagePreviewRendererProps) {
   
+  // Get available variable names for validation
+  const availableVariables = Object.keys(dataValues);
+
+  // Helper to get RAW field content (with placeholders, for editing)
+  const getRawFieldContent = (sectionId: string, fieldName: string): string => {
+    // First try to get from generated content
+    const section = generatedContent.find(s => s.id === sectionId);
+    if (section?.fields?.[fieldName]) {
+      const field = section.fields[fieldName];
+      // Return the original template value or generated content
+      if (field.isPrompt && field.generated) {
+        return field.generated;
+      }
+      return field.original || field.rendered || "";
+    }
+    
+    // Fallback to template
+    const templateSection = sections.find(s => s.id === sectionId);
+    const templateValue = templateSection?.content[fieldName];
+    
+    if (typeof templateValue === "string") {
+      // For prompts, return the inner prompt text
+      if (hasPrompts(templateValue)) {
+        const promptMatch = templateValue.match(/prompt\(["'`]([^"'`]+)["'`]\)/);
+        if (promptMatch) {
+          return promptMatch[1];
+        }
+      }
+      return templateValue;
+    }
+    
+    return "";
+  };
+
   // Helper to get field content (generated or fallback to template)
   // ALWAYS resolves {{placeholders}} at render time to handle singular/plural mismatches
   const getFieldContent = (sectionId: string, fieldName: string): string => {
@@ -93,6 +132,26 @@ export function PagePreviewRenderer({
     return [];
   };
 
+  // Render editable or static text
+  const renderEditableField = (sectionId: string, fieldName: string, multiline = false) => {
+    const displayValue = getFieldContent(sectionId, fieldName);
+    const rawValue = getRawFieldContent(sectionId, fieldName);
+    
+    if (isEditable && onFieldEdit) {
+      return (
+        <EditableText
+          value={rawValue}
+          displayValue={displayValue}
+          onSave={(val) => onFieldEdit(sectionId, fieldName, val)}
+          availableVariables={availableVariables}
+          multiline={multiline}
+        />
+      );
+    }
+    
+    return displayValue;
+  };
+
   const resolvedBusinessName = parseStaticPlaceholders(businessName, dataValues) || 
     dataValues.company || dataValues.business || "Your Company";
 
@@ -158,13 +217,13 @@ export function PagePreviewRenderer({
                 {renderSectionOverlay(section.id, section.name)}
                 <div className="max-w-4xl mx-auto text-center relative">
                   <h1 className="text-4xl font-bold mb-4">
-                    {getFieldContent(section.id, "headline")}
+                    {renderEditableField(section.id, "headline")}
                   </h1>
                   <p className="text-xl text-white/90 mb-8">
-                    {getFieldContent(section.id, "subheadline")}
+                    {renderEditableField(section.id, "subheadline")}
                   </p>
                   <button className="bg-white text-primary font-semibold px-8 py-3 rounded-lg hover:bg-white/90 transition-colors">
-                    {getFieldContent(section.id, "cta_text") || "Get Started"}
+                    {renderEditableField(section.id, "cta_text") || "Get Started"}
                   </button>
                 </div>
               </section>
@@ -184,7 +243,7 @@ export function PagePreviewRenderer({
                 {renderSectionOverlay(section.id, section.name)}
                 <div className="max-w-4xl mx-auto relative">
                   <h2 className="text-2xl font-bold text-center mb-8">
-                    {getFieldContent(section.id, "title")}
+                    {renderEditableField(section.id, "title")}
                   </h2>
                   <div className="grid grid-cols-2 gap-6">
                     {featureItems.map((item, index) => (
@@ -213,10 +272,10 @@ export function PagePreviewRenderer({
                 {renderSectionOverlay(section.id, section.name)}
                 <div className="max-w-3xl mx-auto relative">
                   <h2 className="text-2xl font-bold mb-6">
-                    {getFieldContent(section.id, "title")}
+                    {renderEditableField(section.id, "title")}
                   </h2>
                   <div className="prose prose-lg text-gray-600">
-                    <p>{getFieldContent(section.id, "body")}</p>
+                    <p>{renderEditableField(section.id, "body", true)}</p>
                   </div>
                 </div>
               </section>
@@ -235,13 +294,13 @@ export function PagePreviewRenderer({
                 {renderSectionOverlay(section.id, section.name)}
                 <div className="max-w-2xl mx-auto text-center relative">
                   <h2 className="text-2xl font-bold mb-4">
-                    {getFieldContent(section.id, "title")}
+                    {renderEditableField(section.id, "title")}
                   </h2>
                   <p className="text-gray-600 mb-8">
-                    {getFieldContent(section.id, "description")}
+                    {renderEditableField(section.id, "description", true)}
                   </p>
                   <button className="bg-primary text-white font-semibold px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors">
-                    {getFieldContent(section.id, "button_text") || "Contact Us"}
+                    {renderEditableField(section.id, "button_text") || "Contact Us"}
                   </button>
                 </div>
               </section>
