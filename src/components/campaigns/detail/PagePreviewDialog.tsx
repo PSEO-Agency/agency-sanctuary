@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Eye, Code, Search, Loader2, Sparkles, ExternalLink, Settings2, CheckCircle2, Clock } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
-import { CampaignPageDB } from "@/hooks/useCampaignPages";
+import { CampaignPageDB, SectionContent } from "@/hooks/useCampaignPages";
 import { PagePreviewRenderer } from "./PagePreviewRenderer";
 import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
 import { parseStaticPlaceholders, extractPrompts } from "@/lib/templateParser";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface PagePreviewDialogProps {
   open: boolean;
@@ -30,6 +32,14 @@ export function PagePreviewDialog({
 }: PagePreviewDialogProps) {
   const [activeTab, setActiveTab] = useState("setup");
   const [localGenerating, setLocalGenerating] = useState(false);
+  const [localSections, setLocalSections] = useState<SectionContent[]>(page?.sections_content || []);
+
+  // Sync local sections when page changes
+  useEffect(() => {
+    if (page?.sections_content) {
+      setLocalSections(page.sections_content);
+    }
+  }, [page?.sections_content]);
 
   if (!page) return null;
 
@@ -42,6 +52,64 @@ export function PagePreviewDialog({
   const dataValues: Record<string, string> = {
     company: campaign.business_name || "Your Company",
     ...page.data_values,
+  };
+
+  // Handle field edit from visual preview
+  const handleFieldEdit = async (sectionId: string, fieldName: string, value: string) => {
+    // Update local state
+    const updatedSections = localSections.map(section => {
+      if (section.id === sectionId) {
+        return {
+          ...section,
+          fields: {
+            ...section.fields,
+            [fieldName]: {
+              ...section.fields?.[fieldName],
+              original: value,
+              rendered: value,
+              // Keep generated content if it exists
+              generated: section.fields?.[fieldName]?.generated,
+              isPrompt: section.fields?.[fieldName]?.isPrompt,
+            }
+          }
+        };
+      }
+      return section;
+    });
+    
+    // If section doesn't exist yet, create it
+    const sectionExists = updatedSections.some(s => s.id === sectionId);
+    if (!sectionExists) {
+      const templateSection = template.sections.find(s => s.id === sectionId);
+      updatedSections.push({
+        id: sectionId,
+        name: templateSection?.name || sectionId,
+        type: templateSection?.type || "content",
+        fields: {
+          [fieldName]: {
+            original: value,
+            rendered: value,
+            isPrompt: false,
+          }
+        },
+        generated: false,
+      });
+    }
+    
+    setLocalSections(updatedSections);
+    
+    // Save to database - use JSON.parse/stringify for type compatibility
+    const { error } = await supabase
+      .from("campaign_pages")
+      .update({ sections_content: JSON.parse(JSON.stringify(updatedSections)) })
+      .eq("id", page.id);
+      
+    if (error) {
+      console.error("Failed to save:", error);
+      toast.error("Failed to save changes");
+    } else {
+      toast.success("Content saved");
+    }
   };
 
   const handleGenerate = async () => {
@@ -376,8 +444,10 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
               <PagePreviewRenderer
                 sections={template.sections}
                 dataValues={dataValues}
-                generatedContent={page.sections_content || []}
+                generatedContent={localSections}
                 businessName={campaign.business_name || undefined}
+                isEditable={true}
+                onFieldEdit={handleFieldEdit}
               />
             </ScrollArea>
           </TabsContent>
