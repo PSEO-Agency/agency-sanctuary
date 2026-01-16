@@ -1,12 +1,15 @@
-import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Pencil, Check, X } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 
 interface EditableTextProps {
-  value: string; // Raw value with placeholders like {{service}}
+  value: string; // Raw value with placeholders like {{service}} or prompt(...)
   displayValue: string; // Resolved value for display
   onSave: (value: string) => void;
   availableVariables: string[];
@@ -17,7 +20,9 @@ interface EditableTextProps {
 
 // Get invalid variables that don't exist in available variables
 function getInvalidVariables(text: string, availableVariables: string[]): string[] {
-  const placeholders = text.match(/\{\{(\w+)\}\}/g) || [];
+  // Extract variables from regular placeholders AND from inside prompt()
+  const allText = text;
+  const placeholders = allText.match(/\{\{(\w+)\}\}/g) || [];
   const invalid: string[] = [];
   
   const normalizedKeys = availableVariables.map(k => k.toLowerCase());
@@ -63,43 +68,60 @@ export function EditableText({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const [invalidVars, setInvalidVars] = useState<string[]>([]);
-  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
+  const [showVariables, setShowVariables] = useState(false);
+  const editableRef = useRef<HTMLDivElement>(null);
+  const originalValue = useRef(value);
 
   useEffect(() => {
     setEditValue(value);
+    originalValue.current = value;
   }, [value]);
+
+  // Focus and select when entering edit mode
+  useEffect(() => {
+    if (isEditing && editableRef.current) {
+      editableRef.current.focus();
+      // Select all text
+      const range = document.createRange();
+      range.selectNodeContents(editableRef.current);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  }, [isEditing]);
 
   const handleStartEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditing(true);
-    setEditValue(value);
+    originalValue.current = value;
     setInvalidVars([]);
   };
 
-  const handleChange = (newValue: string) => {
-    setEditValue(newValue);
+  const validateAndUpdate = useCallback((newValue: string) => {
     const invalid = getInvalidVariables(newValue, availableVariables);
     setInvalidVars(invalid);
-  };
+    return invalid.length === 0;
+  }, [availableVariables]);
 
-  const handleSave = () => {
-    if (invalidVars.length === 0) {
+  const handleSave = useCallback(() => {
+    if (invalidVars.length === 0 && editValue !== originalValue.current) {
       onSave(editValue);
-      setIsEditing(false);
     }
-  };
-
-  const handleCancel = () => {
     setIsEditing(false);
-    setEditValue(value);
+    setShowVariables(false);
+  }, [editValue, invalidVars.length, onSave]);
+
+  const handleCancel = useCallback(() => {
+    setEditValue(originalValue.current);
+    setIsEditing(false);
     setInvalidVars([]);
+    setShowVariables(false);
+  }, []);
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const newValue = e.currentTarget.textContent || "";
+    setEditValue(newValue);
+    validateAndUpdate(newValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -107,73 +129,130 @@ export function EditableText({
       e.preventDefault();
       handleSave();
     } else if (e.key === "Escape") {
+      e.preventDefault();
       handleCancel();
     }
   };
 
+  const handleBlur = (e: React.FocusEvent) => {
+    // Don't save if clicking on the variables popup
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (relatedTarget?.closest('[data-variables-popup]')) {
+      return;
+    }
+    handleSave();
+  };
+
+  const insertVariable = (varName: string) => {
+    const placeholder = `{{${varName}}}`;
+    const newValue = editValue + placeholder;
+    setEditValue(newValue);
+    
+    if (editableRef.current) {
+      editableRef.current.textContent = newValue;
+      // Move cursor to end
+      const range = document.createRange();
+      range.selectNodeContents(editableRef.current);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      editableRef.current.focus();
+    }
+    
+    validateAndUpdate(newValue);
+    setShowVariables(false);
+  };
+
   if (isEditing) {
     return (
-      <div className={cn("inline-block w-full", className)} onClick={(e) => e.stopPropagation()}>
-        <div className="space-y-2">
-          {multiline ? (
-            <Textarea
-              ref={inputRef as React.RefObject<HTMLTextAreaElement>}
-              value={editValue}
-              onChange={(e) => handleChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="min-h-[80px] text-sm bg-white text-gray-900"
-            />
-          ) : (
-            <Input
-              ref={inputRef as React.RefObject<HTMLInputElement>}
-              value={editValue}
-              onChange={(e) => handleChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="text-sm bg-white text-gray-900"
-            />
+      <span 
+        className={cn("inline relative group/editing", className)} 
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span
+          ref={editableRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          className={cn(
+            "outline-none border-b-2 border-primary bg-primary/5 px-1 -mx-1 rounded-sm",
+            "focus:bg-primary/10 transition-colors",
+            invalidVars.length > 0 && "border-destructive bg-destructive/5",
+            textClassName
           )}
-          
-          {invalidVars.length > 0 && (
-            <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
-              ❌ Invalid variable: {invalidVars.join(", ")}
+        >
+          {editValue}
+        </span>
+        
+        {/* Variables button */}
+        <Popover open={showVariables} onOpenChange={setShowVariables}>
+          <PopoverTrigger asChild>
+            <button
+              data-variables-popup
+              className="inline-flex items-center justify-center w-5 h-5 ml-1 rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors align-middle"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowVariables(!showVariables);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent 
+            data-variables-popup
+            className="w-48 p-2" 
+            align="start"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <div className="text-xs font-medium text-muted-foreground mb-2">
+              Insert Variable
             </div>
-          )}
-          
-          <div className="flex gap-1">
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              onClick={handleCancel}
-              className="h-7 px-2"
-            >
-              <X className="h-3 w-3 mr-1" />
-              Cancel
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={handleSave}
-              disabled={invalidVars.length > 0}
-              className="h-7 px-2"
-            >
-              <Check className="h-3 w-3 mr-1" />
-              Save
-            </Button>
-          </div>
-        </div>
-      </div>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {availableVariables.map((varName) => (
+                <Button
+                  key={varName}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start h-7 text-xs font-mono"
+                  onClick={() => insertVariable(varName)}
+                >
+                  {`{{${varName}}}`}
+                </Button>
+              ))}
+              {availableVariables.length === 0 && (
+                <p className="text-xs text-muted-foreground py-2">No variables available</p>
+              )}
+            </div>
+            <div className="border-t mt-2 pt-2">
+              <p className="text-[10px] text-muted-foreground">
+                Tip: Use prompt(...) for AI-generated content
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Error indicator */}
+        {invalidVars.length > 0 && (
+          <span className="absolute -bottom-5 left-0 text-[10px] text-destructive whitespace-nowrap">
+            Invalid: {invalidVars.join(", ")}
+          </span>
+        )}
+      </span>
     );
   }
 
   return (
     <span 
       className={cn(
-        "group/editable inline cursor-pointer hover:bg-primary/10 rounded px-1 -mx-1 transition-colors",
+        "inline cursor-pointer hover:bg-primary/10 rounded px-1 -mx-1 transition-colors border-b border-transparent hover:border-primary/30",
         textClassName
       )}
       onClick={handleStartEdit}
     >
       {displayValue}
-      <Pencil className="inline-block ml-1 h-3 w-3 opacity-0 group-hover/editable:opacity-50 transition-opacity" />
     </span>
   );
 }

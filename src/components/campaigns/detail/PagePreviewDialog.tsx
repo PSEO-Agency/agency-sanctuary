@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Eye, Code, Search, Loader2, Sparkles, ExternalLink, Settings2, CheckCircle2, Clock } from "lucide-react";
+import { Pencil, Code, Search, Loader2, Sparkles, ExternalLink, Settings2, CheckCircle2, Clock } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB, SectionContent } from "@/hooks/useCampaignPages";
 import { PagePreviewRenderer } from "./PagePreviewRenderer";
@@ -328,8 +328,8 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
                 Setup
               </TabsTrigger>
               <TabsTrigger value="preview" className="gap-2">
-                <Eye className="h-4 w-4" />
-                Visual Preview
+                <Pencil className="h-4 w-4" />
+                Page Editor
               </TabsTrigger>
               <TabsTrigger value="html" className="gap-2">
                 <Code className="h-4 w-4" />
