@@ -156,46 +156,67 @@ export function PagePreviewRenderer({
     dataValues.company || dataValues.business || "Your Company";
 
   const getSectionWrapperProps = (sectionId: string) => {
-    if (!isVisualMode) return {};
+    if (!isVisualMode && !isEditable) return {};
     
     const isSelected = selectedSection === sectionId;
+    
+    if (isVisualMode) {
+      return {
+        onClick: (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onSectionSelect?.(sectionId);
+        },
+        className: cn(
+          "relative cursor-pointer transition-all duration-200",
+          isSelected 
+            ? "ring-4 ring-purple-500 ring-offset-2 ring-offset-white" 
+            : "hover:ring-2 hover:ring-purple-500/50 hover:ring-offset-1 hover:ring-offset-white"
+        ),
+      };
+    }
+    
+    // For editable mode - subtle indication
     return {
-      onClick: (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onSectionSelect?.(sectionId);
-      },
-      className: cn(
-        "relative cursor-pointer transition-all duration-200",
-        isSelected 
-          ? "ring-4 ring-purple-500 ring-offset-2 ring-offset-white" 
-          : "hover:ring-2 hover:ring-purple-500/50 hover:ring-offset-1 hover:ring-offset-white"
-      ),
+      className: "relative group/section",
     };
   };
 
   const renderSectionOverlay = (sectionId: string, sectionName: string) => {
-    if (!isVisualMode) return null;
     const isSelected = selectedSection === sectionId;
     
-    return (
-      <div 
-        className={cn(
-          "absolute inset-0 pointer-events-none transition-all duration-200",
-          isSelected ? "bg-purple-500/10" : "hover:bg-purple-500/5"
-        )}
-      >
+    // Visual mode overlay
+    if (isVisualMode) {
+      return (
         <div 
           className={cn(
-            "absolute top-2 left-2 px-2 py-1 text-xs font-medium rounded",
-            isSelected 
-              ? "bg-purple-500 text-white" 
-              : "bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            "absolute inset-0 pointer-events-none transition-all duration-200",
+            isSelected ? "bg-purple-500/10" : "hover:bg-purple-500/5"
           )}
         >
+          <div 
+            className={cn(
+              "absolute top-2 left-2 px-2 py-1 text-xs font-medium rounded",
+              isSelected 
+                ? "bg-purple-500 text-white" 
+                : "bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            )}
+          >
+            {sectionName}
+          </div>
+        </div>
+      );
+    }
+    
+    // Editable mode - subtle section label on hover
+    if (isEditable) {
+      return (
+        <div className="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-medium rounded bg-black/60 text-white opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none">
           {sectionName}
         </div>
-      </div>
-    );
+      );
+    }
+    
+    return null;
   };
 
   return (
