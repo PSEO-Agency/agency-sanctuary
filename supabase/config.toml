@@ -92,3 +92,9 @@ verify_jwt = false
 
 [functions.generate-campaign-content]
 verify_jwt = true
+
+[functions.wordpress-handshake]
+verify_jwt = true
+
+[functions.wordpress-publish]
+verify_jwt = true
