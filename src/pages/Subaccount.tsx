@@ -9,6 +9,7 @@ import BlogProjects from "./subaccount/BlogProjects";
 import Blogs from "./subaccount/Blogs";
 import Reports from "./subaccount/Reports";
 import WordPress from "./subaccount/WordPress";
+import Connections from "./subaccount/Connections";
 import Launchpad from "./subaccount/Launchpad";
 import KnowledgeBase from "./subaccount/KnowledgeBase";
 import Settings from "./subaccount/Settings";
@@ -33,6 +34,7 @@ export default function Subaccount() {
           <SubaccountLayout subaccountId={subaccountId}>
             <Routes>
               <Route path="launchpad" element={<Launchpad />} />
+              <Route path="connections" element={<Connections />} />
               <Route path="wordpress" element={<WordPress />} />
               <Route path="projects" element={<BlogProjects />} />
               <Route path="projects/:projectId/blogs" element={<Blogs />} />

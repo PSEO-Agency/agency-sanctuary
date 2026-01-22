@@ -103,6 +103,57 @@ export type Database = {
           },
         ]
       }
+      article_publications: {
+        Row: {
+          article_airtable_id: string
+          connection_id: string | null
+          created_at: string | null
+          id: string
+          publish_status: string
+          published_at: string | null
+          subaccount_id: string
+          wordpress_post_id: number
+          wordpress_post_url: string
+        }
+        Insert: {
+          article_airtable_id: string
+          connection_id?: string | null
+          created_at?: string | null
+          id?: string
+          publish_status?: string
+          published_at?: string | null
+          subaccount_id: string
+          wordpress_post_id: number
+          wordpress_post_url: string
+        }
+        Update: {
+          article_airtable_id?: string
+          connection_id?: string | null
+          created_at?: string | null
+          id?: string
+          publish_status?: string
+          published_at?: string | null
+          subaccount_id?: string
+          wordpress_post_id?: number
+          wordpress_post_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_publications_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_publications_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_posts: {
         Row: {
           categories: string[] | null
@@ -738,6 +789,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      wordpress_connections: {
+        Row: {
+          api_key: string
+          base_url: string
+          created_at: string | null
+          id: string
+          last_checked_at: string | null
+          last_error: string | null
+          name: string
+          status: string
+          subaccount_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          base_url: string
+          created_at?: string | null
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          name: string
+          status?: string
+          subaccount_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          base_url?: string
+          created_at?: string | null
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          name?: string
+          status?: string
+          subaccount_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordpress_connections_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

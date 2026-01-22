@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen, ArrowRightLeft, Zap, Layers, FileStack } from "lucide-react";
+import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen, ArrowRightLeft, Zap, Layers, FileStack, Link2 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -187,6 +187,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   ];
 
   const contentMachineItems = [
+    { title: "Connections", url: `/subaccount/${subaccountId}/connections`, icon: Link2 },
     { title: "Publishing", url: `/subaccount/${subaccountId}/wordpress`, icon: Send },
     { title: "Articles", url: `/subaccount/${subaccountId}/projects`, icon: FileText },
   ];

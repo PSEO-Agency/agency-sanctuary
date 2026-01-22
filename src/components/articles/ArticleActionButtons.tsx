@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, Sparkles, ExternalLink, Eye, Search } from "lucide-react";
+import { Loader2, FileText, Sparkles, Send, Eye, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { OutlineEditorDialog } from "./OutlineEditorDialog";
 import { ResearchViewerDialog } from "./ResearchViewerDialog";
+import { PublishToWordPressDialog } from "./PublishToWordPressDialog";
 import type { Article } from "./ArticleRow";
 
 interface ArticleActionButtonsProps {
@@ -45,13 +46,13 @@ const STATUS_CONFIG: Record<string, {
   },
   'article ready': {
     action: 'approve-publish',
-    label: 'Approve & Publish',
-    icon: ExternalLink,
+    label: 'Publish to WordPress',
+    icon: Send,
   },
   'content ready': {
     action: 'approve-publish',
-    label: 'Approve & Publish',
-    icon: ExternalLink,
+    label: 'Publish to WordPress',
+    icon: Send,
   },
 };
 
@@ -74,6 +75,7 @@ export function ArticleActionButtons({
   const [isPolling, setIsPolling] = useState(false);
   const [outlineDialogOpen, setOutlineDialogOpen] = useState(false);
   const [researchDialogOpen, setResearchDialogOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [currentOutline, setCurrentOutline] = useState(article.outline);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -192,7 +194,7 @@ export function ArticleActionButtons({
         // Already viewing the article, could navigate to editor if on table
         break;
       case 'approve-publish':
-        window.open('https://programmaticseo.agency/strategy-call', '_blank');
+        setPublishDialogOpen(true);
         break;
     }
   };
@@ -274,6 +276,25 @@ export function ArticleActionButtons({
         baseId={baseId}
         recordId={article.id}
         articleName={article.name}
+      />
+
+      {/* Publish to WordPress Dialog */}
+      <PublishToWordPressDialog
+        open={publishDialogOpen}
+        onOpenChange={setPublishDialogOpen}
+        article={{
+          airtableId: article.id,
+          title: article.name,
+          content: article.html || article.content || '',
+          excerpt: article.metaDescription,
+          slug: article.slug,
+          metaTitle: article.metaTitle,
+          metaDescription: article.metaDescription,
+          featuredImageUrl: article.imageUrl || undefined,
+        }}
+        onPublishSuccess={(result) => {
+          toast.success(`Published! Post ID: ${result.postId}`);
+        }}
       />
     </>
   );
