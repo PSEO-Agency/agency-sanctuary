@@ -36,7 +36,7 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <img src={logo} alt="PSEO Builder" className="h-8" />
-            <span className="text-xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">(BETA)</span>
+            <span className="text-xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">(closed BETA)</span>
           </div>
           
           {/* Search Bar - Hidden on mobile */}
