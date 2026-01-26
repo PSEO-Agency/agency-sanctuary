@@ -28,7 +28,7 @@ export function SubaccountSettingsLayout({ children, subaccountId }: SubaccountS
         <header className="fixed top-0 left-0 right-0 h-16 bg-background border-b flex items-center justify-between px-6 z-50">
           <div className="flex items-center gap-4">
             <img src="/src/assets/logo.png" alt="Logo" className="h-8" />
-            <span className="text-xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">(BETA)</span>
+            <span className="text-xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">(closed BETA)</span>
           </div>
           
           <div className="flex items-center gap-4 ml-auto">
