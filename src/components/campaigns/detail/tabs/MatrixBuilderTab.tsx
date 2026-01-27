@@ -13,10 +13,10 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save, Wand2, Loader2, Trash2 } from "lucide-react";
+import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save, Wand2, Loader2, Trash2, Tags } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB } from "@/hooks/useCampaignPages";
-import { BUSINESS_TYPES, TitlePattern } from "../../types";
+import { BUSINESS_TYPES, TitlePattern, Entity } from "../../types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -24,6 +24,11 @@ interface MatrixBuilderTabProps {
   campaign: CampaignDB;
   pages: CampaignPageDB[];
   onRefreshPages: () => void;
+}
+
+// Extended TitlePattern for internal use that includes entity info
+interface TitlePatternWithEntity extends TitlePattern {
+  _urlPrefix?: string; // For display purposes
 }
 
 export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuilderTabProps) {
@@ -36,11 +41,27 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   );
 
   const [newItems, setNewItems] = useState<Record<string, string>>({});
-  const [titlePatterns, setTitlePatterns] = useState<TitlePattern[]>(
-    (campaign.template_config as any)?.titlePatterns || []
+  
+  // Initialize entities from campaign config
+  const [entities, setEntities] = useState<Entity[]>(
+    (campaign.template_config as any)?.entities || []
   );
+  
+  // Initialize title patterns with entityId
+  const [titlePatterns, setTitlePatterns] = useState<TitlePattern[]>(() => {
+    const patterns = (campaign.template_config as any)?.titlePatterns || [];
+    // Migrate old patterns that have urlPrefix but no entityId
+    return patterns.map((p: any) => {
+      if (p.entityId) return p;
+      // Create entity from urlPrefix for migration
+      const entityId = `ent-migrated-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      return { ...p, entityId };
+    });
+  });
+  
   const [newPattern, setNewPattern] = useState("");
   const [newUrlPrefix, setNewUrlPrefix] = useState("");
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const patternInputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +69,12 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   const businessType = BUSINESS_TYPES.find(bt => bt.id === campaign.business_type);
   const columnConfigs = businessType?.columns || BUSINESS_TYPES[2].columns;
 
-  // Calculate pages for a single pattern - only using variables IN that pattern
+  // Get entity for a pattern
+  const getEntityForPattern = (pattern: TitlePattern): Entity | undefined => {
+    return entities.find(e => e.id === pattern.entityId);
+  };
+
+  // Calculate pages for a single pattern
   const calculatePagesForPattern = (pattern: TitlePattern): number => {
     const patternLower = pattern.pattern.toLowerCase();
     const usedColumnIds = columnConfigs.filter(col => 
@@ -62,6 +88,13 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
       return acc * (items.length || 1);
     }, 1);
   };
+
+  // Calculate pages per entity
+  const pagesPerEntity: Record<string, number> = {};
+  titlePatterns.forEach(pattern => {
+    const count = calculatePagesForPattern(pattern);
+    pagesPerEntity[pattern.entityId] = (pagesPerEntity[pattern.entityId] || 0) + count;
+  });
 
   const totalEstimatedPages = titlePatterns.reduce(
     (acc, pattern) => acc + calculatePagesForPattern(pattern),
@@ -92,15 +125,49 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
     const pattern = newPattern.trim();
     if (!pattern) return;
 
+    let entityId = selectedEntityId;
+
+    // Auto-create entity if none selected
+    if (!entityId) {
+      const match = pattern.match(/\{\{(\w+)\}\}/);
+      if (match) {
+        const varName = match[1];
+        const existingEntity = entities.find(e => e.variableHint === varName);
+        
+        if (existingEntity) {
+          entityId = existingEntity.id;
+        } else {
+          const newEntity: Entity = {
+            id: `ent-${Date.now()}`,
+            name: varName.charAt(0).toUpperCase() + varName.slice(1),
+            urlPrefix: newUrlPrefix.trim() || `/${varName.toLowerCase()}/`,
+            variableHint: varName,
+          };
+          setEntities([...entities, newEntity]);
+          entityId = newEntity.id;
+        }
+      } else {
+        // Create general entity
+        const generalEntity: Entity = {
+          id: `ent-general-${Date.now()}`,
+          name: "General",
+          urlPrefix: newUrlPrefix.trim() || "/",
+        };
+        setEntities([...entities, generalEntity]);
+        entityId = generalEntity.id;
+      }
+    }
+
     const newTitlePattern: TitlePattern = {
       id: `pattern-${Date.now()}`,
       pattern: pattern,
-      urlPrefix: newUrlPrefix.trim() || undefined,
+      entityId: entityId!,
     };
 
     setTitlePatterns([...titlePatterns, newTitlePattern]);
     setNewPattern("");
     setNewUrlPrefix("");
+    setSelectedEntityId(null);
   };
 
   const removeTitlePattern = (patternId: string) => {
@@ -128,18 +195,27 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   const handleSaveMatrix = async () => {
     setIsSaving(true);
     try {
+      // Prepare template config as JSON-compatible object
+      const updatedTemplateConfig = {
+        ...(campaign.template_config as object || {}),
+        entities: entities.map(e => ({
+          id: e.id,
+          name: e.name,
+          urlPrefix: e.urlPrefix,
+          variableHint: e.variableHint || null,
+        })),
+        titlePatterns: titlePatterns.map(p => ({
+          id: p.id,
+          pattern: p.pattern,
+          entityId: p.entityId,
+        })),
+      };
+
       const { error } = await supabase
         .from("campaigns")
         .update({
-          data_columns: columns,
-          template_config: {
-            ...(campaign.template_config as object || {}),
-            titlePatterns: titlePatterns.map(p => ({
-              id: p.id,
-              pattern: p.pattern,
-              urlPrefix: p.urlPrefix || null,
-            })),
-          },
+          data_columns: columns as any,
+          template_config: updatedTemplateConfig as any,
         })
         .eq("id", campaign.id);
 
@@ -183,6 +259,8 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
 
       titlePatterns.forEach(pattern => {
         const patternLower = pattern.pattern.toLowerCase();
+        const entity = getEntityForPattern(pattern);
+        const urlPrefix = entity?.urlPrefix || "/";
         
         // Find which columns this specific pattern uses
         const usedColumnIds = columnConfigs
@@ -205,7 +283,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
             });
 
             // Generate slug from title
-            const slug = (pattern.urlPrefix || "/") + title
+            const slug = urlPrefix + title
               .toLowerCase()
               .replace(/[^a-z0-9]+/g, "-")
               .replace(/^-|-$/g, "");
@@ -215,7 +293,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
               subaccount_id: campaign.subaccount_id,
               title: title,
               slug: slug,
-              data_values: { ...currentValues, patternId: pattern.id },
+              data_values: { ...currentValues, patternId: pattern.id, entityId: pattern.entityId },
               status: "draft",
             });
             return;
@@ -507,9 +585,9 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
         <CardContent className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Title Patterns</h3>
+              <h3 className="font-semibold">Title Patterns by Entity</h3>
               <p className="text-xs text-muted-foreground">
-                Each pattern generates pages using only the variables it contains
+                Each pattern is grouped by entity for organized page generation
               </p>
             </div>
             <span className="text-sm text-primary font-medium">
@@ -517,37 +595,51 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
             </span>
           </div>
 
-          {/* Existing Patterns List */}
+          {/* Existing Patterns List - Grouped by Entity */}
           {titlePatterns.length > 0 && (
-            <div className="space-y-2">
-              {titlePatterns.map((pattern) => {
-                const pageCount = calculatePagesForPattern(pattern);
+            <div className="space-y-4">
+              {entities.map((entity) => {
+                const entityPatterns = titlePatterns.filter(p => p.entityId === entity.id);
+                if (entityPatterns.length === 0) return null;
+
                 return (
-                  <div
-                    key={pattern.id}
-                    className="flex items-center justify-between p-3 bg-background rounded-lg border group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <code className="text-sm font-mono truncate">{pattern.pattern}</code>
-                        {pattern.urlPrefix && (
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                            {pattern.urlPrefix}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        → Will generate {pageCount} pages
-                      </p>
+                  <div key={entity.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                        <Tags className="h-3 w-3 mr-1" />
+                        {entity.name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {entity.urlPrefix}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        • {pagesPerEntity[entity.id] || 0} pages
+                      </span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => removeTitlePattern(pattern.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {entityPatterns.map((pattern) => {
+                      const pageCount = calculatePagesForPattern(pattern);
+                      return (
+                        <div
+                          key={pattern.id}
+                          className="flex items-center justify-between p-3 bg-background rounded-lg border group ml-4"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <code className="text-sm font-mono truncate">{pattern.pattern}</code>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              → Will generate {pageCount} pages
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removeTitlePattern(pattern.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -557,6 +649,39 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
           {/* Add New Pattern */}
           <div className="space-y-3 pt-3 border-t">
             <Label className="text-sm">Add New Pattern</Label>
+            
+            {/* Entity Selector */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Entity:</Label>
+              <Select
+                value={selectedEntityId || "auto"}
+                onValueChange={(v) => setSelectedEntityId(v === "auto" ? null : v)}
+              >
+                <SelectTrigger className="w-[200px] h-8">
+                  <SelectValue placeholder="Auto-detect" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">
+                    <span className="text-muted-foreground">Auto-detect from pattern</span>
+                  </SelectItem>
+                  {entities.map((entity) => (
+                    <SelectItem key={entity.id} value={entity.id}>
+                      {entity.name} ({entity.urlPrefix})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedEntityId && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="/url-prefix/"
+                    value={newUrlPrefix}
+                    onChange={(e) => setNewUrlPrefix(e.target.value)}
+                    className="h-8 text-sm font-mono w-32"
+                  />
+                </div>
+              )}
+            </div>
             
             {/* Variable Buttons */}
             <div className="flex flex-wrap gap-2">
@@ -575,7 +700,7 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
               ))}
             </div>
             
-            {/* Pattern Input with URL Prefix */}
+            {/* Pattern Input */}
             <div className="flex gap-2">
               <div className="flex-1">
                 <Input
@@ -589,14 +714,6 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
                       addTitlePattern();
                     }
                   }}
-                  className="text-sm font-mono"
-                />
-              </div>
-              <div className="w-32">
-                <Input
-                  placeholder="/url-prefix/"
-                  value={newUrlPrefix}
-                  onChange={(e) => setNewUrlPrefix(e.target.value)}
                   className="text-sm font-mono"
                 />
               </div>

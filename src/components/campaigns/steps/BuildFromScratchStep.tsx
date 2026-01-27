@@ -1,10 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, X, Trash2 } from "lucide-react";
+import { Plus, X, Trash2, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CampaignFormData, BUSINESS_TYPES, DynamicColumn, TitlePattern } from "../types";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CampaignFormData, BUSINESS_TYPES, DynamicColumn, TitlePattern, Entity } from "../types";
+import { EntitySelector, suggestEntityFromPattern } from "../EntitySelector";
 
 interface BuildFromScratchStepProps {
   formData: CampaignFormData;
@@ -24,6 +32,9 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   const [editingColumn, setEditingColumn] = useState<{ columnId: string; displayName: string; variableName: string } | null>(null);
   const [newPattern, setNewPattern] = useState("");
   const [newUrlPrefix, setNewUrlPrefix] = useState("");
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [isCreatingEntity, setIsCreatingEntity] = useState(false);
+  const [newEntityName, setNewEntityName] = useState("");
   const patternInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize dynamic columns from business type if not already set
@@ -61,6 +72,8 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         { id: "col-3", variableName: "column3", displayName: "Column 3", placeholder: "Add Item" },
       ];
 
+  const entities = formData.entities || [];
+
   const handleColumnRename = (columnId: string, newDisplayName: string, newVariableName: string) => {
     const oldColumn = formData.dynamicColumns.find(c => c.id === columnId);
     if (!oldColumn) return;
@@ -73,7 +86,6 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     );
     
     if (isDuplicate) {
-      // If duplicate, append number suffix
       let suffix = 1;
       while (formData.dynamicColumns.some(
         c => c.id !== columnId && c.variableName === `${sanitizedVarName}${suffix}`
@@ -99,9 +111,17 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
       pattern: pattern.pattern.replace(new RegExp(oldVar.replace(/[{}]/g, '\\$&'), 'gi'), newVar)
     }));
 
+    // Update entity variableHints if they reference the old variable
+    const updatedEntities = (formData.entities || []).map(entity =>
+      entity.variableHint === oldColumn.variableName
+        ? { ...entity, variableHint: sanitizedVarName }
+        : entity
+    );
+
     updateFormData({
       dynamicColumns: updatedColumns,
       titlePatterns: updatedPatterns,
+      entities: updatedEntities,
     });
   };
 
@@ -149,14 +169,61 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     }
   };
 
+  const handleCreateEntity = (entity: Entity) => {
+    updateFormData({
+      entities: [...entities, entity],
+    });
+    setSelectedEntityId(entity.id);
+    setIsCreatingEntity(false);
+    setNewEntityName("");
+  };
+
   const addTitlePattern = () => {
     const pattern = newPattern.trim();
     if (!pattern) return;
 
+    let entityId = selectedEntityId;
+
+    // Auto-create entity if none selected
+    if (!entityId) {
+      const suggestedEntity = suggestEntityFromPattern(pattern, newUrlPrefix.trim(), entities);
+      if (suggestedEntity) {
+        // Check if entity with same name exists
+        const existingEntity = entities.find(
+          e => e.name.toLowerCase() === suggestedEntity.name.toLowerCase()
+        );
+        
+        if (existingEntity) {
+          entityId = existingEntity.id;
+        } else {
+          // Create new entity
+          const newEntity: Entity = {
+            ...suggestedEntity,
+            urlPrefix: newUrlPrefix.trim() || suggestedEntity.urlPrefix,
+          };
+          updateFormData({
+            entities: [...entities, newEntity],
+          });
+          entityId = newEntity.id;
+        }
+      } else {
+        // Create a "General" entity
+        const generalEntity: Entity = {
+          id: `ent-general-${Date.now()}`,
+          name: "General",
+          urlPrefix: newUrlPrefix.trim() || "/",
+        };
+        updateFormData({
+          entities: [...entities, generalEntity],
+        });
+        entityId = generalEntity.id;
+      }
+    }
+
     const newTitlePattern: TitlePattern = {
       id: `pattern-${Date.now()}`,
       pattern: pattern,
-      urlPrefix: newUrlPrefix.trim() || undefined,
+      entityId: entityId!,
     };
 
     updateFormData({
@@ -164,12 +231,18 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     });
     setNewPattern("");
     setNewUrlPrefix("");
+    setSelectedEntityId(null);
   };
 
   const removeTitlePattern = (patternId: string) => {
     updateFormData({
       titlePatterns: (formData.titlePatterns || []).filter((p) => p.id !== patternId),
     });
+  };
+
+  // Get entity for a pattern
+  const getEntityForPattern = (pattern: TitlePattern): Entity | undefined => {
+    return entities.find(e => e.id === pattern.entityId);
   };
 
   // Calculate estimated pages for a pattern
@@ -181,12 +254,18 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
 
     if (usedColumns.length === 0) return 0;
 
-    // Calculate product of all used columns
     return usedColumns.reduce((acc, col) => {
       const items = formData.scratchData[col.id] || [];
       return acc * (items.length || 1);
     }, 1);
   };
+
+  // Calculate pages per entity
+  const pagesPerEntity: Record<string, number> = {};
+  (formData.titlePatterns || []).forEach(pattern => {
+    const count = calculatePagesForPattern(pattern);
+    pagesPerEntity[pattern.entityId] = (pagesPerEntity[pattern.entityId] || 0) + count;
+  });
 
   // Calculate total pages across all patterns
   const totalEstimatedPages = (formData.titlePatterns || []).reduce(
@@ -320,43 +399,59 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
       {/* Title Patterns Section */}
       <div className="border rounded-xl p-6 space-y-4 bg-primary/5 border-primary/20">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Title Patterns</h3>
+          <h3 className="font-semibold">Title Patterns by Entity</h3>
           <span className="text-sm text-primary font-medium">
             {totalEstimatedPages} pages will be created
           </span>
         </div>
 
-        {/* Existing Patterns List */}
+        {/* Existing Patterns List - Grouped by Entity */}
         {(formData.titlePatterns || []).length > 0 && (
-          <div className="space-y-2">
-            {(formData.titlePatterns || []).map((pattern) => {
-              const pageCount = calculatePagesForPattern(pattern);
+          <div className="space-y-4">
+            {entities.map((entity) => {
+              const entityPatterns = (formData.titlePatterns || []).filter(
+                p => p.entityId === entity.id
+              );
+              if (entityPatterns.length === 0) return null;
+
               return (
-                <div
-                  key={pattern.id}
-                  className="flex items-center justify-between p-3 bg-background rounded-lg border group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <code className="text-sm font-mono truncate">{pattern.pattern}</code>
-                      {pattern.urlPrefix && (
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                          {pattern.urlPrefix}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      → Will generate {pageCount} pages
-                    </p>
+                <div key={entity.id} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                      <Tags className="h-3 w-3 mr-1" />
+                      {entity.name}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {entity.urlPrefix}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      • {pagesPerEntity[entity.id] || 0} pages
+                    </span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => removeTitlePattern(pattern.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  {entityPatterns.map((pattern) => {
+                    const pageCount = calculatePagesForPattern(pattern);
+                    return (
+                      <div
+                        key={pattern.id}
+                        className="flex items-center justify-between p-3 bg-background rounded-lg border group ml-4"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <code className="text-sm font-mono truncate">{pattern.pattern}</code>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            → Will generate {pageCount} pages
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeTitlePattern(pattern.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -366,6 +461,80 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         {/* Add New Pattern */}
         <div className="space-y-3 pt-3 border-t">
           <Label className="text-sm">Add New Pattern</Label>
+          
+          {/* Entity Selector */}
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Entity:</Label>
+            <Select
+              value={selectedEntityId || "auto"}
+              onValueChange={(v) => setSelectedEntityId(v === "auto" ? null : v)}
+            >
+              <SelectTrigger className="w-[200px] h-8">
+                <SelectValue placeholder="Auto-detect" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">
+                  <span className="text-muted-foreground">Auto-detect from pattern</span>
+                </SelectItem>
+                {entities.map((entity) => (
+                  <SelectItem key={entity.id} value={entity.id}>
+                    {entity.name} ({entity.urlPrefix})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={() => setIsCreatingEntity(true)}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              New Entity
+            </Button>
+          </div>
+
+          {/* Create Entity Inline */}
+          {isCreatingEntity && (
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+              <Input
+                placeholder="Entity name (e.g., Services)"
+                value={newEntityName}
+                onChange={(e) => setNewEntityName(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <Input
+                placeholder="/url-prefix/"
+                value={newUrlPrefix}
+                onChange={(e) => setNewUrlPrefix(e.target.value)}
+                className="h-8 text-sm font-mono w-32"
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (newEntityName.trim()) {
+                    handleCreateEntity({
+                      id: `ent-${Date.now()}`,
+                      name: newEntityName.trim(),
+                      urlPrefix: newUrlPrefix.trim() || `/${newEntityName.toLowerCase().replace(/\s+/g, "-")}/`,
+                    });
+                  }
+                }}
+              >
+                Create
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setIsCreatingEntity(false);
+                  setNewEntityName("");
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
           
           {/* Variable Buttons */}
           <div className="flex flex-wrap gap-2">
@@ -384,7 +553,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
             ))}
           </div>
           
-          {/* Pattern Input with URL Prefix */}
+          {/* Pattern Input */}
           <div className="flex gap-2">
             <div className="flex-1">
               <Input
@@ -398,14 +567,6 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                     addTitlePattern();
                   }
                 }}
-                className="text-sm font-mono"
-              />
-            </div>
-            <div className="w-32">
-              <Input
-                placeholder="/url-prefix/"
-                value={newUrlPrefix}
-                onChange={(e) => setNewUrlPrefix(e.target.value)}
                 className="text-sm font-mono"
               />
             </div>
@@ -429,6 +590,11 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                   return col ? `[${col.displayName}]` : `{{${key}}}`;
                 })}
               </p>
+              {!selectedEntityId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Entity will be auto-created based on the first variable
+                </p>
+              )}
             </div>
           )}
         </div>

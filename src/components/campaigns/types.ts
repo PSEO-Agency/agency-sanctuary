@@ -37,10 +37,17 @@ export interface TemplateContentConfig {
   images?: TemplateImagesConfig;
 }
 
+export interface Entity {
+  id: string;            // Unique ID (generated)
+  name: string;          // Display name (e.g., "Services")
+  urlPrefix: string;     // URL path prefix (e.g., "/services")
+  variableHint?: string; // Optional - which variable this entity is primarily based on
+}
+
 export interface TitlePattern {
   id: string;
   pattern: string;        // e.g., "What is {{services}}"
-  urlPrefix?: string;     // e.g., "/services/"
+  entityId: string;       // Reference to Entity
 }
 
 export interface DynamicColumn {
@@ -71,15 +78,17 @@ export interface CampaignFormData {
   csvColumns: string[];
 
   // Step 3B: Build From Scratch
-  dynamicColumns: DynamicColumn[];  // User-editable column config
-  scratchData: Record<string, string[]>;  // Keyed by column.id (stable)
-  titlePatterns: TitlePattern[];  // Multiple patterns with optional URL prefix
+  entities: Entity[];                    // List of entities for page grouping
+  dynamicColumns: DynamicColumn[];       // User-editable column config
+  scratchData: Record<string, string[]>; // Keyed by column.id (stable)
+  titlePatterns: TitlePattern[];         // Patterns linked to entities
 
   // Step 4: Template Selection
   selectedTemplate: string;
 
-  // Step 5: Template Editor
-  templateContent?: TemplateContentConfig;
+  // Step 5: Template Editor - Per-Entity Templates
+  entityTemplates: Record<string, TemplateContentConfig>;  // entityId → template
+  templateContent?: TemplateContentConfig; // Legacy/default template
 }
 
 export interface GeneratedTitle {
@@ -191,9 +200,11 @@ export const initialFormData: CampaignFormData = {
   csvUploadDate: "",
   columnMappings: {},
   csvColumns: [],
+  entities: [],
   dynamicColumns: [],
   scratchData: {},
   titlePatterns: [],
   selectedTemplate: "",
+  entityTemplates: {},
   templateContent: undefined,
 };
