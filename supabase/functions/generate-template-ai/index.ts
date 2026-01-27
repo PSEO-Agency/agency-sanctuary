@@ -11,6 +11,7 @@ interface GenerateTemplateRequest {
   entity: { id: string; name: string; urlPrefix: string };
   variables: string[];
   existing_data: Record<string, string[]>;
+  user_prompt?: string;
 }
 
 serve(async (req) => {
@@ -29,10 +30,14 @@ serve(async (req) => {
       business_type, 
       entity, 
       variables, 
-      existing_data 
+      existing_data,
+      user_prompt 
     }: GenerateTemplateRequest = await req.json();
 
     console.log("Generating template for entity:", entity.name, "business:", business_name);
+    if (user_prompt) {
+      console.log("User prompt provided:", user_prompt);
+    }
 
     // Build context for AI
     const dataContext = Object.entries(existing_data || {})
@@ -43,6 +48,11 @@ serve(async (req) => {
       .join("\n");
 
     const variableList = (variables || []).map((v) => `{{${v}}}`).join(", ");
+
+    // Build user instructions section if provided
+    const userInstructions = user_prompt 
+      ? `\n\nUSER INSTRUCTIONS (follow these carefully):\n${user_prompt}\n`
+      : "";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -63,7 +73,7 @@ Available template variables: ${variableList}, {{company}}
 
 Data samples from the campaign:
 ${dataContext || "No data samples provided"}
-
+${userInstructions}
 IMPORTANT RULES:
 1. Generate 4-6 sections appropriate for this entity type
 2. Use variables in headlines and content with {{variable_name}} syntax
@@ -151,6 +161,13 @@ Each section needs:
     }
 
     const data = await response.json();
+
+    // Check for error in response body (gateway returned error but with 200 status)
+    if (data.error) {
+      console.error("AI Gateway returned error in response body:", JSON.stringify(data.error));
+      throw new Error(`AI generation failed: ${data.error.message || "Please try again"}`);
+    }
+
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall?.function?.arguments) {
