@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard, Settings, Building, Users, Globe } from "lucide-react";
+import { Building2, LayoutDashboard, Settings, Building, Users, Globe, Lightbulb } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -41,9 +41,10 @@ export function SuperAdminSidebar() {
     { title: "Subaccounts", url: "/super-admin/subaccounts", icon: Users },
   ];
 
-  // Only super admins can see the Partners page
+  // Only super admins can see the Partners and Features pages
   if (isSuperAdmin) {
     menuItems.push({ title: "Country Partners", url: "/super-admin/partners", icon: Globe });
+    menuItems.push({ title: "Features", url: "/super-admin/features", icon: Lightbulb });
   }
 
   const portalLabel = isPartnerOnly ? "Partner Portal" : "Super Admin";

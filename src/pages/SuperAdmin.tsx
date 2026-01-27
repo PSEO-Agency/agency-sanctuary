@@ -5,6 +5,7 @@ import SuperAdminDashboard from "./super-admin/Dashboard";
 import Agencies from "./super-admin/Agencies";
 import Subaccounts from "./super-admin/Subaccounts";
 import Partners from "./super-admin/Partners";
+import Features from "./super-admin/Features";
 import SuperAdminSettings from "./super-admin/Settings";
 
 export default function SuperAdmin() {
@@ -16,6 +17,7 @@ export default function SuperAdmin() {
           <Route path="/agencies" element={<Agencies />} />
           <Route path="/subaccounts" element={<Subaccounts />} />
           <Route path="/partners" element={<Partners />} />
+          <Route path="/features" element={<Features />} />
           <Route path="/settings" element={<SuperAdminSettings />} />
           <Route path="*" element={<Navigate to="/super-admin" replace />} />
         </Routes>
