@@ -7,6 +7,7 @@ import { CampaignFormData, initialFormData } from "./types";
 import { BusinessDetailsStep } from "./steps/BusinessDetailsStep";
 import { DataUploadMethodStep } from "./steps/DataUploadMethodStep";
 import { CSVUploadStep } from "./steps/CSVUploadStep";
+import { DatasetApprovalStep } from "./steps/DatasetApprovalStep";
 import { BuildFromScratchStep } from "./steps/BuildFromScratchStep";
 import { TemplateSelectionStep } from "./steps/TemplateSelectionStep";
 import { TemplateEditorStep } from "./steps/TemplateEditorStep";
@@ -20,10 +21,20 @@ interface CreateCampaignDialogProps {
   existingCampaignId?: string | null;
 }
 
-const STEP_TITLES = [
+// Step titles for scratch path (6 steps) vs CSV path (5 steps)
+const STEP_TITLES_SCRATCH = [
   "Business Details",
-  "Data Upload",
-  "Data Upload",
+  "Data Upload Method",
+  "Dataset Approval",
+  "Build Your Datasets",
+  "Template Selection",
+  "Customize Template",
+];
+
+const STEP_TITLES_CSV = [
+  "Business Details",
+  "Data Upload Method",
+  "CSV Upload",
   "Template Selection",
   "Customize Template",
 ];
@@ -46,7 +57,9 @@ export function CreateCampaignDialog({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedRef = useRef<string>("");
 
-  const totalSteps = 5;
+  // Dynamic total steps based on data upload method
+  const totalSteps = formData.dataUploadMethod === "scratch" ? 6 : 5;
+  const stepTitles = formData.dataUploadMethod === "scratch" ? STEP_TITLES_SCRATCH : STEP_TITLES_CSV;
 
   // Load existing draft if resuming
   useEffect(() => {
@@ -125,32 +138,46 @@ export function CreateCampaignDialog({
   };
 
   const getStepTitle = () => {
-    if (currentStep === 3) {
-      if (formData.dataUploadMethod === "csv") {
-        return formData.csvFile ? "Column Mapping" : "Data Upload";
-      }
-      return "Data Upload";
-    }
-    return STEP_TITLES[currentStep - 1];
+    return stepTitles[currentStep - 1] || "Campaign";
   };
 
   const canProceed = () => {
-    switch (currentStep) {
-      case 1:
-        return formData.businessName && formData.businessType;
-      case 2:
-        return formData.dataUploadMethod !== null;
-      case 3:
-        if (formData.dataUploadMethod === "csv") {
+    if (formData.dataUploadMethod === "scratch") {
+      // 6-step flow for scratch
+      switch (currentStep) {
+        case 1:
+          return formData.businessName && formData.businessType;
+        case 2:
+          return formData.dataUploadMethod !== null;
+        case 3:
+          // Dataset approval - must have at least one dataset
+          return formData.dynamicColumns.length > 0;
+        case 4:
+          // Dataset data entry - must have some data
+          return Object.values(formData.scratchData).some((arr) => arr.length > 0);
+        case 5:
+          return formData.selectedTemplate !== "";
+        case 6:
+          return true; // Template editor is optional
+        default:
+          return true;
+      }
+    } else {
+      // 5-step flow for CSV
+      switch (currentStep) {
+        case 1:
+          return formData.businessName && formData.businessType;
+        case 2:
+          return formData.dataUploadMethod !== null;
+        case 3:
           return Object.keys(formData.columnMappings).length > 0;
-        }
-        return Object.values(formData.scratchData).some((arr) => arr.length > 0);
-      case 4:
-        return formData.selectedTemplate !== "";
-      case 5:
-        return true; // Template editor is optional customization
-      default:
-        return true;
+        case 4:
+          return formData.selectedTemplate !== "";
+        case 5:
+          return true; // Template editor is optional
+        default:
+          return true;
+      }
     }
   };
 
@@ -195,42 +222,65 @@ export function CreateCampaignDialog({
   };
 
   const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <BusinessDetailsStep formData={formData} updateFormData={updateFormData} />
-        );
-      case 2:
-        return (
-          <DataUploadMethodStep formData={formData} updateFormData={updateFormData} />
-        );
-      case 3:
-        if (formData.dataUploadMethod === "csv") {
-          return <CSVUploadStep formData={formData} updateFormData={updateFormData} />;
-        }
-        return (
-          <BuildFromScratchStep formData={formData} updateFormData={updateFormData} />
-        );
-      case 4:
-        return (
-          <TemplateSelectionStep formData={formData} updateFormData={updateFormData} />
-        );
-      case 5:
-        return (
-          <TemplateEditorStep 
-            formData={formData} 
-            updateFormData={updateFormData} 
-            onBack={() => setCurrentStep(4)}
-            onFinish={handleFinishCampaign}
-          />
-        );
-      default:
-        return null;
+    if (formData.dataUploadMethod === "scratch") {
+      // 6-step flow for scratch
+      switch (currentStep) {
+        case 1:
+          return <BusinessDetailsStep formData={formData} updateFormData={updateFormData} />;
+        case 2:
+          return <DataUploadMethodStep formData={formData} updateFormData={updateFormData} />;
+        case 3:
+          return <DatasetApprovalStep formData={formData} updateFormData={updateFormData} />;
+        case 4:
+          return <BuildFromScratchStep formData={formData} updateFormData={updateFormData} />;
+        case 5:
+          return <TemplateSelectionStep formData={formData} updateFormData={updateFormData} />;
+        case 6:
+          return (
+            <TemplateEditorStep 
+              formData={formData} 
+              updateFormData={updateFormData} 
+              onBack={() => setCurrentStep(5)}
+              onFinish={handleFinishCampaign}
+            />
+          );
+        default:
+          return null;
+      }
+    } else {
+      // 5-step flow for CSV (or before method is selected)
+      switch (currentStep) {
+        case 1:
+          return <BusinessDetailsStep formData={formData} updateFormData={updateFormData} />;
+        case 2:
+          return <DataUploadMethodStep formData={formData} updateFormData={updateFormData} />;
+        case 3:
+          if (formData.dataUploadMethod === "csv") {
+            return <CSVUploadStep formData={formData} updateFormData={updateFormData} />;
+          }
+          // Before method is selected, show data upload method step
+          return <DataUploadMethodStep formData={formData} updateFormData={updateFormData} />;
+        case 4:
+          return <TemplateSelectionStep formData={formData} updateFormData={updateFormData} />;
+        case 5:
+          return (
+            <TemplateEditorStep 
+              formData={formData} 
+              updateFormData={updateFormData} 
+              onBack={() => setCurrentStep(4)}
+              onFinish={handleFinishCampaign}
+            />
+          );
+        default:
+          return null;
+      }
     }
   };
 
-  // Step 5 renders as full-screen portal to escape layout DOM
-  if (open && currentStep === 5) {
+  // Final step (Template Editor) renders as full-screen portal to escape layout DOM
+  const isTemplateEditorStep = formData.dataUploadMethod === "scratch" ? currentStep === 6 : currentStep === 5;
+  
+  if (open && isTemplateEditorStep) {
     return createPortal(
       <div className="fixed inset-0 z-[100] bg-background flex flex-col h-screen overflow-hidden">
         {renderStep()}
