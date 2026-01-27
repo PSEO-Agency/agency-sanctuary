@@ -54,6 +54,87 @@ serve(async (req) => {
       ? `\n\nUSER INSTRUCTIONS (follow these carefully):\n${user_prompt}\n`
       : "";
 
+    const systemPrompt = `You are an expert landing page architect for SEO-optimized programmatic pages. Generate a template structure for a ${business_type} business called "${business_name}".
+
+The template is for the "${entity.name}" entity type (URL prefix: ${entity.urlPrefix}).
+
+Available template variables: ${variableList}, {{company}}
+
+Data samples from the campaign:
+${dataContext || "No data samples provided"}
+${userInstructions}
+
+SECTION TYPES AND THEIR CONTENT FIELDS:
+
+1. hero: Main banner section
+   - headline: Main title using {{variable}} (e.g., "Everything About {{breed}}")
+   - subheadline: Use prompt("instruction") for AI-generated subtitle about {{variable}}
+   - cta_text: Button text (e.g., "Get Quote", "Contact Us", "Learn More")
+
+2. features: Feature grid with checkmarks
+   - title: Section heading
+   - items: Array of 4-6 feature strings (can include {{variable}})
+
+3. content: Rich text block
+   - title: Section heading
+   - body: Use prompt("instruction about {{variable}}") for AI-generated content
+
+4. pricing: Price display card
+   - title: "Pricing" or "Cost Range"
+   - price: Use prompt("estimate price range for {{variable}}") or static text
+   - description: Additional pricing notes
+   - features: Array of included features (optional)
+   - cta_text: "Get Quote" or similar
+
+5. faq: Q&A accordion (IMPORTANT: Use pipe | separator between question and answer)
+   - title: "Frequently Asked Questions about {{variable}}"
+   - items: Array of strings in format "Question about {{variable}}|prompt("answer about {{variable}}")"
+
+6. pros_cons: Two-column comparison table
+   - title: "Pros & Cons of {{variable}}"
+   - pros: Array of positive points (use prompt for each or static text)
+   - cons: Array of negative points (use prompt for each or static text)
+
+7. testimonials: Customer quote cards
+   - title: "What Customers Say"
+   - items: Array of "Quote text|Author Name" strings
+
+8. benefits: Icon/benefit grid
+   - title: Section heading
+   - items: Array of benefit strings
+
+9. process: Step-by-step flow
+   - title: "How It Works" or similar
+   - steps: Array of step descriptions
+
+10. gallery: Image grid placeholder
+    - title: "Gallery" or similar
+    - images: Array of image_prompt("description") strings
+
+11. image: Single image section
+    - src: Use image_prompt("detailed description for {{variable}}") for AI-generated image
+    - alt: Alt text description
+
+12. cta: Call-to-action banner
+    - headline: Compelling action text (e.g., "Ready to Learn About {{variable}}?")
+    - subtext: Supporting message
+    - button_text: Action button text
+
+SYNTAX RULES:
+1. Use {{variable}} for direct data substitution from campaign data
+2. Use prompt("instruction about {{variable}}") for AI-generated TEXT content
+3. Use image_prompt("description of image for {{variable}}") for AI-generated IMAGES
+4. For FAQ items, use format: "Question here|Answer or prompt here"
+5. For testimonials, use format: "Quote text|Author Name"
+
+IMPORTANT GUIDELINES:
+- Generate 5-8 sections based on user instructions
+- Start with a hero section
+- End with a CTA section
+- Include relevant sections based on the entity type and user prompt
+- Make content SEO-focused and conversion-oriented
+- Use the available variables naturally in content`;
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -65,33 +146,11 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are an expert landing page architect for SEO-optimized programmatic pages. Generate a template structure for a ${business_type} business called "${business_name}".
-
-The template is for the "${entity.name}" entity type (URL prefix: ${entity.urlPrefix}).
-
-Available template variables: ${variableList}, {{company}}
-
-Data samples from the campaign:
-${dataContext || "No data samples provided"}
-${userInstructions}
-IMPORTANT RULES:
-1. Generate 4-6 sections appropriate for this entity type
-2. Use variables in headlines and content with {{variable_name}} syntax
-3. For dynamic AI-generated content, use the format: prompt("instruction for AI to generate content about {{variable}}")
-4. Make content SEO-focused and conversion-oriented
-5. Include clear calls-to-action
-
-Section types available: hero, features, content, cta, faq, testimonials, gallery, benefits, process, pricing
-
-Each section needs:
-- id: unique identifier (e.g., "hero-1", "features-1")
-- type: one of the section types above
-- name: display name
-- content: object with field names and their values (strings using variables or prompts)`,
+            content: systemPrompt,
           },
           {
             role: "user",
-            content: `Generate a complete landing page template for "${entity.name}" pages. Include a hero section, at least 2 content sections, and a CTA section. Use the available variables: ${variableList}`,
+            content: `Generate a complete landing page template for "${entity.name}" pages. ${user_prompt ? `Focus on: ${user_prompt}` : `Include a hero section, relevant content sections, and a CTA section.`} Use the available variables: ${variableList}`,
           },
         ],
         tools: [
@@ -110,11 +169,11 @@ Each section needs:
                       properties: {
                         id: { 
                           type: "string",
-                          description: "Unique section identifier" 
+                          description: "Unique section identifier (e.g., hero-1, features-1)" 
                         },
                         type: { 
                           type: "string", 
-                          enum: ["hero", "features", "content", "cta", "faq", "testimonials", "gallery", "benefits", "process", "pricing"],
+                          enum: ["hero", "features", "content", "cta", "faq", "testimonials", "gallery", "benefits", "process", "pricing", "pros_cons", "image"],
                           description: "Type of section"
                         },
                         name: { 
@@ -123,8 +182,7 @@ Each section needs:
                         },
                         content: {
                           type: "object",
-                          additionalProperties: { type: "string" },
-                          description: "Key-value pairs of content fields with their values using variables or prompts"
+                          description: "Key-value pairs of content fields. Use strings for simple values, arrays for list items. Values can include {{variable}} placeholders, prompt('...') for AI text, or image_prompt('...') for AI images."
                         },
                       },
                       required: ["id", "type", "name", "content"],

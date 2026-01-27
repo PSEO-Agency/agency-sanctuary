@@ -5,7 +5,7 @@
 
 export interface TemplateSection {
   id: string;
-  type: "hero" | "features" | "content" | "cta" | "faq" | "testimonials" | "gallery" | "footer";
+  type: "hero" | "features" | "content" | "cta" | "faq" | "testimonials" | "gallery" | "footer" | "pricing" | "pros_cons" | "benefits" | "process" | "image";
   name: string;
   content: Record<string, string | string[]>;
 }
