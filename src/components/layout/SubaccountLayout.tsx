@@ -28,7 +28,7 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full flex-col">
+      <div className="min-h-screen flex w-full flex-col theme-subaccount">
         <ImpersonationBanner />
         
         <header className="sticky top-0 z-50 h-16 flex items-center border-b bg-white px-6 gap-6">
@@ -36,7 +36,7 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <img src={logo} alt="PSEO Builder" className="h-8" />
-            <span className="text-xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">(closed BETA)</span>
+            <span className="text-xs font-semibold bg-[hsl(var(--theme-primary))] text-white px-1.5 py-0.5 rounded">(closed BETA)</span>
           </div>
           
           {/* Search Bar - Hidden on mobile */}

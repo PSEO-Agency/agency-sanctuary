@@ -21,20 +21,28 @@ interface SuperAdminLayoutProps {
 export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   const { user, signOut, hasRole } = useAuth();
   
-  const isSuperAdmin = hasRole("super_admin");
   const isCountryPartner = hasRole("country_partner");
-  const roleLabel = isSuperAdmin ? "Super Admin" : isCountryPartner ? "Country Partner" : "Admin";
+  const isSuperAdmin = hasRole("super_admin");
+  
+  // Priority: country_partner takes precedence over super_admin for display
+  const roleLabel = isCountryPartner && !isSuperAdmin 
+    ? "Country Partner" 
+    : isSuperAdmin 
+    ? "Super Admin" 
+    : "Admin";
+  
+  const themeClass = isCountryPartner && !isSuperAdmin ? "theme-partner" : "theme-super-admin";
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full flex-col">
+      <div className={`min-h-screen flex w-full flex-col ${themeClass}`}>
         <ImpersonationBanner />
         
         <header className="sticky top-0 z-50 h-16 flex items-center border-b bg-white px-6 gap-6">
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <img src={logo} alt="PSEO Builder" className="h-8" />
-            <span className="text-xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">(closed BETA)</span>
+            <span className="text-xs font-semibold bg-[hsl(var(--theme-primary))] text-white px-1.5 py-0.5 rounded">(closed BETA)</span>
           </div>
           <div className="flex-1 max-w-xl">
             <div className="relative">
