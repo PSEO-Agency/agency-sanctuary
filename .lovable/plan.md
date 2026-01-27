@@ -1,280 +1,293 @@
-
-
-# Plan: Super Admin Feature Kanban Board
+# Agency Sanctuary - Project Knowledge (T=0)
 
 ## Overview
 
-Create a Trello-style Kanban board for Super Admins to track feature development. The implementation will be simple, elegant, and use existing patterns from the codebase (native HTML5 Drag & Drop, existing UI components).
+**Agency Sanctuary** is a white-label, multi-tenant SaaS platform designed for marketing/SEO agencies. It provides programmatic SEO (pSEO) campaign management, content creation, and WordPress publishing capabilities with a hierarchical organizational structure.
 
-## Database Design
+---
 
-### New Table: `feature_requests`
+## Architecture
 
-```sql
-CREATE TABLE public.feature_requests (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  title text NOT NULL,
-  description text,
-  stage_id uuid REFERENCES public.feature_stages(id) ON DELETE SET NULL,
-  position integer NOT NULL DEFAULT 0,
-  deadline date,
-  priority text DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
-  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+### Multi-Tenant Hierarchy
 
--- Enable RLS
-ALTER TABLE public.feature_requests ENABLE ROW LEVEL SECURITY;
-
--- Only super admins can manage features
-CREATE POLICY "Super admins can manage features"
-  ON public.feature_requests FOR ALL
-  USING (has_role(auth.uid(), 'super_admin'));
+```
+┌─────────────────────────────────────────────────────────┐
+│                     SUPER ADMIN                          │
+│  (Platform owner - full access to everything)            │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+         ┌────────────┴────────────┐
+         ▼                         ▼
+┌─────────────────┐      ┌─────────────────┐
+│ COUNTRY PARTNER │      │ COUNTRY PARTNER │
+│ (Regional reseller)    │ (Regional reseller)
+└────────┬────────┘      └────────┬────────┘
+         │                        │
+    ┌────┴────┐              ┌────┴────┐
+    ▼         ▼              ▼         ▼
+┌───────┐ ┌───────┐     ┌───────┐ ┌───────┐
+│AGENCY │ │AGENCY │     │AGENCY │ │AGENCY │
+└───┬───┘ └───┬───┘     └───┬───┘ └───┬───┘
+    │         │              │         │
+    ▼         ▼              ▼         ▼
+┌────────┐ ┌────────┐   ┌────────┐ ┌────────┐
+│SUBACCT │ │SUBACCT │   │SUBACCT │ │SUBACCT │
+│(Client)│ │(Client)│   │(Client)│ │(Client)│
+└────────┘ └────────┘   └────────┘ └────────┘
 ```
 
-### New Table: `feature_stages`
+### User Roles (app_role enum)
 
-```sql
-CREATE TABLE public.feature_stages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  color text NOT NULL DEFAULT '#e2e8f0', -- Pastel colors
-  position integer NOT NULL DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
+| Role | Access Level |
+|------|--------------|
+| `super_admin` | Full platform access, manage all entities |
+| `country_partner` | Manage agencies within their region |
+| `agency_admin` | Manage their agency and all subaccounts |
+| `sub_account_user` | Access only their assigned subaccount |
 
--- Enable RLS
-ALTER TABLE public.feature_stages ENABLE ROW LEVEL SECURITY;
+---
 
--- Only super admins can manage stages
-CREATE POLICY "Super admins can manage stages"
-  ON public.feature_stages FOR ALL
-  USING (has_role(auth.uid(), 'super_admin'));
+## Core Features
 
--- Insert default stages with pastel colors
-INSERT INTO public.feature_stages (name, color, position) VALUES
-  ('Backlog', '#f1f5f9', 0),      -- Slate pastel
-  ('In Progress', '#dbeafe', 1),   -- Blue pastel
-  ('Review', '#fef3c7', 2),        -- Amber pastel
-  ('Done', '#dcfce7', 3);          -- Green pastel
-```
+### 1. Programmatic SEO (pSEO) Campaigns
 
-## UI Components
+**Location**: `src/pages/subaccount/Campaigns.tsx`, `src/components/campaigns/`
 
-### File Structure
+A wizard-based system to create landing pages at scale:
+
+- **Campaign Wizard Steps**:
+  1. Business details (name, logo, address)
+  2. Data upload method (CSV or build from scratch)
+  3. Dataset approval
+  4. Template selection/generation
+  5. Template editor (content, images, styles)
+  6. Sample page preview
+
+- **Campaign Detail Tabs**:
+  - Matrix Builder - data grid management
+  - Keyword Mapper - SEO keyword assignment
+  - Pages - generated landing pages
+  - CMS Editor - page content editing
+  - Content Generator - AI-powered content
+  - Deployment Settings - publishing configuration
+  - Reusable Blocks - shared content components
+
+### 2. Blog/Article Management
+
+**Location**: `src/pages/subaccount/Blogs.tsx`, `src/components/articles/`
+
+- Blog projects with categorization
+- Article creation and editing (TipTap rich text editor)
+- Article status tracking (draft → in progress → review → published)
+- WordPress publishing integration
+- Project-level knowledge bases for AI context
+
+### 3. WordPress Integration
+
+**Location**: `src/pages/subaccount/WordPress.tsx`, `src/hooks/useWordPressConnections.ts`
+
+- Multiple WordPress site connections per subaccount
+- API key authentication
+- Connection health monitoring
+- Direct article publishing
+- Supabase Edge Functions:
+  - `publish-to-wordpress`
+  - `wordpress-publish`
+  - `wordpress-handshake`
+  - `test-wordpress-connection`
+
+### 4. Knowledge Base System
+
+**Location**: `src/pages/subaccount/KnowledgeBase.tsx`
+
+Two levels of knowledge bases:
+- **Subaccount-level**: Brand voice, industry, target audience
+- **Project-level**: Per-blog project customization
+- Used to provide context for AI content generation
+
+### 5. Page Builder
+
+**Location**: `src/components/page-builder/`
+
+Unified page builder with:
+- Drag-and-drop blocks panel
+- Live preview canvas
+- Settings panel for customization
+- AI assistant integration
+
+### 6. Billing & Subscriptions
+
+**Location**: `src/components/BillingWidget.tsx`, `src/hooks/useTrialStatus.ts`
+
+- Stripe integration for payments
+- Subscription plans with article limits
+- Trial period management
+- Usage tracking (articles used per billing period)
+- Edge Functions:
+  - `create-checkout`
+  - `create-trial-checkout`
+  - `customer-portal`
+  - `stripe-webhook`
+  - `check-subscription`
+
+### 7. Team Management
+
+**Location**: `src/pages/agency/Team.tsx`, `src/pages/subaccount/settings/TeamSettings.tsx`
+
+- Invite team members via email
+- Role-based permissions
+- Agency-level and subaccount-level teams
+- Edge Functions:
+  - `invite-agency-member`
+  - `invite-team-member`
+  - `invite-subaccount-client`
+
+### 8. Subaccount Transfers
+
+**Location**: `src/pages/super-admin/Subaccounts.tsx`
+
+- Transfer subaccounts between agencies
+- Approval workflow (pending → approved/rejected)
+- Edge Function: `handle-transfer-request`
+
+### 9. Product Roadmap (Super Admin)
+
+**Location**: `src/pages/super-admin/Features.tsx`, `src/components/features/`
+
+- Trello-style Kanban board
+- Drag-and-drop feature cards
+- Customizable stages with pastel colors
+- Priority badges and deadlines
+
+---
+
+## Technology Stack
+
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **State Management**: TanStack React Query
+- **Routing**: React Router v6
+- **Rich Text**: TipTap editor
+- **Charts**: Recharts
+
+### Backend (Lovable Cloud / Supabase)
+- **Database**: PostgreSQL with Row Level Security (RLS)
+- **Auth**: Supabase Auth (email-based)
+- **Storage**: Supabase Storage
+- **Edge Functions**: Deno-based serverless functions
+
+---
+
+## Database Schema (Key Tables)
+
+| Table | Purpose |
+|-------|---------|
+| `profiles` | User profiles linked to auth.users |
+| `agencies` | Agency organizations |
+| `subaccounts` | Client accounts under agencies |
+| `country_partners` | Regional resellers |
+| `user_roles` | Role assignments with context |
+| `campaigns` | pSEO campaign configurations |
+| `campaign_pages` | Generated landing pages |
+| `blog_projects` | Blog/content projects |
+| `blog_posts` | Individual articles |
+| `wordpress_connections` | WP site integrations |
+| `article_publications` | WP publish tracking |
+| `subscription_plans` | Available plans |
+| `subaccount_subscriptions` | Active subscriptions |
+| `feature_stages` | Roadmap columns |
+| `feature_requests` | Roadmap items |
+| `agency_invites` | Pending invitations |
+| `transfer_requests` | Subaccount transfers |
+
+---
+
+## External Integrations
+
+| Integration | Purpose | Status |
+|-------------|---------|--------|
+| **Stripe** | Payments & subscriptions | ✅ Implemented |
+| **WordPress** | Content publishing | ✅ Implemented |
+| **Airtable** | Data source for articles | ✅ Implemented |
+| **GoHighLevel** | CRM webhooks | ✅ Implemented |
+| **n8n** | Workflow automation | ✅ Implemented |
+
+---
+
+## Key Design Patterns
+
+### 1. RLS-Based Security
+All tables use Row Level Security policies based on user roles and context.
+
+### 2. React Query Hooks
+Custom hooks for data fetching pattern:
+- `useCampaigns`, `useCampaignPages`
+- `useWordPressConnections`
+- `useFeatureBoard`
+- `useTrialStatus`, `useSubaccountUsage`
+
+### 3. Layout Components
+Role-specific layouts:
+- `SuperAdminLayout` - Platform admin UI
+- `AgencyLayout` - Agency management UI
+- `SubaccountLayout` - Client workspace UI
+
+### 4. Protected Routes
+`ProtectedRoute` component enforces authentication and role-based access.
+
+---
+
+## File Structure
 
 ```
 src/
-  pages/
-    super-admin/
-      Features.tsx              # Main Kanban page
-  components/
-    features/
-      FeatureKanbanBoard.tsx    # Main board with columns
-      FeatureCard.tsx           # Individual feature card
-      FeatureDetailDialog.tsx   # Dialog for viewing/editing feature
-      StageSettingsDialog.tsx   # Dialog for managing stages
-  hooks/
-    useFeatureBoard.ts          # React Query hooks for CRUD
+├── components/
+│   ├── articles/         # Article management
+│   ├── campaigns/        # pSEO campaigns
+│   ├── connections/      # WordPress connections
+│   ├── features/         # Roadmap kanban
+│   ├── layout/           # Layout wrappers
+│   ├── page-builder/     # Page builder
+│   ├── preview/          # Page preview
+│   ├── settings/         # Settings UI
+│   └── ui/               # shadcn components
+├── contexts/
+│   └── AuthContext.tsx   # Auth state
+├── hooks/                # Custom React hooks
+├── pages/
+│   ├── agency/           # Agency admin pages
+│   ├── auth/             # Invite acceptance
+│   ├── subaccount/       # Client pages
+│   └── super-admin/      # Platform admin pages
+└── integrations/
+    └── supabase/         # DB client & types
+
+supabase/
+└── functions/            # Edge functions
 ```
 
-### Kanban Board Layout
+---
 
-```
-+------------------------------------------------------------------+
-| Features                                         [ + Add Feature ] |
-| Track and manage platform features                [ Stage Settings]|
-+------------------------------------------------------------------+
-|                                                                    |
-| +---------------+ +---------------+ +---------------+ +----------+ |
-| | Backlog       | | In Progress   | | Review        | | Done     | |
-| | (slate bg)    | | (blue bg)     | | (amber bg)    | |(green bg)| |
-| +---------------+ +---------------+ +---------------+ +----------+ |
-| |               | |               | |               | |          | |
-| | +----------+  | | +----------+  | | +----------+  | |+--------+| |
-| | | Feature 1|  | | | Feature 3|  | | | Feature 5|  | ||Feature 6| |
-| | | High     |  | | | Medium   |  | | | Low      |  | ||        || |
-| | | Dec 15   |  | | +----------+  | | | Jan 10   |  | |+--------+| |
-| | +----------+  | |               | | +----------+  | |          | |
-| |               | | +----------+  | |               | |          | |
-| | +----------+  | | | Feature 4|  | |               | |          | |
-| | | Feature 2|  | | +----------+  | |               | |          | |
-| | +----------+  | |               | |               | |          | |
-| |               | |               | |               | |          | |
-| | [+ Add card]  | | [+ Add card]  | | [+ Add card]  | |[+ Add]   | |
-| +---------------+ +---------------+ +---------------+ +----------+ |
-+------------------------------------------------------------------+
-```
+## Security Model
 
-### Feature Card Design
+### Row Level Security (RLS)
+- All tables have RLS enabled
+- Policies use helper functions: `has_role()`, `user_agency_id()`, `user_subaccount_id()`, `get_user_country_partner_id()`
+- Super admins bypass most restrictions
+- Users can only access their own org's data
 
-```
-+------------------------+
-| Feature Title          |
-|------------------------|
-| [Priority Badge]       |
-|                        |
-| Due: Jan 15, 2026      |
-+------------------------+
-```
+### Auth Configuration
+- Email-based authentication
+- Auto-confirm enabled for development
+- Invite-based user onboarding
 
-- Cards show: Title, Priority badge (colored), Deadline (if set)
-- Click to open detail dialog
-- Drag to move between stages or reorder within stage
+---
 
-### Feature Detail Dialog
+## Deployment
 
-```
-+----------------------------------------+
-| Feature Details                    [X] |
-+----------------------------------------+
-|                                        |
-| Title: [________________________]      |
-|                                        |
-| Description:                           |
-| [                                ]     |
-| [    Rich text area               ]    |
-| [                                ]     |
-|                                        |
-| Stage:    [Dropdown: Backlog    v]     |
-| Priority: [Dropdown: Medium     v]     |
-| Deadline: [Date picker: Jan 15  ]      |
-|                                        |
-| Created: Dec 1, 2025 by Admin          |
-|                                        |
-|           [Delete]  [Cancel]  [Save]   |
-+----------------------------------------+
-```
-
-## Technical Implementation
-
-### 1. React Query Hook (`useFeatureBoard.ts`)
-
-```typescript
-export function useFeatureBoard() {
-  // Fetch stages
-  const { data: stages } = useQuery({
-    queryKey: ['feature-stages'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('feature_stages')
-        .select('*')
-        .order('position');
-      return data;
-    }
-  });
-
-  // Fetch features
-  const { data: features } = useQuery({
-    queryKey: ['feature-requests'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('feature_requests')
-        .select('*')
-        .order('position');
-      return data;
-    }
-  });
-
-  // Mutations for CRUD operations
-  const createFeature = useMutation(...);
-  const updateFeature = useMutation(...);
-  const deleteFeature = useMutation(...);
-  const moveFeature = useMutation(...);  // For drag & drop
-
-  return { stages, features, createFeature, updateFeature, deleteFeature, moveFeature };
-}
-```
-
-### 2. Drag & Drop (Native HTML5)
-
-Using the same pattern from `BuildFromScratchStep.tsx`:
-
-```typescript
-const handleDragStart = (e: React.DragEvent, featureId: string) => {
-  e.dataTransfer.setData('featureId', featureId);
-  e.dataTransfer.effectAllowed = 'move';
-  setDraggedFeature(featureId);
-};
-
-const handleDrop = async (e: React.DragEvent, targetStageId: string) => {
-  e.preventDefault();
-  const featureId = e.dataTransfer.getData('featureId');
-  await moveFeature.mutateAsync({ featureId, targetStageId });
-};
-```
-
-### 3. Stage Settings Dialog
-
-Simple dialog to:
-- Rename stages
-- Change pastel colors (predefined palette)
-- Reorder stages
-- Add/delete stages
-
-### Pastel Color Palette
-
-```typescript
-const PASTEL_COLORS = [
-  { name: 'Slate', value: '#f1f5f9' },
-  { name: 'Blue', value: '#dbeafe' },
-  { name: 'Amber', value: '#fef3c7' },
-  { name: 'Green', value: '#dcfce7' },
-  { name: 'Pink', value: '#fce7f3' },
-  { name: 'Purple', value: '#f3e8ff' },
-  { name: 'Cyan', value: '#cffafe' },
-  { name: 'Orange', value: '#ffedd5' },
-];
-```
-
-## Routing & Navigation
-
-### Update SuperAdmin Router
-
-```typescript
-// src/pages/SuperAdmin.tsx
-<Route path="/features" element={<Features />} />
-```
-
-### Update SuperAdmin Sidebar
-
-```typescript
-// Add to menuItems (only for super_admin, not country_partner)
-if (isSuperAdmin) {
-  menuItems.push({ title: "Features", url: "/super-admin/features", icon: Lightbulb });
-}
-```
-
-## Files to Create/Modify
-
-| File | Action | Description |
-|------|--------|-------------|
-| `src/pages/super-admin/Features.tsx` | Create | Main Kanban page |
-| `src/components/features/FeatureKanbanBoard.tsx` | Create | Board with columns |
-| `src/components/features/FeatureCard.tsx` | Create | Draggable card component |
-| `src/components/features/FeatureDetailDialog.tsx` | Create | Edit/view dialog |
-| `src/components/features/StageSettingsDialog.tsx` | Create | Manage stages |
-| `src/hooks/useFeatureBoard.ts` | Create | React Query hooks |
-| `src/pages/SuperAdmin.tsx` | Modify | Add route |
-| `src/components/SuperAdminSidebar.tsx` | Modify | Add nav item |
-| Database migration | Create | Tables + RLS policies |
-
-## Key Features Summary
-
-1. **Simple Card Creation**: Quick add via inline input at bottom of each column
-2. **Detail Dialog**: Click card to open full editor with title, description, stage, priority, deadline
-3. **Drag & Drop**: Move cards between stages and reorder within stages
-4. **Pastel Stage Colors**: Each column has a customizable pastel background
-5. **Priority Badges**: Visual priority indicators (Low/Medium/High)
-6. **Deadline Display**: Shows due date on cards with overdue highlighting
-7. **Stage Management**: Add, rename, reorder, and color-customize stages
-
-## Simplicity Principles
-
-- No complex libraries - uses native HTML5 drag & drop
-- Leverages existing UI components (Card, Dialog, Button, Input, Badge, Popover)
-- Single-page experience - no nested routes
-- Inline quick-add for fast entry
-- Minimal required fields (just title to create)
-
+- **Frontend**: Auto-deployed via Lovable
+- **Backend**: Lovable Cloud (Supabase)
+- **Edge Functions**: Auto-deployed on save
+- **Published URL**: https://agency-sanctuary.lovable.app
