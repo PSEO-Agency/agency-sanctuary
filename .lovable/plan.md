@@ -1,262 +1,354 @@
 
-
-# Campaign Onboarding Improvements Plan
+# Entity-Based pSEO Builder Architecture
 
 ## Overview
 
-This plan addresses two key issues in the pSEO Builder campaign onboarding flow:
-
-1. **Dynamic Dataset Variables**: Column names are only stored locally and don't propagate to variables
-2. **Full-Page Template Editor**: The page builder at step 5 should take the full screen (not just a dialog)
+This plan introduces a first-class **Entity** concept to the pSEO Builder, treating URL prefixes as distinct content groupings with their own templates. Entities become the organizational backbone for pages, CMS structure, and navbar navigation.
 
 ---
 
-## Problem Analysis
+## Current State vs. Desired State
 
-### Issue 1: Non-Dynamic Dataset Variables
-
-**Current Behavior:**
-- Column configurations come from static `BUSINESS_TYPES` (e.g., `{ id: "services", name: "Services", ... }`)
-- When a user renames a column header (e.g., "Services" → "Industries"), it only updates local state `columnNames` in `BuildFromScratchStep`
-- The variable buttons still show `{{services}}` because they use the static `col.id`
-- Data is stored in `formData.scratchData` using the static ID as the key
-- Title patterns contain hardcoded IDs like `{{services}}`
-
-**Root Cause:**
-- `columnNames` is local component state, not persisted to `formData`
-- Variables are derived from immutable `col.id`, not user-defined names
-- No mechanism to propagate column renames throughout the system
-
-### Issue 2: Template Editor Not Full Page
-
-**Current Behavior:**
-- Step 5 uses `DialogContent` with `max-w-[95vw] h-[90vh]` — still a dialog, not truly full-page
-- The dialog header/footer are hidden but the dialog container remains
+| Aspect | Current | Desired |
+|--------|---------|---------|
+| **Title Pattern UI** | Pattern + URL Prefix | Entity Name + URL Prefix + Pattern |
+| **Template Config** | Single `template_config` per campaign | Map of `entity → TemplateContentConfig` |
+| **Page Builder (Step 5)** | Edits one global template | Entity selector to edit per-entity templates |
+| **Navbar Preview** | Groups by arbitrary column | Groups by Entity (derived from URL prefixes) |
+| **CMS Structure** | Flat list of pages | Pages grouped by Entity |
 
 ---
 
-## Proposed Solution
+## Data Model Changes
 
-### Solution 1: Dynamic Column Configuration
-
-**Approach:** Store a mutable `columns` configuration in `formData` that tracks both the variable ID (key) and display name. When a user renames a column, update the variable ID everywhere.
-
-**Changes Required:**
-
-#### 1.1 Update Types (`src/components/campaigns/types.ts`)
-
-Add a new field to track dynamic columns with their user-defined names:
+### New Interface: `Entity`
 
 ```typescript
-export interface DynamicColumn {
-  id: string;           // Generated unique ID (stable reference)
-  variableName: string; // User-editable variable name (e.g., "industries")
-  displayName: string;  // User-editable display name
-  placeholder: string;  // Placeholder text
+// src/components/campaigns/types.ts
+
+export interface Entity {
+  id: string;           // Unique ID (generated)
+  name: string;         // Display name (e.g., "Services")
+  urlPrefix: string;    // URL path prefix (e.g., "/services")
+  variableHint?: string; // Optional - which variable this entity is primarily based on
 }
 
+export interface TitlePattern {
+  id: string;
+  pattern: string;        // e.g., "What is {{services}}"
+  entityId: string;       // NEW: Reference to Entity
+}
+```
+
+### Updated `CampaignFormData`
+
+```typescript
 export interface CampaignFormData {
-  // ... existing fields
+  // ... existing fields ...
   
   // Step 3B: Build From Scratch
-  dynamicColumns: DynamicColumn[];  // NEW: Replaces static column config
-  scratchData: Record<string, string[]>;  // Keyed by column.id (not variableName)
-  titlePatterns: TitlePattern[];
+  entities: Entity[];                    // NEW: List of entities
+  dynamicColumns: DynamicColumn[];
+  scratchData: Record<string, string[]>;
+  titlePatterns: TitlePattern[];         // Modified: now includes entityId
+  
+  // Step 5: Template Editor - Per-Entity Templates
+  entityTemplates: Record<string, TemplateContentConfig>;  // NEW: entityId → template
 }
 ```
-
-#### 1.2 Update Initial Form Data
-
-Add `dynamicColumns: []` to `initialFormData` and populate it when a business type is selected.
-
-#### 1.3 Update BuildFromScratchStep
-
-**Key Changes:**
-1. Initialize `dynamicColumns` from business type when entering step 3
-2. Store column renames directly in `formData.dynamicColumns`
-3. Update variable buttons to show `{{column.variableName}}`
-4. When renaming a variable, update all existing title patterns that reference it
-5. Store data in `scratchData` using `column.id` (stable) but display using `variableName`
-
-**Rename Propagation Logic:**
-```typescript
-const handleColumnRename = (columnId: string, newVariableName: string) => {
-  const oldColumn = formData.dynamicColumns.find(c => c.id === columnId);
-  if (!oldColumn) return;
-  
-  const oldVar = `{{${oldColumn.variableName}}}`;
-  const newVar = `{{${newVariableName}}}`;
-  
-  // Update column configuration
-  const updatedColumns = formData.dynamicColumns.map(col =>
-    col.id === columnId ? { ...col, variableName: newVariableName } : col
-  );
-  
-  // Update all title patterns that reference this variable
-  const updatedPatterns = formData.titlePatterns.map(pattern => ({
-    ...pattern,
-    pattern: pattern.pattern.replace(new RegExp(oldVar, 'gi'), newVar)
-  }));
-  
-  updateFormData({
-    dynamicColumns: updatedColumns,
-    titlePatterns: updatedPatterns,
-  });
-};
-```
-
-#### 1.4 Update useCampaigns Hook
-
-Store `dynamicColumns` alongside `data_columns` in the campaign record to preserve the variable mappings:
-
-```typescript
-// In createCampaign:
-column_mappings: {
-  columns: formData.dynamicColumns,
-  ...formData.columnMappings,
-},
-```
-
-#### 1.5 Starter Datasets
-
-Ensure each business type initializes with proper starter columns:
-
-| Business Type | Starter Columns |
-|--------------|-----------------|
-| SaaS | features, useCases, integrations |
-| Ecommerce | products, categories, locations |
-| Local Business | services, cities, languages |
 
 ---
 
-### Solution 2: Full-Page Template Editor
+## UI Changes
 
-**Approach:** Instead of using a dialog, render the template editor as a full-screen overlay when on step 5.
+### 1. BuildFromScratchStep - Entity-First Title Patterns
 
-**Changes Required:**
-
-#### 2.1 Update CreateCampaignDialog
-
-For step 5, instead of rendering inside `DialogContent`, render a full-screen portal:
-
-```typescript
-// When step 5 is active:
-if (currentStep === 5) {
-  return (
-    <div className="fixed inset-0 z-50 bg-background">
-      <TemplateEditorStep
-        formData={formData}
-        updateFormData={updateFormData}
-        onBack={() => setCurrentStep(4)}
-        onFinish={() => {
-          onComplete(formData);
-          handleClose();
-        }}
-      />
-    </div>
-  );
-}
-
-// Otherwise, keep the dialog:
-return (
-  <Dialog open={open} onOpenChange={handleClose}>
-    <DialogContent className="max-w-4xl max-h-[90vh]">
-      {/* Steps 1-4 */}
-    </DialogContent>
-  </Dialog>
-);
+**Current Flow:**
+```
+[Add Pattern Input] → [URL Prefix Input (optional)] → [Add Button]
 ```
 
-#### 2.2 Update TemplateEditorStep
+**New Flow:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Create Title Pattern                                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Entity:  [ Services      ▼ ] [+ New Entity]               │
+│                                                             │
+│  Title:   [ What is {{services}}?            ]              │
+│           {{services}}  {{cities}}  {{languages}}           │
+│                                                             │
+│  URL Prefix: [ /services/                    ]              │
+│                                                             │
+│                                        [Add Pattern]        │
+└─────────────────────────────────────────────────────────────┘
+```
 
-Add an `onFinish` prop and include a "Finish" button in the header:
+**Entity Dropdown Options:**
+- Lists existing entities
+- "New Entity" option opens inline form to create one
+- Auto-suggests entity name from first variable in pattern (e.g., `{{services}}` → "Services")
 
-```typescript
-interface TemplateEditorStepProps {
-  // ... existing props
-  onFinish?: () => void;  // NEW
+**Entity Badge in Pattern List:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ What is {{services}}?                                       │
+│ ┌──────────┐ /services/                                     │
+│ │ Services │                                → 5 pages       │
+│ └──────────┘                                        [🗑]   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2. TemplateEditorStep - Entity Selector
+
+**New Header Element:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ [← Back]   Entity: [🏷 Services   ▼]   [Desktop|Tablet|📱]  │
+│            ────────────────────                             │
+│            ○ Services (5 pages)                             │
+│            ○ Cities (12 pages)                              │
+│            ○ Locations (3 pages)                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│     ┌───────────────────────────────────────────────┐      │
+│     │                                               │      │
+│     │    [Page Builder Preview for "Services"]     │      │
+│     │                                               │      │
+│     └───────────────────────────────────────────────┘      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Behavior:**
+- Switching entity loads its template config or creates a new one from defaults
+- Each entity's template is saved separately in `entityTemplates`
+- A subtle "Active Entity" indicator shows which template is being edited
+- Progress indicator shows how many entities have templates configured
+
+### 3. Alternative: Entity Progress Bar
+
+Instead of just a dropdown, show a visual progress bar:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Template Configuration                                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│   │  Services   │  │   Cities    │  │ Locations   │        │
+│   │  ✓ Done     │  │  Current    │  │  Pending    │        │
+│   │  /services  │  │  /cities    │  │  /locations │        │
+│   │  5 pages    │  │  12 pages   │  │  3 pages    │        │
+│   └─────────────┘  └─────────────┘  └─────────────┘        │
+│   ═══════════════  ═══════════════  ─────────────────       │
+│       ▲ Click to edit                                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Database Schema Changes
+
+### Update `campaigns` table
+
+The existing `template_config` JSONB field structure changes:
+
+**Current:**
+```json
+{
+  "sections": [...],
+  "style": {...},
+  "images": {...}
 }
+```
 
-// In the component:
-<UnifiedPageBuilder
-  // ... existing props
-  headerContent={
-    <Button onClick={onFinish} className="ml-auto">
-      Finish Campaign
-    </Button>
-  }
-/>
+**New:**
+```json
+{
+  "entities": [
+    { "id": "ent-1", "name": "Services", "urlPrefix": "/services" },
+    { "id": "ent-2", "name": "Cities", "urlPrefix": "/cities" }
+  ],
+  "entityTemplates": {
+    "ent-1": { "sections": [...], "style": {...}, "images": {...} },
+    "ent-2": { "sections": [...], "style": {...}, "images": {...} }
+  },
+  "defaultTemplate": { "sections": [...], "style": {...}, "images": {...} }
+}
+```
+
+### Update `campaign_pages` table
+
+Add entity reference in `data_values`:
+
+```json
+{
+  "services": "Web Development",
+  "patternId": "pattern-123",
+  "entityId": "ent-1"  // NEW
+}
 ```
 
 ---
 
 ## File Changes Summary
 
-| File | Type | Description |
-|------|------|-------------|
-| `src/components/campaigns/types.ts` | Modify | Add `DynamicColumn` interface, update `CampaignFormData` |
-| `src/components/campaigns/steps/BuildFromScratchStep.tsx` | Modify | Use dynamic columns, handle renames with propagation |
-| `src/components/campaigns/CreateCampaignDialog.tsx` | Modify | Full-screen portal for step 5 |
-| `src/components/campaigns/steps/TemplateEditorStep.tsx` | Modify | Add `onFinish` prop, include finish button |
-| `src/hooks/useCampaigns.ts` | Modify | Store `dynamicColumns` in campaign record |
+| File | Change | Description |
+|------|--------|-------------|
+| `src/components/campaigns/types.ts` | Modify | Add `Entity` interface, update `TitlePattern` and `CampaignFormData` |
+| `src/components/campaigns/steps/BuildFromScratchStep.tsx` | Modify | Add entity dropdown/management, update pattern UI |
+| `src/components/campaigns/steps/TemplateEditorStep.tsx` | Major Modify | Add entity selector, manage per-entity templates |
+| `src/components/page-builder/UnifiedPageBuilder.tsx` | Modify | Accept entity context, show entity indicator |
+| `src/hooks/useCampaigns.ts` | Modify | Store entities and entityTemplates in campaign record |
+| `src/components/preview/WebsiteShell.tsx` | Modify | Use entities for navbar dropdown grouping |
+| `src/pages/Preview.tsx` | Modify | Resolve correct entity template for page |
+| `src/components/campaigns/EntitySelector.tsx` | Create | New component for entity selection UI |
 
 ---
 
-## Data Flow Diagram
+## Implementation Flow
 
-```text
-                 Business Type Selected
-                         │
-                         ▼
-            ┌────────────────────────────┐
-            │  Initialize dynamicColumns │
-            │  from BUSINESS_TYPES       │
-            └────────────────────────────┘
-                         │
-                         ▼
-            ┌────────────────────────────┐
-            │  User edits column name    │
-            │  "Services" → "Industries" │
-            └────────────────────────────┘
-                         │
-                         ▼
-        ┌────────────────┴────────────────┐
-        ▼                                 ▼
-┌───────────────────┐          ┌───────────────────┐
-│ Update column's   │          │ Update all title  │
-│ variableName      │          │ patterns: replace │
-│ in dynamicColumns │          │ {{services}} with │
-│                   │          │ {{industries}}    │
-└───────────────────┘          └───────────────────┘
-        │                                 │
-        └────────────────┬────────────────┘
-                         ▼
-            ┌────────────────────────────┐
-            │  Variable buttons now show │
-            │  {{industries}} everywhere │
-            └────────────────────────────┘
+### Phase 1: Data Model & Types
+1. Add `Entity` interface to types
+2. Update `TitlePattern` to include `entityId`
+3. Add `entities` and `entityTemplates` to `CampaignFormData`
+4. Update `initialFormData`
+
+### Phase 2: BuildFromScratchStep UI
+1. Create entity management UI (create/edit/select)
+2. Modify title pattern input to require entity selection
+3. Auto-suggest entity from variable (e.g., `{{services}}` → "Services")
+4. Show entity badge on pattern cards
+
+### Phase 3: TemplateEditorStep Enhancement
+1. Create `EntitySelector` component (dropdown or progress bar)
+2. Load/save per-entity templates
+3. Initialize new entity templates from defaults
+4. Show completion status for each entity
+
+### Phase 4: Campaign Creation & Preview
+1. Update `useCampaigns.ts` to store entity data
+2. Add `entityId` to generated page `data_values`
+3. Update `Preview.tsx` to resolve entity-specific template
+4. Update `WebsiteShell.tsx` to use entities for navbar
+
+---
+
+## Entity Auto-Detection Logic
+
+When a user creates a title pattern, suggest an entity based on:
+
+1. **Variable Detection**: First `{{variable}}` in pattern suggests entity name
+   - `"What is {{services}}?"` → suggests "Services" entity
+
+2. **URL Prefix Inference**: If URL prefix is provided, derive entity name
+   - `/web-development/` → suggests "Web Development" entity
+
+3. **Existing Entity Matching**: If pattern uses same variable as existing entity, suggest that entity
+
+```typescript
+const suggestEntity = (pattern: string, urlPrefix: string, entities: Entity[]): Entity | null => {
+  // Extract first variable
+  const match = pattern.match(/\{\{(\w+)\}\}/);
+  if (match) {
+    const varName = match[1];
+    
+    // Check if an entity already uses this variable
+    const existing = entities.find(e => e.variableHint === varName);
+    if (existing) return existing;
+    
+    // Suggest new entity
+    return {
+      id: `ent-${Date.now()}`,
+      name: varName.charAt(0).toUpperCase() + varName.slice(1),
+      urlPrefix: urlPrefix || `/${varName.toLowerCase()}/`,
+      variableHint: varName,
+    };
+  }
+  return null;
+};
 ```
+
+---
+
+## User Flow Example
+
+1. **User adds data columns**: `{{services}}` with 5 entries, `{{cities}}` with 3 entries
+
+2. **User adds first title pattern**:
+   - Types: "What is {{services}}?"
+   - System auto-suggests: Entity "Services", URL prefix "/services/"
+   - User confirms → Entity created, pattern linked
+
+3. **User adds second title pattern**:
+   - Types: "Best {{services}} in {{cities}}"
+   - System asks: Which entity? (Suggests "Cities" based on URL structure)
+   - User can choose "Services" or "Cities" or create new
+
+4. **User proceeds to Template Editor (Step 5)**:
+   - Sees entity progress bar: "Services" | "Cities"
+   - Clicks "Services" → Edits template for /services/* pages
+   - Clicks "Cities" → Edits template for /cities/* pages
+   - Each gets its own sections, style, images
+
+5. **Preview**:
+   - Navbar shows: "Services" dropdown, "Cities" dropdown
+   - Each dropdown lists pages under that entity
+   - Clicking a service page uses Services template
+   - Clicking a city page uses Cities template
 
 ---
 
 ## Edge Cases
 
-1. **Duplicate Variable Names**: Validate that new variable names are unique across all columns
-2. **Invalid Characters**: Sanitize variable names to only allow alphanumeric and underscore
-3. **Empty Patterns**: When updating patterns, skip those that don't contain the old variable
-4. **Template Content**: If template content references variables, those should also be updated (future enhancement)
+1. **Pattern with no variables**: Prompt user to select or create a "General" entity
+2. **Multiple variables in pattern**: Ask which entity it belongs to (or default to first variable)
+3. **Entity deletion**: Warn if patterns still reference it, offer to reassign
+4. **Template inheritance**: New entities can optionally inherit from default or another entity template
+
+---
+
+## Visual Concept: Entity Flow
+
+```
+                     DATA COLUMNS
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+   {{services}}      {{cities}}      {{languages}}
+        │                 │                 │
+        ▼                 ▼                 ▼
+   ┌─────────┐      ┌─────────┐      ┌─────────┐
+   │ Entity: │      │ Entity: │      │ Entity: │
+   │Services │      │ Cities  │      │Languages│
+   │/services│      │ /cities │      │  /lang  │
+   └────┬────┘      └────┬────┘      └────┬────┘
+        │                │                 │
+        ▼                ▼                 ▼
+   ┌─────────┐      ┌─────────┐      ┌─────────┐
+   │Template │      │Template │      │Template │
+   │   A     │      │   B     │      │   C     │
+   └────┬────┘      └────┬────┘      └────┬────┘
+        │                │                 │
+        ▼                ▼                 ▼
+   ┌─────────┐      ┌─────────┐      ┌─────────┐
+   │ 5 pages │      │ 15 pages│      │ 3 pages │
+   │/services│      │ /cities │      │  /lang  │
+   └─────────┘      └─────────┘      └─────────┘
+```
 
 ---
 
 ## Testing Checklist
 
-- [ ] Create campaign with "Local Business" type
-- [ ] Rename "Services" column to "Industries"
-- [ ] Verify variable buttons update to `{{industries}}`
-- [ ] Add a title pattern with `{{industries}}`
-- [ ] Rename column again to "Offerings"
-- [ ] Verify existing patterns update from `{{industries}}` to `{{offerings}}`
-- [ ] Verify step 5 renders as full-page overlay
-- [ ] Verify "Back to Templates" returns to step 4
-- [ ] Verify "Finish Campaign" creates the campaign correctly
-
+- [ ] Create campaign with 2+ entities
+- [ ] Verify entity auto-suggestion from pattern
+- [ ] Switch between entities in Template Editor
+- [ ] Verify each entity saves its own template
+- [ ] Preview shows correct navbar dropdowns per entity
+- [ ] Pages render with correct entity template
+- [ ] Edit existing campaign - entities persist
+- [ ] Delete entity - patterns reassign correctly
