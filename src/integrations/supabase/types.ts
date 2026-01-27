@@ -887,7 +887,11 @@ export type Database = {
       user_subaccount_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
-      app_role: "super_admin" | "agency_admin" | "sub_account_user"
+      app_role:
+        | "super_admin"
+        | "agency_admin"
+        | "sub_account_user"
+        | "country_partner"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1015,7 +1019,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "agency_admin", "sub_account_user"],
+      app_role: [
+        "super_admin",
+        "agency_admin",
+        "sub_account_user",
+        "country_partner",
+      ],
     },
   },
 } as const
