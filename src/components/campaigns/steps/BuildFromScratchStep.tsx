@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Plus, X, Trash2, Tags, ChevronLeft, GripVertical, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,10 +65,10 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   // Delete state
   const [columnToDelete, setColumnToDelete] = useState<string | null>(null);
 
-  // AI autofill state
-  const [aiColumnId, setAiColumnId] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
+  // AI autofill state - PER COLUMN for parallel generation
+  const [generatingColumns, setGeneratingColumns] = useState<Set<string>>(new Set());
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
+  const [aiPrompts, setAiPrompts] = useState<Record<string, string>>({});
 
   // Initialize dynamic columns from business type if not already set
   useEffect(() => {
@@ -191,15 +191,17 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     if (patternsRemoved > 0) {
       toast.warning(`${patternsRemoved} pattern(s) using {{${column.variableName}}} were removed`);
     } else {
-      toast.success(`Column "${column.displayName}" deleted`);
+      toast.success(`Dataset "${column.displayName}" deleted`);
     }
   };
 
-  // AI generate items
-  const handleAIGenerate = async (columnId: string, prompt: string) => {
-    if (!prompt.trim()) return;
+  // AI generate items - PER COLUMN (parallel-safe)
+  const handleAIGenerate = useCallback(async (columnId: string) => {
+    const prompt = aiPrompts[columnId];
+    if (!prompt?.trim()) return;
     
-    setIsGenerating(true);
+    // Add this column to generating set (don't block others)
+    setGeneratingColumns(prev => new Set(prev).add(columnId));
     
     try {
       const column = formData.dynamicColumns.find(c => c.id === columnId);
@@ -251,11 +253,16 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
       console.error("AI generation error:", error);
       toast.error("Failed to generate items");
     } finally {
-      setIsGenerating(false);
-      setAiColumnId(null);
-      setAiPrompt("");
+      // Remove from generating set
+      setGeneratingColumns(prev => {
+        const next = new Set(prev);
+        next.delete(columnId);
+        return next;
+      });
+      // Clear only this column's prompt
+      setAiPrompts(prev => ({ ...prev, [columnId]: "" }));
     }
-  };
+  }, [aiPrompts, formData.dynamicColumns, formData.scratchData, formData.businessType, formData.businessName, updateFormData]);
 
   const handleColumnRename = (columnId: string, newDisplayName: string, newVariableName: string) => {
     const oldColumn = formData.dynamicColumns.find(c => c.id === columnId);
@@ -490,9 +497,9 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   return (
     <div className="space-y-8 w-full max-w-full overflow-x-hidden">
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold">Add Your Data</h2>
+        <h2 className="text-2xl font-bold">Build Your Datasets</h2>
         <p className="text-muted-foreground">
-          Enter your data in the columns below, then add title patterns to generate pages.
+          Enter items for each dataset below, then add title patterns to generate pages.
         </p>
       </div>
 
@@ -614,21 +621,34 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
 
                 {/* Action buttons */}
                 <div className="flex items-center gap-0 flex-shrink-0">
-                  {/* AI Magic Wand */}
-                  <Popover open={aiColumnId === col.id} onOpenChange={(open) => {
-                    if (!open) {
-                      setAiColumnId(null);
-                      setAiPrompt("");
-                    }
-                  }}>
+                {/* AI Magic Wand - Per-column state for parallel generation */}
+                  <Popover 
+                    open={openPopoverId === col.id} 
+                    onOpenChange={(open) => {
+                      // Only update popover open state, don't interrupt generation
+                      if (open) {
+                        setOpenPopoverId(col.id);
+                      } else {
+                        setOpenPopoverId(null);
+                        // Don't clear prompt if still generating
+                        if (!generatingColumns.has(col.id)) {
+                          setAiPrompts(prev => ({ ...prev, [col.id]: "" }));
+                        }
+                      }
+                    }}
+                  >
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5"
-                        onClick={() => setAiColumnId(col.id)}
+                        className="h-5 w-5 relative"
+                        onClick={() => setOpenPopoverId(col.id)}
                       >
-                        <Sparkles className="h-3 w-3 text-primary" />
+                        {generatingColumns.has(col.id) ? (
+                          <Loader2 className="h-3 w-3 text-primary animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3 w-3 text-primary" />
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-80" align="start">
@@ -642,21 +662,22 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                         </p>
                         <Input
                           placeholder="e.g., Cities in France, Plumbing services..."
-                          value={aiPrompt}
-                          onChange={(e) => setAiPrompt(e.target.value)}
+                          value={aiPrompts[col.id] || ""}
+                          onChange={(e) => setAiPrompts(prev => ({ ...prev, [col.id]: e.target.value }))}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" && aiPrompt.trim() && !isGenerating) {
-                              handleAIGenerate(col.id, aiPrompt);
+                            if (e.key === "Enter" && (aiPrompts[col.id] || "").trim() && !generatingColumns.has(col.id)) {
+                              handleAIGenerate(col.id);
                             }
                           }}
+                          disabled={generatingColumns.has(col.id)}
                           autoFocus
                         />
                         <Button 
                           className="w-full" 
-                          onClick={() => handleAIGenerate(col.id, aiPrompt)}
-                          disabled={!aiPrompt.trim() || isGenerating}
+                          onClick={() => handleAIGenerate(col.id)}
+                          disabled={!(aiPrompts[col.id] || "").trim() || generatingColumns.has(col.id)}
                         >
-                          {isGenerating ? (
+                          {generatingColumns.has(col.id) ? (
                             <>
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                               Generating...
@@ -743,14 +764,14 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
           );
         })}
         
-        {/* Add New Column Card */}
+        {/* Add New Dataset Card */}
         <div 
           className="flex-shrink-0 w-40 border rounded-xl p-4 flex items-center justify-center min-h-[350px] border-dashed hover:border-primary transition-colors cursor-pointer"
           onClick={handleAddColumn}
         >
           <Button variant="ghost" size="sm">
             <Plus className="h-4 w-4 mr-1" />
-            Add Column
+            Add Dataset
           </Button>
         </div>
         </div>

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,16 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save, Wand2, Loader2, Trash2, Tags } from "lucide-react";
+import { Pencil, FileSpreadsheet, List, Plus, X, AlertTriangle, RefreshCw, Save, Wand2, Loader2, Trash2, Tags, Sparkles } from "lucide-react";
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB } from "@/hooks/useCampaignPages";
-import { BUSINESS_TYPES, TitlePattern, Entity } from "../../types";
+import { BUSINESS_TYPES, TitlePattern, Entity, DynamicColumn } from "../../types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -31,17 +36,54 @@ interface TitlePatternWithEntity extends TitlePattern {
   _urlPrefix?: string; // For display purposes
 }
 
+// Column config interface for display
+interface ColumnConfig {
+  id: string;
+  name: string;
+  placeholder: string;
+}
+
 export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuilderTabProps) {
+  // Get saved dynamic columns from campaign config or column_mappings
+  const savedDynamicColumns: DynamicColumn[] = 
+    (campaign.template_config as any)?.dynamicColumns ||
+    (campaign.column_mappings as any)?.dynamicColumns ||
+    [];
+
+  // Fall back to business type defaults if no saved columns
+  const businessType = BUSINESS_TYPES.find(bt => bt.id === campaign.business_type);
+  
+  // Build column configs from saved dynamic columns or business type defaults
+  const columnConfigs: ColumnConfig[] = savedDynamicColumns.length > 0
+    ? savedDynamicColumns.map((col: DynamicColumn) => ({
+        id: col.variableName,
+        name: col.displayName,
+        placeholder: col.placeholder || `Add ${col.displayName}`,
+      }))
+    : (businessType?.columns || BUSINESS_TYPES[2].columns).map(col => ({
+        id: col.id,
+        name: col.name,
+        placeholder: col.placeholder,
+      }));
+
   const [columns, setColumns] = useState<Record<string, string[]>>(
-    campaign.data_columns || {
-      services: ["Teeth Whitening", "Dental Implants"],
-      cities: ["Amsterdam", "Rotterdam", "Utrecht"],
-      languages: ["English", "Dutch"],
-    }
+    campaign.data_columns || (() => {
+      // Initialize from saved columns or defaults
+      const initial: Record<string, string[]> = {};
+      columnConfigs.forEach(col => {
+        initial[col.id] = [];
+      });
+      return initial;
+    })()
   );
 
   const [newItems, setNewItems] = useState<Record<string, string>>({});
   
+  // AI autofill state - per column for parallel generation
+  const [generatingColumns, setGeneratingColumns] = useState<Set<string>>(new Set());
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
+  const [aiPrompts, setAiPrompts] = useState<Record<string, string>>({});
+
   // Initialize entities from campaign config
   const [entities, setEntities] = useState<Entity[]>(
     (campaign.template_config as any)?.entities || []
@@ -65,9 +107,6 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const patternInputRef = useRef<HTMLInputElement>(null);
-
-  const businessType = BUSINESS_TYPES.find(bt => bt.id === campaign.business_type);
-  const columnConfigs = businessType?.columns || BUSINESS_TYPES[2].columns;
 
   // Get entity for a pattern
   const getEntityForPattern = (pattern: TitlePattern): Entity | undefined => {
@@ -100,6 +139,73 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
     (acc, pattern) => acc + calculatePagesForPattern(pattern),
     0
   );
+
+  // AI generate items - per column for parallel generation
+  const handleAIGenerate = useCallback(async (columnId: string) => {
+    const prompt = aiPrompts[columnId];
+    if (!prompt?.trim()) return;
+    
+    // Add this column to generating set
+    setGeneratingColumns(prev => new Set(prev).add(columnId));
+    
+    try {
+      const column = columnConfigs.find(c => c.id === columnId);
+      const existingItems = columns[columnId] || [];
+      
+      const response = await supabase.functions.invoke("generate-column-items", {
+        body: {
+          column_name: column?.name,
+          business_type: campaign.business_type,
+          business_name: campaign.business_name,
+          prompt: prompt,
+          existing_items: existingItems,
+          max_items: 20,
+        },
+      });
+      
+      if (response.error) {
+        if (response.error.message?.includes("429")) {
+          toast.error("Rate limit exceeded. Please try again later.");
+        } else if (response.error.message?.includes("402")) {
+          toast.error("AI credits exhausted. Please add funds to continue.");
+        } else {
+          toast.error("Failed to generate items: " + response.error.message);
+        }
+        return;
+      }
+      
+      if (response.data?.items && Array.isArray(response.data.items)) {
+        const newItems = response.data.items.filter(
+          (item: string) => !existingItems.includes(item)
+        );
+        
+        if (newItems.length > 0) {
+          setColumns(prev => ({
+            ...prev,
+            [columnId]: [...existingItems, ...newItems],
+          }));
+          
+          toast.success(`Added ${newItems.length} items to ${column?.name}`);
+        } else {
+          toast.info("No new items to add (all generated items already exist)");
+        }
+      } else {
+        toast.error("Unexpected response from AI");
+      }
+    } catch (error) {
+      console.error("AI generation error:", error);
+      toast.error("Failed to generate items");
+    } finally {
+      // Remove from generating set
+      setGeneratingColumns(prev => {
+        const next = new Set(prev);
+        next.delete(columnId);
+        return next;
+      });
+      // Clear only this column's prompt
+      setAiPrompts(prev => ({ ...prev, [columnId]: "" }));
+    }
+  }, [aiPrompts, columns, columnConfigs, campaign.business_type, campaign.business_name]);
 
   const insertVariable = (columnId: string) => {
     const placeholder = `{{${columnId}}}`;
@@ -521,19 +627,91 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
         </div>
       </div>
 
-      {/* Columns / Matrix Builder */}
+      {/* Datasets / Matrix Builder */}
       <div>
-        <h3 className="font-semibold mb-3">Columns</h3>
+        <h3 className="font-semibold mb-3">Datasets</h3>
         <div className="grid grid-cols-3 gap-4">
           {columnConfigs.map((config) => {
             const columnId = config.id;
             const items = columns[columnId] || [];
+            const isGenerating = generatingColumns.has(columnId);
+            
             return (
               <Card key={columnId}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="font-medium">{config.name}</Label>
-                    <span className="text-xs text-primary">{items.length}/100 items</span>
+                    <div className="flex items-center gap-1">
+                      {/* AI Autofill Button */}
+                      <Popover 
+                        open={openPopoverId === columnId} 
+                        onOpenChange={(open) => {
+                          if (open) {
+                            setOpenPopoverId(columnId);
+                          } else {
+                            setOpenPopoverId(null);
+                            if (!generatingColumns.has(columnId)) {
+                              setAiPrompts(prev => ({ ...prev, [columnId]: "" }));
+                            }
+                          }
+                        }}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                          >
+                            {isGenerating ? (
+                              <Loader2 className="h-3 w-3 text-primary animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3 w-3 text-primary" />
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80" align="start">
+                          <div className="space-y-3">
+                            <h4 className="font-medium flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-primary" />
+                              AI Autofill
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              Describe what items to generate for "{config.name}"
+                            </p>
+                            <Input
+                              placeholder="e.g., Cities in France, Plumbing services..."
+                              value={aiPrompts[columnId] || ""}
+                              onChange={(e) => setAiPrompts(prev => ({ ...prev, [columnId]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && (aiPrompts[columnId] || "").trim() && !isGenerating) {
+                                  handleAIGenerate(columnId);
+                                }
+                              }}
+                              disabled={isGenerating}
+                              autoFocus
+                            />
+                            <Button 
+                              className="w-full" 
+                              onClick={() => handleAIGenerate(columnId)}
+                              disabled={!(aiPrompts[columnId] || "").trim() || isGenerating}
+                            >
+                              {isGenerating ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-4 w-4 mr-2" />
+                                  Generate Items
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <span className="text-xs text-primary">{items.length}/100</span>
+                    </div>
                   </div>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {items.map((item, index) => (

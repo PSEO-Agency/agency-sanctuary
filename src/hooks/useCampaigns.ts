@@ -211,6 +211,7 @@ export function useCampaigns() {
 
       const templateConfig = {
         ...(formData.templateContent || {}),
+        dynamicColumns: formData.dynamicColumns, // Also save here for easier access
         entities: formData.entities || [],
         entityTemplates: formData.entityTemplates || {},
         titlePatterns: formData.titlePatterns || [],
@@ -296,9 +297,10 @@ export function useCampaigns() {
         dynamicColumns: formData.dynamicColumns,
       };
 
-      // Build template_config with entities and entityTemplates
+      // Build template_config with entities, dynamicColumns, and entityTemplates
       const templateConfig = {
         ...(formData.templateContent || {}),
+        dynamicColumns: formData.dynamicColumns, // Save dynamic columns for Matrix Builder
         entities: formData.entities || [],
         entityTemplates: formData.entityTemplates || {},
         titlePatterns: formData.titlePatterns || [],
