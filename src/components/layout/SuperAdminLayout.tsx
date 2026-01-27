@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { SuperAdminSidebar } from "@/components/SuperAdminSidebar";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { AnnouncementDropdown } from "@/components/announcements/AnnouncementDropdown";
 import { Bell, User, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +51,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-4">
+            <AnnouncementDropdown variant="super-admin" />
             <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />
             </Button>
