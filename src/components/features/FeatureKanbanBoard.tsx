@@ -35,8 +35,9 @@ export function FeatureKanbanBoard({
   const [quickAddTitle, setQuickAddTitle] = useState("");
   const [selectedFeature, setSelectedFeature] = useState<FeatureRequest | null>(null);
 
+  // Features are already sorted by parent component
   const getStageFeatures = (stageId: string) =>
-    features.filter((f) => f.stage_id === stageId).sort((a, b) => a.position - b.position);
+    features.filter((f) => f.stage_id === stageId);
 
   const handleDragStart = (e: React.DragEvent, featureId: string) => {
     e.dataTransfer.setData("featureId", featureId);
