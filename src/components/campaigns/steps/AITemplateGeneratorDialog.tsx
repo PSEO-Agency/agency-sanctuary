@@ -10,6 +10,40 @@ import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
+// Example prompt templates for quick selection
+const EXAMPLE_PROMPTS = [
+  {
+    id: "local-service",
+    name: "Local Service",
+    icon: "🏢",
+    prompt: "Create a professional service page with a hero showcasing the main service, features grid with benefits, service area coverage, testimonials from local customers, and a strong call-to-action for booking or getting a quote",
+  },
+  {
+    id: "product-breeds",
+    name: "Product/Breeds",
+    icon: "🐾",
+    prompt: "Generate a hero with title and description, an image placeholder section, feature cards highlighting key characteristics, a pricing or cost range section, pros and cons comparison, FAQ section, and inquiry CTAs for contacting or submitting a form",
+  },
+  {
+    id: "directory",
+    name: "Directory Listing",
+    icon: "📋",
+    prompt: "Build a directory-style page with hero, key details presented in a grid format, contact information section, related services or items, and a contact form call-to-action",
+  },
+  {
+    id: "comparison",
+    name: "Comparison",
+    icon: "⚖️",
+    prompt: "Create a comparison page with hero, side-by-side feature comparison grid, detailed breakdown section with benefits, expert recommendations, and decision-driving CTAs",
+  },
+  {
+    id: "location",
+    name: "Location Page",
+    icon: "📍",
+    prompt: "Design a location-focused page with hero featuring the area name, local benefits and services grid, coverage details, local customer testimonials, and contact CTA with area-specific information",
+  },
+];
+
 interface AITemplateGeneratorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -203,6 +237,28 @@ export function AITemplateGeneratorDialog({
               <p className="text-muted-foreground text-sm mt-1">
                 AI will create a custom template structure for {currentEntity?.name || "your pages"}
               </p>
+            </div>
+
+            {/* Quick Templates */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Quick Templates</Label>
+              <div className="flex flex-wrap gap-2">
+                {EXAMPLE_PROMPTS.map((example) => (
+                  <Button
+                    key={example.id}
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "text-xs",
+                      userPrompt === example.prompt && "border-primary bg-primary/5"
+                    )}
+                    onClick={() => setUserPrompt(example.prompt)}
+                  >
+                    <span className="mr-1">{example.icon}</span>
+                    {example.name}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             {/* User prompt input */}
