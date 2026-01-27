@@ -190,6 +190,14 @@ export function UnifiedPageBuilder({
             sections={sections}
             onSelectSection={handleSectionSelect}
             selectedSection={selectedSection}
+            onReorderSections={onSectionsChange}
+            onDeleteSection={(sectionId) => {
+              const updated = sections.filter(s => s.id !== sectionId);
+              onSectionsChange?.(updated);
+              if (selectedSection === sectionId) {
+                setSelectedSection(null);
+              }
+            }}
           />
         )}
 

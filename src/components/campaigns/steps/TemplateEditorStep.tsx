@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { AlertTriangle, Tags } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { CampaignFormData, TemplateStyleConfig, TemplateImagesConfig, TemplateContentConfig, Entity } from "../types";
 import { getTemplateForBusinessType, TemplateSection } from "@/lib/campaignTemplates";
 import { UnifiedPageBuilder, DEFAULT_STYLE_CONFIG, DEFAULT_IMAGES_CONFIG } from "@/components/page-builder";
@@ -212,15 +214,9 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
 
   return (
     <div className="flex flex-col h-full">
-      {/* Entity Progress Bar - Only show if there are entities */}
-      {entities.length > 0 && (
-        <div className="border-b bg-muted/30 px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium">Template Configuration by Entity</h3>
-            <span className="text-xs text-muted-foreground">
-              {completedEntities.length}/{entities.length} configured
-            </span>
-          </div>
+      {/* Entity Progress Bar - Only show if more than one entity */}
+      {entities.length > 1 && (
+        <div className="border-b bg-muted/30 px-3 py-2">
           <EntitySelector
             entities={entities}
             selectedEntityId={selectedEntityId}
@@ -229,6 +225,35 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
             completedEntities={completedEntities}
             mode="progress-bar"
           />
+        </div>
+      )}
+
+      {/* Current Entity Banner - Always show if entities exist */}
+      {entities.length > 0 && selectedEntity && (
+        <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex items-center gap-3">
+          <Tags className="h-4 w-4 text-primary flex-shrink-0" />
+          <span className="text-sm">
+            Editing template for:
+            <span className="font-semibold ml-1">{selectedEntity.name}</span>
+          </span>
+          <span className="text-xs text-muted-foreground font-mono">
+            ({selectedEntity.urlPrefix})
+          </span>
+          {entities.length > 1 && (
+            <Badge variant="outline" className="ml-auto">
+              {completedEntities.length + 1}/{entities.length}
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {/* No Entities Warning */}
+      {entities.length === 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-950/30 border-b border-yellow-200 dark:border-yellow-800 px-4 py-2 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 flex-shrink-0" />
+          <span className="text-sm text-yellow-700 dark:text-yellow-400">
+            No entities defined. This template will apply to all pages.
+          </span>
         </div>
       )}
 
@@ -242,26 +267,20 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
         onStyleUpdate={handleStyleChange}
         onImagesUpdate={handleImagesChange}
         onBack={onBack}
-        backLabel="Back to Templates"
+        backLabel="Back"
+        defaultBlocksPanelOpen={false}
+        defaultSettingsPanelOpen={false}
         showBlocksPanel={true}
         showSettingsPanel={true}
         showViewportSwitcher={true}
         showResetButton={true}
         onReset={handleReset}
         headerContent={
-          <div className="flex items-center gap-4 ml-auto">
-            {selectedEntity && (
-              <div className="text-sm text-muted-foreground">
-                Editing: <span className="font-medium text-foreground">{selectedEntity.name}</span>
-                <span className="text-xs ml-1">({selectedEntity.urlPrefix})</span>
-              </div>
-            )}
-            {onFinish && (
-              <Button onClick={onFinish}>
-                Finish Campaign
-              </Button>
-            )}
-          </div>
+          onFinish && (
+            <Button onClick={onFinish} className="ml-auto">
+              Finish Campaign
+            </Button>
+          )
         }
       />
     </div>
