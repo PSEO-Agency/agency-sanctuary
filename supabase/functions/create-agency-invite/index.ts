@@ -39,14 +39,15 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Unauthorized");
     }
 
-    // Verify user is super_admin
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
+    // Verify user is super_admin using user_roles table
+    const { data: userRole } = await supabaseAdmin
+      .from("user_roles")
       .select("role")
-      .eq("id", user.id)
-      .single();
+      .eq("user_id", user.id)
+      .eq("role", "super_admin")
+      .maybeSingle();
 
-    if (profile?.role !== "super_admin") {
+    if (!userRole) {
       throw new Error("Only super admins can create agency invites");
     }
 
