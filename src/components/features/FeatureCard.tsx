@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { FeatureRequest } from "@/hooks/useFeatureBoard";
+import { getCategoryColor } from "@/hooks/useFeatureBoard";
 
 interface FeatureCardProps {
   feature: FeatureRequest;
@@ -46,7 +47,15 @@ export function FeatureCard({
           <p className="font-medium text-sm leading-tight truncate">
             {feature.title}
           </p>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            {feature.category && (
+              <Badge
+                variant="secondary"
+                className={cn("text-[10px] px-1.5 py-0", getCategoryColor(feature.category))}
+              >
+                {feature.category}
+              </Badge>
+            )}
             <Badge
               variant="secondary"
               className={cn("text-[10px] px-1.5 py-0", priorityColors[feature.priority])}

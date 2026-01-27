@@ -17,10 +17,34 @@ export interface FeatureRequest {
   position: number;
   deadline: string | null;
   priority: "low" | "medium" | "high";
+  category: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export const FEATURE_CATEGORIES = [
+  "UI/UX",
+  "pSEO Builder",
+  "Content Machine",
+  "Platform",
+  "API/Backend",
+  "Security",
+] as const;
+
+export const categoryColors: Record<string, string> = {
+  "UI/UX": "bg-pink-100 text-pink-700",
+  "pSEO Builder": "bg-violet-100 text-violet-700",
+  "Content Machine": "bg-blue-100 text-blue-700",
+  "Platform": "bg-emerald-100 text-emerald-700",
+  "API/Backend": "bg-orange-100 text-orange-700",
+  "Security": "bg-red-100 text-red-700",
+};
+
+export const getCategoryColor = (category: string | null) => {
+  if (!category) return "";
+  return categoryColors[category] || "bg-slate-100 text-slate-600";
+};
 
 export function useFeatureBoard() {
   const queryClient = useQueryClient();
@@ -63,6 +87,7 @@ export function useFeatureBoard() {
           stage_id: feature.stage_id,
           position: maxPosition + 1,
           priority: feature.priority || "medium",
+          category: feature.category,
           deadline: feature.deadline,
           description: feature.description,
           created_by: user?.user?.id,

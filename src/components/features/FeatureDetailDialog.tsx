@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { FeatureRequest, FeatureStage } from "@/hooks/useFeatureBoard";
+import { FEATURE_CATEGORIES, getCategoryColor } from "@/hooks/useFeatureBoard";
+import { Badge } from "@/components/ui/badge";
 
 interface FeatureDetailDialogProps {
   feature: FeatureRequest | null;
@@ -59,6 +61,7 @@ export function FeatureDetailDialog({
   const [description, setDescription] = useState("");
   const [stageId, setStageId] = useState<string>("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [category, setCategory] = useState<string>("");
   const [deadline, setDeadline] = useState<Date | undefined>();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -68,6 +71,7 @@ export function FeatureDetailDialog({
       setDescription(feature.description || "");
       setStageId(feature.stage_id || "");
       setPriority(feature.priority);
+      setCategory(feature.category || "");
       setDeadline(feature.deadline ? new Date(feature.deadline) : undefined);
     }
   }, [feature]);
@@ -80,6 +84,7 @@ export function FeatureDetailDialog({
       description: description.trim() || null,
       stage_id: stageId || null,
       priority,
+      category: category || null,
       deadline: deadline ? format(deadline, "yyyy-MM-dd") : null,
     });
     onOpenChange(false);
@@ -120,6 +125,36 @@ export function FeatureDetailDialog({
                 placeholder="Add more details about this feature..."
                 rows={4}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category">
+                    {category && (
+                      <Badge 
+                        variant="secondary" 
+                        className={cn("text-xs", getCategoryColor(category))}
+                      >
+                        {category}
+                      </Badge>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {FEATURE_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      <Badge 
+                        variant="secondary" 
+                        className={cn("text-xs", getCategoryColor(cat))}
+                      >
+                        {cat}
+                      </Badge>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
