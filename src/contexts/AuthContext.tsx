@@ -241,14 +241,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth`,
-      },
-    });
+    // Detect if we're on a custom domain (not Lovable preview)
+    const isCustomDomain = 
+      !window.location.hostname.includes('lovable.app') &&
+      !window.location.hostname.includes('lovableproject.com');
 
-    if (error) throw error;
+    if (isCustomDomain) {
+      // Bypass auth-bridge by getting OAuth URL directly for custom domains
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+          skipBrowserRedirect: true, // Get URL instead of auto-redirecting
+        },
+      });
+
+      if (error) throw error;
+
+      // Security: Validate OAuth URL before redirect to prevent open redirect
+      if (data?.url) {
+        const oauthUrl = new URL(data.url);
+        const allowedHosts = ['accounts.google.com'];
+        if (!allowedHosts.some(host => oauthUrl.hostname === host)) {
+          throw new Error('Invalid OAuth redirect URL');
+        }
+        window.location.href = data.url; // Manual redirect
+      }
+    } else {
+      // For Lovable domains, use normal flow (auth-bridge handles it)
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+        },
+      });
+
+      if (error) throw error;
+    }
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, fullName: string, metadata?: Record<string, unknown>) => {
