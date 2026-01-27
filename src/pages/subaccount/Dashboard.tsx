@@ -1,11 +1,26 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, FileText, FolderKanban, TrendingUp, Clock, CheckCircle2, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { 
+  BarChart3, 
+  FileText, 
+  FolderKanban, 
+  TrendingUp, 
+  Clock, 
+  CheckCircle2, 
+  Calendar,
+  Rocket,
+  Globe,
+  Plus,
+  ExternalLink
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useQuery } from "@tanstack/react-query";
 import { useSubaccountUsage } from "@/hooks/useSubaccountUsage";
+import { StatCard, HealthIndicator, HealthStatus } from "@/components/dashboard";
+import { formatDistanceToNow } from "date-fns";
 
 interface RecentProject {
   id: string;
@@ -14,8 +29,16 @@ interface RecentProject {
   createdAt: Date;
 }
 
+interface WpConnection {
+  id: string;
+  name: string;
+  status: string;
+  lastChecked: Date | null;
+}
+
 export default function SubaccountDashboard() {
   const { subaccountId } = useParams();
+  const navigate = useNavigate();
   
   // Use the shared usage hook for consistent data
   const usage = useSubaccountUsage(subaccountId);
@@ -38,10 +61,53 @@ export default function SubaccountDashboard() {
         recentProjects: (projects || []).map(p => ({
           id: p.id,
           name: p.name,
-          articleCount: 0, // We'll skip individual counts for performance
+          articleCount: 0,
           createdAt: new Date(p.created_at),
         })) as RecentProject[],
       };
+    },
+    enabled: !!subaccountId,
+  });
+
+  // Fetch campaign metrics
+  const { data: campaignData, isLoading: campaignsLoading } = useQuery({
+    queryKey: ['campaign-metrics', subaccountId],
+    queryFn: async () => {
+      const [campaignsResult, pagesResult] = await Promise.all([
+        supabase.from("campaigns").select("id, status", { count: "exact" }).eq("subaccount_id", subaccountId || ""),
+        supabase.from("campaign_pages").select("id, status", { count: "exact" }).eq("subaccount_id", subaccountId || ""),
+      ]);
+
+      const pages = pagesResult.data || [];
+      const publishedPages = pages.filter((p: any) => p.status === "published").length;
+
+      return {
+        totalCampaigns: campaignsResult.count || 0,
+        totalPages: pagesResult.count || 0,
+        publishedPages,
+        publishRate: pagesResult.count ? Math.round((publishedPages / pagesResult.count) * 100) : 0,
+      };
+    },
+    enabled: !!subaccountId,
+  });
+
+  // Fetch WordPress connections
+  const { data: wpConnections, isLoading: wpLoading } = useQuery({
+    queryKey: ['wp-connections', subaccountId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wordpress_connections")
+        .select("id, name, status, last_checked_at")
+        .eq("subaccount_id", subaccountId || "");
+
+      if (error) throw error;
+      
+      return (data || []).map(wp => ({
+        id: wp.id,
+        name: wp.name,
+        status: wp.status,
+        lastChecked: wp.last_checked_at ? new Date(wp.last_checked_at) : null,
+      })) as WpConnection[];
     },
     enabled: !!subaccountId,
   });
@@ -65,11 +131,9 @@ export default function SubaccountDashboard() {
       });
 
       const articles = articlesResponse?.articles || [];
-      // Only count as "published" if actually published to CMS
       const published = articles.filter((a: any) => 
         a.status?.toLowerCase() === "published"
       ).length;
-      // Everything else is a draft (including content ready, article ready, draft, etc.)
       const drafts = articles.length - published;
 
       return { published, drafts };
@@ -77,10 +141,8 @@ export default function SubaccountDashboard() {
     enabled: !!subaccountId,
   });
 
-  const loading = usage.isLoading || projectsLoading || statsLoading;
+  const loading = usage.isLoading || projectsLoading || statsLoading || campaignsLoading || wpLoading;
 
-  // Keep dashboard usage consistent with the counters used elsewhere.
-  // If the DB-backed period counter isn't being incremented yet, fall back to actual article count.
   const usedThisPeriod =
     usage.articlesUsedPeriod === 0 && usage.totalArticles > 0
       ? usage.totalArticles
@@ -90,39 +152,20 @@ export default function SubaccountDashboard() {
     ? Math.min(100, (usedThisPeriod / usage.articleLimit) * 100)
     : 0;
 
-  // Format billing period end date
   const formatPeriodEnd = () => {
     if (!usage.billingPeriodEnd) return "N/A";
     const date = new Date(usage.billingPeriodEnd);
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const statCards = [
-    {
-      title: "Total Projects",
-      value: projectsData?.totalCount || 0,
-      icon: FolderKanban,
-      description: "Active content projects",
-    },
-    {
-      title: "Total Articles",
-      value: usage.totalArticles,
-      icon: FileText,
-      description: "All-time articles created",
-    },
-    {
-      title: "Published",
-      value: articleStats?.published || 0,
-      icon: CheckCircle2,
-      description: "Live or ready content",
-    },
-    {
-      title: "Used This Period",
-      value: usedThisPeriod,
-      icon: TrendingUp,
-      description: `of ${usage.articleLimit} articles`,
-    },
-  ];
+  const getWpHealthStatus = (status: string): HealthStatus => {
+    switch (status) {
+      case "connected": return "healthy";
+      case "error": return "error";
+      case "disconnected": return "warning";
+      default: return "pending";
+    }
+  };
 
   if (loading) {
     return (
@@ -131,17 +174,14 @@ export default function SubaccountDashboard() {
           <Skeleton className="h-9 w-48" />
           <Skeleton className="h-5 w-72 mt-2" />
         </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-4 w-24" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-16" />
-                <Skeleton className="h-3 w-32 mt-2" />
-              </CardContent>
-            </Card>
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32" />
           ))}
         </div>
       </div>
@@ -157,25 +197,66 @@ export default function SubaccountDashboard() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Row 1: Content Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Projects"
+          value={projectsData?.totalCount || 0}
+          icon={FolderKanban}
+          description="Active content projects"
+          href={`/subaccount/${subaccountId}/projects`}
+        />
+        <StatCard
+          title="Total Articles"
+          value={usage.totalArticles}
+          icon={FileText}
+          description="All-time articles created"
+          href={`/subaccount/${subaccountId}/blogs`}
+        />
+        <StatCard
+          title="Published"
+          value={articleStats?.published || 0}
+          icon={CheckCircle2}
+          description="Live content"
+        />
+        <StatCard
+          title="Used This Period"
+          value={usedThisPeriod}
+          icon={TrendingUp}
+          description={`of ${usage.articleLimit} articles`}
+        />
       </div>
 
+      {/* Row 2: Campaign Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="pSEO Campaigns"
+          value={campaignData?.totalCampaigns || 0}
+          icon={Rocket}
+          description="Active campaigns"
+          href={`/subaccount/${subaccountId}/campaigns`}
+        />
+        <StatCard
+          title="Pages Generated"
+          value={campaignData?.totalPages || 0}
+          icon={FileText}
+          description="Total campaign pages"
+        />
+        <StatCard
+          title="Pages Published"
+          value={campaignData?.publishedPages || 0}
+          icon={Globe}
+          description="Live on your site"
+        />
+        <StatCard
+          title="Publishing Rate"
+          value={`${campaignData?.publishRate || 0}%`}
+          icon={BarChart3}
+          description="Published / Total"
+        />
+      </div>
+
+      {/* Row 3: Usage & WordPress Status */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -208,21 +289,122 @@ export default function SubaccountDashboard() {
         </Card>
 
         <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              WordPress Connections
+            </CardTitle>
+            {wpConnections && wpConnections.length > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => navigate(`/subaccount/${subaccountId}/connections`)}
+              >
+                Manage
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {!wpConnections || wpConnections.length === 0 ? (
+              <div className="text-center py-6">
+                <Globe className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  No WordPress sites connected yet
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate(`/subaccount/${subaccountId}/connections`)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Connect WordPress
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {wpConnections.map((wp) => (
+                  <div key={wp.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">{wp.name}</p>
+                      {wp.lastChecked && (
+                        <p className="text-xs text-muted-foreground">
+                          Last synced {formatDistanceToNow(wp.lastChecked, { addSuffix: true })}
+                        </p>
+                      )}
+                    </div>
+                    <HealthIndicator 
+                      status={getWpHealthStatus(wp.status)} 
+                      size="sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 4: Quick Actions & Recent Projects */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 flex flex-col items-center gap-2"
+                onClick={() => navigate(`/subaccount/${subaccountId}/blogs`)}
+              >
+                <FileText className="h-5 w-5" />
+                <span className="text-xs">Create Article</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 flex flex-col items-center gap-2"
+                onClick={() => navigate(`/subaccount/${subaccountId}/campaigns`)}
+              >
+                <Rocket className="h-5 w-5" />
+                <span className="text-xs">New Campaign</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 flex flex-col items-center gap-2"
+                onClick={() => navigate(`/subaccount/${subaccountId}/projects`)}
+              >
+                <FolderKanban className="h-5 w-5" />
+                <span className="text-xs">View Projects</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 flex flex-col items-center gap-2"
+                onClick={() => navigate(`/subaccount/${subaccountId}/connections`)}
+              >
+                <Globe className="h-5 w-5" />
+                <span className="text-xs">Connections</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader>
             <CardTitle>Recent Projects</CardTitle>
           </CardHeader>
           <CardContent>
             {(projectsData?.recentProjects?.length || 0) === 0 ? (
-              <p className="text-muted-foreground">No projects yet. Create your first project to get started.</p>
+              <p className="text-muted-foreground text-sm text-center py-4">
+                No projects yet. Create your first project to get started.
+              </p>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {projectsData?.recentProjects.map((project) => (
-                  <div key={project.id} className="flex items-center justify-between">
+                  <div key={project.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors">
                     <div className="flex items-center gap-3">
                       <FolderKanban className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{project.name}</p>
-                      </div>
+                      <p className="font-medium text-sm">{project.name}</p>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
