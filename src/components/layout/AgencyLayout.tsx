@@ -22,13 +22,15 @@ interface AgencyLayoutProps {
 }
 
 export function AgencyLayout({ children, agencyId }: AgencyLayoutProps) {
-  const { user, profile, signOut, hasRole } = useAuth();
+  const { user, profile, signOut, hasRole, impersonation } = useAuth();
   const navigate = useNavigate();
+  const isImpersonating = impersonation?.isImpersonating;
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full flex-col theme-agency">
         <ImpersonationBanner />
+        {isImpersonating && <div className="h-12" />}
         
         <header className="sticky top-0 z-50 h-16 flex items-center border-b bg-white px-6 gap-6">
           <div className="flex items-center gap-4">
