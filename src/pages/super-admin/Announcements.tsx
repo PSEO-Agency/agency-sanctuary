@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Megaphone, Send, FileEdit, Trash2, MoreVertical } from "lucide-react";
+import { Plus, Megaphone, Send, FileEdit, Trash2, MoreVertical, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CreateAnnouncementDialog } from "@/components/announcements/CreateAnnouncementDialog";
+import { AnnouncementDetailDialog } from "@/components/announcements/AnnouncementDetailDialog";
 import { useAnnouncements, type Announcement, type AudienceLevel } from "@/hooks/useAnnouncements";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ export default function Announcements() {
   const { announcements, deleteAnnouncement, updateAnnouncement, isLoading } = useAnnouncements();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "drafts" | "published">("all");
 
@@ -60,6 +62,11 @@ export default function Announcements() {
       setDeleteDialogOpen(false);
       setSelectedAnnouncement(null);
     }
+  };
+
+  const handleViewAnnouncement = (announcement: Announcement) => {
+    setSelectedAnnouncement(announcement);
+    setDetailDialogOpen(true);
   };
 
   const handlePublish = async (announcement: Announcement) => {
@@ -144,15 +151,23 @@ export default function Announcements() {
                 </TableHeader>
                 <TableBody>
                   {filteredAnnouncements.map(announcement => (
-                    <TableRow key={announcement.id}>
+                    <TableRow 
+                      key={announcement.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleViewAnnouncement(announcement)}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          {announcement.image_url && (
+                          {announcement.image_url ? (
                             <img 
                               src={announcement.image_url} 
                               alt=""
-                              className="w-12 h-8 rounded object-cover bg-muted"
+                              className="w-16 h-10 rounded object-cover bg-muted"
                             />
+                          ) : (
+                            <div className="w-16 h-10 rounded bg-muted flex items-center justify-center">
+                              <Megaphone className="h-4 w-4 text-muted-foreground" />
+                            </div>
                           )}
                           <div>
                             <p className="font-medium">{announcement.title}</p>
@@ -191,14 +206,18 @@ export default function Announcements() {
                       <TableCell className="text-muted-foreground text-sm">
                         {format(new Date(announcement.published_at), "MMM d, yyyy")}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="bg-background z-50">
+                            <DropdownMenuItem onClick={() => handleViewAnnouncement(announcement)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View
+                            </DropdownMenuItem>
                             {announcement.is_draft && (
                               <DropdownMenuItem onClick={() => handlePublish(announcement)}>
                                 <Send className="h-4 w-4 mr-2" />
@@ -231,6 +250,14 @@ export default function Announcements() {
       <CreateAnnouncementDialog 
         open={createDialogOpen} 
         onOpenChange={setCreateDialogOpen} 
+      />
+
+      {/* Detail Dialog */}
+      <AnnouncementDetailDialog
+        announcement={selectedAnnouncement}
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        showAudienceBadges
       />
 
       {/* Delete Confirmation */}

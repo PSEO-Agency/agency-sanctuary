@@ -10,7 +10,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { AnnouncementCard } from "./AnnouncementCard";
-import { useAnnouncements, type AudienceLevel } from "@/hooks/useAnnouncements";
+import { AnnouncementDetailDialog } from "./AnnouncementDetailDialog";
+import { useAnnouncements, type AudienceLevel, type Announcement } from "@/hooks/useAnnouncements";
 import { cn } from "@/lib/utils";
 
 interface AnnouncementDropdownProps {
@@ -29,6 +30,8 @@ export function AnnouncementDropdown({ variant = "default" }: AnnouncementDropdo
   } = useAnnouncements();
 
   const [open, setOpen] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   
   // Determine tabs based on user role
   const tabs: { value: AudienceLevel; label: string }[] = [];
@@ -43,88 +46,104 @@ export function AnnouncementDropdown({ variant = "default" }: AnnouncementDropdo
 
   const [activeTab, setActiveTab] = useState<AudienceLevel>(tabs[0]?.value || "subaccount");
 
+  const handleSelectAnnouncement = (announcement: Announcement) => {
+    setSelectedAnnouncement(announcement);
+    setDetailOpen(true);
+    setOpen(false);
+  };
+
   const currentAnnouncements = getAnnouncementsByAudience(activeTab);
   const currentUnread = getUnreadByAudience(activeTab);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Megaphone className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
-              className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1.5 text-xs flex items-center justify-center"
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </Badge>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 z-50" align="end">
-        <div className="p-3 border-b">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold">Announcements</h4>
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative">
+            <Megaphone className="h-5 w-5" />
             {unreadCount > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-7 text-xs"
-                onClick={markAllAsRead}
+              <Badge 
+                variant="destructive" 
+                className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1.5 text-xs flex items-center justify-center"
               >
-                <Check className="mr-1 h-3 w-3" />
-                Mark all read
-              </Button>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Badge>
             )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-96 p-0 z-50" align="end">
+          <div className="p-3 border-b">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold">Announcements</h4>
+              {unreadCount > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={markAllAsRead}
+                >
+                  <Check className="mr-1 h-3 w-3" />
+                  Mark all read
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {tabs.length > 1 ? (
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as AudienceLevel)}>
-            <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-              {tabs.map(tab => {
-                const tabUnread = getUnreadByAudience(tab.value).length;
-                return (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className={cn(
-                      "relative rounded-none border-b-2 border-transparent px-4 py-2 text-sm",
-                      "data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                    )}
-                  >
-                    {tab.label}
-                    {tabUnread > 0 && (
-                      <Badge 
-                        variant="secondary" 
-                        className="ml-1.5 h-5 min-w-[20px] px-1 text-xs bg-primary/10 text-primary"
-                      >
-                        {tabUnread}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-            {tabs.map(tab => (
-              <TabsContent key={tab.value} value={tab.value} className="m-0">
-                <AnnouncementList 
-                  announcements={getAnnouncementsByAudience(tab.value)}
-                  isRead={isRead}
-                  onMarkRead={markAsRead}
-                />
-              </TabsContent>
-            ))}
-          </Tabs>
-        ) : (
-          <AnnouncementList 
-            announcements={currentAnnouncements}
-            isRead={isRead}
-            onMarkRead={markAsRead}
-          />
-        )}
-      </PopoverContent>
-    </Popover>
+          {tabs.length > 1 ? (
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as AudienceLevel)}>
+              <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+                {tabs.map(tab => {
+                  const tabUnread = getUnreadByAudience(tab.value).length;
+                  return (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className={cn(
+                        "relative rounded-none border-b-2 border-transparent px-4 py-2 text-sm",
+                        "data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                      )}
+                    >
+                      {tab.label}
+                      {tabUnread > 0 && (
+                        <Badge 
+                          variant="secondary" 
+                          className="ml-1.5 h-5 min-w-[20px] px-1 text-xs bg-primary/10 text-primary"
+                        >
+                          {tabUnread}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+              {tabs.map(tab => (
+                <TabsContent key={tab.value} value={tab.value} className="m-0">
+                  <AnnouncementList 
+                    announcements={getAnnouncementsByAudience(tab.value)}
+                    isRead={isRead}
+                    onMarkRead={markAsRead}
+                    onSelectAnnouncement={handleSelectAnnouncement}
+                  />
+                </TabsContent>
+              ))}
+            </Tabs>
+          ) : (
+            <AnnouncementList 
+              announcements={currentAnnouncements}
+              isRead={isRead}
+              onMarkRead={markAsRead}
+              onSelectAnnouncement={handleSelectAnnouncement}
+            />
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <AnnouncementDetailDialog
+        announcement={selectedAnnouncement}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
+    </>
   );
 }
 
@@ -132,9 +151,10 @@ interface AnnouncementListProps {
   announcements: ReturnType<typeof useAnnouncements>["announcements"];
   isRead: (id: string) => boolean;
   onMarkRead: (id: string) => void;
+  onSelectAnnouncement: (announcement: ReturnType<typeof useAnnouncements>["announcements"][0]) => void;
 }
 
-function AnnouncementList({ announcements, isRead, onMarkRead }: AnnouncementListProps) {
+function AnnouncementList({ announcements, isRead, onMarkRead, onSelectAnnouncement }: AnnouncementListProps) {
   if (announcements.length === 0) {
     return (
       <div className="p-8 text-center text-muted-foreground">
@@ -145,7 +165,7 @@ function AnnouncementList({ announcements, isRead, onMarkRead }: AnnouncementLis
   }
 
   return (
-    <ScrollArea className="max-h-[300px]">
+    <ScrollArea className="max-h-[350px]">
       <div className="p-1">
         {announcements.slice(0, 10).map(announcement => (
           <AnnouncementCard
@@ -153,6 +173,7 @@ function AnnouncementList({ announcements, isRead, onMarkRead }: AnnouncementLis
             announcement={announcement}
             isRead={isRead(announcement.id)}
             onMarkRead={() => onMarkRead(announcement.id)}
+            onClick={() => onSelectAnnouncement(announcement)}
             compact
           />
         ))}
