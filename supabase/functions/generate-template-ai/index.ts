@@ -58,7 +58,8 @@ serve(async (req) => {
 
 The template is for the "${entity.name}" entity type (URL prefix: ${entity.urlPrefix}).
 
-Available template variables: ${variableList}, {{company}}
+IMPORTANT: You MUST use these specific variables in the template: ${variableList}, {{company}}
+The user has explicitly selected these variables to be used. Make sure each selected variable appears in at least one section.
 
 Data samples from the campaign:
 ${dataContext || "No data samples provided"}

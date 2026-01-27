@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Loader2, RotateCcw, Check, Tags, ChevronRight, LayoutTemplate } from "lucide-react";
+import { Sparkles, Loader2, RotateCcw, Check, Tags, ChevronRight, LayoutTemplate, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignFormData, Entity, DynamicColumn, TemplateContentConfig } from "../types";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // Example prompt templates for quick selection
 const EXAMPLE_PROMPTS = [
@@ -56,7 +58,7 @@ interface GeneratedSection {
   id: string;
   type: string;
   name: string;
-  content: Record<string, string>;
+  content: Record<string, string | string[]>;
 }
 
 interface GeneratedTemplate {
@@ -87,6 +89,9 @@ export function AITemplateGeneratorDialog({
   const [generationStatus, setGenerationStatus] = useState<"idle" | "generating" | "reviewing" | "complete">("idle");
   const [error, setError] = useState<string | null>(null);
   const [userPrompt, setUserPrompt] = useState("");
+  
+  // NEW: State for selected variables
+  const [selectedVariables, setSelectedVariables] = useState<string[]>([]);
 
   // Get entities from formData - if none, create a default one
   const entities: Entity[] = formData.entities?.length > 0 
@@ -131,14 +136,31 @@ export function AITemplateGeneratorDialog({
         setGenerationStatus("idle");
       }
       
+      // Initialize selected variables with all variables selected
+      setSelectedVariables(formData.dynamicColumns.map(c => c.variableName));
+      
       setError(null);
       setUserPrompt("");
     }
-  }, [open, entities, formData.entityTemplates]);
+  }, [open, entities, formData.entityTemplates, formData.dynamicColumns]);
+
+  // Toggle variable selection
+  const toggleVariable = (varName: string) => {
+    setSelectedVariables(prev => 
+      prev.includes(varName)
+        ? prev.filter(v => v !== varName)
+        : [...prev, varName]
+    );
+  };
 
   // Generate template for current entity
   const generateTemplate = async () => {
     if (!currentEntity) return;
+    
+    if (selectedVariables.length === 0) {
+      toast.error("Please select at least one variable to use in the template");
+      return;
+    }
     
     setIsGenerating(true);
     setGenerationStatus("generating");
@@ -150,7 +172,7 @@ export function AITemplateGeneratorDialog({
           business_name: formData.businessName || "Business",
           business_type: formData.businessType || "local",
           entity: currentEntity,
-          variables: formData.dynamicColumns.map((c) => c.variableName),
+          variables: selectedVariables, // Only pass selected variables
           existing_data: formData.scratchData,
           user_prompt: userPrompt || undefined,
         },
@@ -213,6 +235,8 @@ export function AITemplateGeneratorDialog({
       setCurrentEntityIndex((prev) => prev + 1);
       setGenerationStatus("idle");
       setUserPrompt(""); // Clear prompt for next entity
+      // Reset selected variables for next entity
+      setSelectedVariables(formData.dynamicColumns.map(c => c.variableName));
     } else {
       // All entities done
       onComplete();
@@ -224,6 +248,8 @@ export function AITemplateGeneratorDialog({
     if (currentEntityIndex < entities.length - 1) {
       setCurrentEntityIndex((prev) => prev + 1);
       setGenerationStatus("idle");
+      // Reset selected variables for next entity
+      setSelectedVariables(formData.dynamicColumns.map(c => c.variableName));
     } else {
       onComplete();
     }
@@ -277,7 +303,7 @@ export function AITemplateGeneratorDialog({
 
         {/* Generation status: idle */}
         {generationStatus === "idle" && (
-          <div className="py-8 space-y-6">
+          <div className="py-6 space-y-6">
             <div className="text-center">
               <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
                 <LayoutTemplate className="h-8 w-8 text-primary" />
@@ -285,6 +311,47 @@ export function AITemplateGeneratorDialog({
               <h3 className="font-semibold text-lg">Ready to Generate</h3>
               <p className="text-muted-foreground text-sm mt-1">
                 AI will create a custom template structure for {currentEntity?.name || "your pages"}
+              </p>
+            </div>
+
+            {/* Variable Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Select Variables to Use</Label>
+              <div className="space-y-2 bg-muted/30 rounded-lg p-3">
+                {formData.dynamicColumns.map((col) => {
+                  const isSelected = selectedVariables.includes(col.variableName);
+                  const samples = (formData.scratchData?.[col.id] || []).slice(0, 3);
+                  return (
+                    <div
+                      key={col.id}
+                      className={cn(
+                        "flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-muted/50 transition-colors",
+                        isSelected && "bg-primary/10 border border-primary/20"
+                      )}
+                      onClick={() => toggleVariable(col.variableName)}
+                    >
+                      <Checkbox 
+                        checked={isSelected} 
+                        onCheckedChange={() => toggleVariable(col.variableName)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        {`{{${col.variableName}}}`}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground flex-1 truncate">
+                        {samples.length > 0 ? samples.join(", ") : "No samples"}
+                      </span>
+                    </div>
+                  );
+                })}
+                {formData.dynamicColumns.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    No variables defined. The template will use {"{{company}}"} only.
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Only selected variables will be used in the AI-generated template.
               </p>
             </div>
 
@@ -333,7 +400,11 @@ export function AITemplateGeneratorDialog({
             )}
 
             <div className="text-center">
-              <Button onClick={generateTemplate} size="lg">
+              <Button 
+                onClick={generateTemplate} 
+                size="lg"
+                disabled={selectedVariables.length === 0 && formData.dynamicColumns.length > 0}
+              >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Generate Template for {currentEntity?.name}
               </Button>
@@ -360,6 +431,7 @@ export function AITemplateGeneratorDialog({
             template={generatedTemplates[currentEntity.id]}
             entity={currentEntity}
             variables={formData.dynamicColumns}
+            selectedVariables={selectedVariables}
           />
         )}
 
@@ -387,14 +459,141 @@ export function AITemplateGeneratorDialog({
   );
 }
 
-// Template preview component
+// Helper to analyze variable and prompt usage in a value
+function analyzeContent(value: string | string[]): { variables: string[]; hasPrompt: boolean; hasImagePrompt: boolean } {
+  const values = Array.isArray(value) ? value : [value];
+  const variables: string[] = [];
+  let hasPrompt = false;
+  let hasImagePrompt = false;
+
+  values.forEach((v) => {
+    const str = String(v);
+    // Extract {{variable}} patterns
+    const varMatches = str.match(/\{\{(\w+)\}\}/g) || [];
+    varMatches.forEach((m) => {
+      const varName = m.replace(/\{\{|\}\}/g, "");
+      if (!variables.includes(varName)) {
+        variables.push(varName);
+      }
+    });
+    // Check for prompt() patterns
+    if (/prompt\s*\(/.test(str)) hasPrompt = true;
+    // Check for image_prompt() patterns
+    if (/image_prompt\s*\(/.test(str)) hasImagePrompt = true;
+  });
+
+  return { variables, hasPrompt, hasImagePrompt };
+}
+
+// Helper component to highlight variables and prompts in content
+function HighlightedContent({ value }: { value: string | string[] }) {
+  const str = Array.isArray(value)
+    ? `[${value.map((v) => `"${v}"`).join(", ")}]`
+    : String(value);
+
+  // Truncate long strings
+  const displayStr = str.length > 150 ? str.substring(0, 150) + "..." : str;
+
+  // Highlight patterns using React elements instead of dangerouslySetInnerHTML for safety
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  const regex = /(\{\{\w+\}\})|image_prompt\s*\([^)]+\)|prompt\s*\([^)]+\)/g;
+  let match;
+
+  while ((match = regex.exec(displayStr)) !== null) {
+    // Add text before match
+    if (match.index > lastIndex) {
+      parts.push(
+        <span key={`text-${lastIndex}`} className="text-muted-foreground">
+          {displayStr.substring(lastIndex, match.index)}
+        </span>
+      );
+    }
+
+    // Add highlighted match
+    const matchStr = match[0];
+    if (matchStr.startsWith("{{")) {
+      parts.push(
+        <span key={`var-${match.index}`} className="text-primary font-medium">
+          {matchStr}
+        </span>
+      );
+    } else if (matchStr.startsWith("image_prompt")) {
+      parts.push(
+        <span key={`img-${match.index}`} className="text-purple-600 italic">
+          {matchStr}
+        </span>
+      );
+    } else if (matchStr.startsWith("prompt")) {
+      parts.push(
+        <span key={`prompt-${match.index}`} className="text-amber-600 italic">
+          {matchStr}
+        </span>
+      );
+    }
+
+    lastIndex = match.index + matchStr.length;
+  }
+
+  // Add remaining text
+  if (lastIndex < displayStr.length) {
+    parts.push(
+      <span key={`text-end`} className="text-muted-foreground">
+        {displayStr.substring(lastIndex)}
+      </span>
+    );
+  }
+
+  return <span className="ml-2 text-xs break-all">{parts}</span>;
+}
+
+// Template preview component with enhanced variable analysis
 interface TemplatePreviewProps {
   template: GeneratedTemplate;
   entity: Entity;
   variables: DynamicColumn[];
+  selectedVariables: string[];
 }
 
-function TemplatePreview({ template, entity, variables }: TemplatePreviewProps) {
+function TemplatePreview({ template, entity, variables, selectedVariables }: TemplatePreviewProps) {
+  // Analyze each section for variable and prompt usage
+  const sectionAnalysis = template.sections.map((section) => {
+    const usedVariables: string[] = [];
+    let hasPrompts = false;
+    let hasImagePrompts = false;
+
+    Object.values(section.content).forEach((value) => {
+      const analysis = analyzeContent(value);
+      analysis.variables.forEach((v) => {
+        if (!usedVariables.includes(v)) {
+          usedVariables.push(v);
+        }
+      });
+      if (analysis.hasPrompt) hasPrompts = true;
+      if (analysis.hasImagePrompt) hasImagePrompts = true;
+    });
+
+    return {
+      section,
+      usedVariables,
+      hasPrompts,
+      hasImagePrompts,
+    };
+  });
+
+  // Calculate overall variable usage summary
+  const allVariableNames = [...selectedVariables, "company"];
+  const variableUsageSummary = allVariableNames.map((varName) => {
+    const sectionsUsing = sectionAnalysis.filter((a) =>
+      a.usedVariables.includes(varName)
+    );
+    return {
+      name: varName,
+      usedIn: sectionsUsing.length,
+      totalSections: template.sections.length,
+    };
+  });
+
   return (
     <div className="space-y-6">
       {/* Sections grid */}
@@ -415,50 +614,107 @@ function TemplatePreview({ template, entity, variables }: TemplatePreviewProps) 
         </div>
       </div>
 
-      {/* Variables used */}
-      <div>
-        <h4 className="font-semibold text-sm mb-3">Variables Used</h4>
-        <div className="flex flex-wrap gap-2">
-          {variables.map((v) => (
-            <Badge key={v.id} variant="secondary" className="font-mono text-xs">
-              {`{{${v.variableName}}}`}
-            </Badge>
-          ))}
-          <Badge variant="secondary" className="font-mono text-xs">
-            {`{{company}}`}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Content preview */}
-      <div>
-        <h4 className="font-semibold text-sm mb-3">Content Preview</h4>
-        <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
-          {template.sections.map((section) => (
-            <div key={section.id} className="p-3">
-              <div className="text-xs text-primary font-medium mb-2">
-                {section.name}
+      {/* Variable Usage Summary */}
+      <div className="bg-muted/30 rounded-lg p-4">
+        <h4 className="font-semibold text-sm mb-3">Variable Usage Summary</h4>
+        <div className="space-y-2">
+          {variableUsageSummary.map(({ name, usedIn, totalSections }) => (
+            <div key={name} className="flex items-center gap-2">
+              <Badge variant="secondary" className="font-mono text-xs min-w-[100px] justify-center">
+                {`{{${name}}}`}
+              </Badge>
+              <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full transition-all",
+                    usedIn > 0 ? "bg-primary" : "bg-muted"
+                  )}
+                  style={{ width: `${(usedIn / totalSections) * 100}%` }}
+                />
               </div>
-              <div className="space-y-1">
-                {Object.entries(section.content).slice(0, 3).map(([key, value]) => (
-                  <div key={key} className="text-sm flex gap-2">
-                    <span className="font-mono text-[10px] text-muted-foreground shrink-0 w-20 truncate">
-                      {key}:
-                    </span>
-                    <span className="text-muted-foreground truncate">
-                      {String(value).substring(0, 80)}
-                      {String(value).length > 80 ? "..." : ""}
-                    </span>
-                  </div>
-                ))}
-                {Object.keys(section.content).length > 3 && (
-                  <div className="text-xs text-muted-foreground">
-                    +{Object.keys(section.content).length - 3} more fields
-                  </div>
-                )}
-              </div>
+              <span className="text-xs text-muted-foreground min-w-[60px] text-right">
+                {usedIn}/{totalSections} sections
+              </span>
+              {usedIn > 0 ? (
+                <Check className="h-4 w-4 text-green-500 shrink-0" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+              )}
             </div>
           ))}
+        </div>
+        {variableUsageSummary.some(v => v.usedIn === 0) && (
+          <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Some variables are not used. Consider regenerating with different instructions.
+          </p>
+        )}
+      </div>
+
+      {/* Variable Usage by Section - Collapsible */}
+      <div>
+        <h4 className="font-semibold text-sm mb-3">Section Details</h4>
+        <Accordion type="multiple" className="w-full">
+          {sectionAnalysis.map(({ section, usedVariables, hasPrompts, hasImagePrompts }) => (
+            <AccordionItem key={section.id} value={section.id}>
+              <AccordionTrigger className="text-sm hover:no-underline">
+                <div className="flex items-center gap-2 flex-1">
+                  <Badge variant="outline" className="text-xs">
+                    {section.type}
+                  </Badge>
+                  <span className="font-medium">{section.name}</span>
+                  <div className="flex items-center gap-1 ml-auto mr-2">
+                    {usedVariables.length > 0 && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5">
+                        {usedVariables.length} vars
+                      </Badge>
+                    )}
+                    {hasPrompts && (
+                      <Badge className="text-[10px] px-1.5 bg-amber-100 text-amber-700 hover:bg-amber-100">
+                        AI text
+                      </Badge>
+                    )}
+                    {hasImagePrompts && (
+                      <Badge className="text-[10px] px-1.5 bg-purple-100 text-purple-700 hover:bg-purple-100">
+                        AI image
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2 pl-4 border-l-2 border-muted">
+                  {Object.entries(section.content).map(([key, value]) => (
+                    <div key={key} className="text-sm flex flex-wrap items-start">
+                      <code className="text-xs bg-muted px-1 rounded shrink-0">
+                        {key}:
+                      </code>
+                      <HighlightedContent value={value} />
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground border-t pt-4">
+        <div className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-primary/20 border border-primary"></span>
+          <span className="text-primary font-medium">{`{{variable}}`}</span>
+          <span>= Data substitution</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-amber-100 border border-amber-300"></span>
+          <span className="text-amber-600 italic">prompt(...)</span>
+          <span>= AI text</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-purple-100 border border-purple-300"></span>
+          <span className="text-purple-600 italic">image_prompt(...)</span>
+          <span>= AI image</span>
         </div>
       </div>
     </div>
