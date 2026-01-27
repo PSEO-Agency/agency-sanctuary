@@ -20,7 +20,7 @@ interface SuperAdminLayoutProps {
 }
 
 export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
-  const { user, signOut, hasRole } = useAuth();
+  const { user, signOut, hasRole, impersonation } = useAuth();
   
   const isCountryPartner = hasRole("country_partner");
   const isSuperAdmin = hasRole("super_admin");
@@ -33,11 +33,13 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
     : "Admin";
   
   const themeClass = isCountryPartner && !isSuperAdmin ? "theme-partner" : "theme-super-admin";
+  const isImpersonating = impersonation?.isImpersonating;
 
   return (
     <SidebarProvider>
       <div className={`min-h-screen flex w-full flex-col ${themeClass}`}>
         <ImpersonationBanner />
+        {isImpersonating && <div className="h-12" />}
         
         <header className="sticky top-0 z-50 h-16 flex items-center border-b bg-white px-6 gap-6">
           <div className="flex items-center gap-4">

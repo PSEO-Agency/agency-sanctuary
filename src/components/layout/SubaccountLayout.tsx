@@ -27,7 +27,7 @@ interface SubaccountLayoutProps {
 }
 
 export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutProps) {
-  const { user, profile, signOut, hasRole } = useAuth();
+  const { user, profile, signOut, hasRole, impersonation } = useAuth();
   const navigate = useNavigate();
   const { unreadCount } = useAnnouncements();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -41,10 +41,13 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
     }
   }, [unreadCount]);
 
+  const isImpersonating = impersonation?.isImpersonating;
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full flex-col theme-subaccount">
         <ImpersonationBanner />
+        {isImpersonating && <div className="h-12" />}
         
         <header className="sticky top-0 z-50 h-16 flex items-center border-b bg-white px-6 gap-6">
           {/* Logo Section */}
