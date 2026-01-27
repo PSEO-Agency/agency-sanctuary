@@ -1,104 +1,157 @@
 
-# Align Agency Subaccounts Table with Super Admin Design
 
-## Problem
-The Agency dashboard's subaccount table at `src/pages/agency/Subaccounts.tsx` uses the old button layout (4 full-width buttons), while the Super Admin version has already been updated to use the compact "ElevenLabs" style (icon button + dropdown menu).
+# Mode Switch Enhancement Plan
 
-## Solution
-Update the Agency subaccounts table to match the Super Admin design pattern.
+## Overview
 
-## Implementation
+This plan enhances the user experience when switching between **Content Machine** and **pSEO Builder** modes by adding a beautiful confirmation modal and automatic navigation to the relevant section.
 
-### File: `src/pages/agency/Subaccounts.tsx`
+## Current Behavior
 
-**1. Add missing imports:**
-```tsx
-import { MoreVertical, Eye } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+1. User clicks the mode switcher button
+2. CSS animation transitions between sidebar sections
+3. Mode is saved to localStorage
+4. No feedback indicating the switch happened
+5. User stays on the current page
+
+## Proposed Changes
+
+### 1. Create a New Modal Component
+
+**File:** `src/components/ModeSwitchDialog.tsx` (new file)
+
+A visually stunning modal that appears when switching modes:
+
+```
++-----------------------------------------------+
+|                                               |
+|     [Gradient Icon with Animation]            |
+|                                               |
+|        "Switched to pSEO Builder"             |
+|                                               |
+|   Build and scale thousands of SEO-optimized  |
+|   landing pages. Create targeted campaigns,   |
+|   manage your content matrix, and deploy      |
+|   at scale with our industry-leading builder. |
+|                                               |
+|   [Checkbox] Don't show this again            |
+|                                               |
+|              [ Let's Go! ]                    |
+|                                               |
++-----------------------------------------------+
 ```
 
-**2. Replace action buttons (lines ~542-569):**
+**Features:**
+- Gradient background matching the purple theme
+- Animated icon (Zap for pSEO, FileText for Content Machine)
+- Engaging, benefit-focused descriptions
+- "Don't show again" checkbox with localStorage persistence
+- Primary action button with hover effects
+- Smooth entrance/exit animations
 
-Current (old style):
-```tsx
-<Button variant="default" size="sm" onClick={...}>
-  <ExternalLink /> Switch To
-</Button>
-<Button variant="outline" size="sm">Manage</Button>
-<Button variant="secondary" size="sm" onClick={...}>
-  <LogIn /> Login As
-</Button>
-<Button variant="destructive" size="sm" onClick={...}>
-  <Trash2 /> Delete
-</Button>
+### 2. Update SubaccountSidebar Component
+
+**File:** `src/components/SubaccountSidebar.tsx`
+
+**Changes:**
+- Add `useNavigate` hook from react-router-dom
+- Add state for modal visibility: `showModeSwitchDialog`
+- Add state for tracking the new mode being switched to
+- Check localStorage for "don't show again" preference
+- Modify `toggleMode` function to:
+  1. Show modal (if not suppressed)
+  2. Navigate to the appropriate route after confirmation
+- Pass callback to modal for navigation
+
+### 3. Modal Content Details
+
+**For Content Machine Mode:**
+- **Title:** "Welcome to Content Machine"
+- **Icon:** FileText with gradient background
+- **Description:** "Create in-depth, AI-researched articles that rank. Our Content Machine analyzes top-performing content, builds comprehensive outlines, and generates SEO-optimized articles tailored to your brand voice."
+
+**For pSEO Builder Mode:**
+- **Title:** "Welcome to pSEO Builder"  
+- **Icon:** Zap with gradient background
+- **Description:** "Scale your SEO with programmatic landing pages. Build data-driven campaigns, create dynamic templates, and deploy thousands of targeted pages that convert visitors into customers."
+
+### 4. Automatic Navigation
+
+| Mode Switch | Navigate To |
+|-------------|-------------|
+| Content Machine | `/subaccount/{id}/projects` (Articles) |
+| pSEO Builder | `/subaccount/{id}/campaigns` |
+
+### 5. localStorage Keys
+
+| Key | Purpose |
+|-----|---------|
+| `sidebar-mode-${subaccountId}` | Existing - stores active mode |
+| `hide-mode-switch-dialog` | New - stores "don't show again" preference |
+
+---
+
+## Technical Details
+
+### Component Structure
+
+```text
+ModeSwitchDialog.tsx
++-- Props:
+|   +-- open: boolean
+|   +-- mode: "content-machine" | "pseo-builder"
+|   +-- onConfirm: () => void
+|   +-- onDontShowAgainChange: (checked: boolean) => void
+|
++-- Uses:
+    +-- Dialog, DialogContent (shadcn)
+    +-- Checkbox (shadcn)
+    +-- Button (shadcn)
+    +-- Zap, FileText icons (lucide)
 ```
 
-New (compact style):
-```tsx
-<div className="flex items-center justify-end gap-1">
-  {/* Primary action: View/Switch To */}
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => handleSwitchToSubaccount(subaccount.id)}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>View</TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-  
-  {/* Secondary actions in dropdown */}
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="icon" className="h-8 w-8">
-        <MoreVertical className="h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem onClick={() => handleLoginAs(subaccount.id)}>
-        <LogIn className="h-4 w-4 mr-2" />
-        Login As
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem 
-        onClick={() => handleDeleteClick(subaccount)}
-        className="text-destructive focus:text-destructive"
-      >
-        <Trash2 className="h-4 w-4 mr-2" />
-        Delete
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-</div>
+### Animation Keyframes
+
+The modal will use custom animations:
+- **Entrance:** Scale from 0.9 to 1.0 with fade-in
+- **Icon:** Subtle pulse/glow effect
+- **Background:** Gradient overlay with blur
+
+### File Changes Summary
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `src/components/ModeSwitchDialog.tsx` | Create | New modal component with mode-specific content |
+| `src/components/SubaccountSidebar.tsx` | Modify | Add modal state, navigation, and preference handling |
+
+### User Flow
+
+```text
+User clicks mode switcher
+        |
+        v
+Check "don't show again" in localStorage
+        |
+        +---> If suppressed: Navigate directly + switch mode
+        |
+        +---> If not suppressed: Show modal
+                    |
+                    v
+              User clicks "Let's Go!"
+                    |
+                    v
+              [If checkbox checked] Save preference
+                    |
+                    v
+              Navigate to target route
+                    |
+                    v
+              Close modal + complete mode switch
 ```
 
-## Actions Available to Agency Admins
+### Edge Cases
 
-| Action | Type | Notes |
-|--------|------|-------|
-| **View** | Primary (icon button) | Navigates to subaccount |
-| **Login As** | Dropdown item | Impersonate client user |
-| **Delete** | Dropdown item (destructive) | Remove subaccount |
+1. **pSEO Builder disabled:** Modal won't show since the switcher itself is hidden
+2. **Already on target route:** Navigation will still be attempted (React Router handles this gracefully)
+3. **Preference reset:** Users can clear localStorage to see the modal again
 
-Note: "Transfer" and "Upgrade to Agency" are Super Admin-only actions, so they won't be included in the Agency dropdown.
-
-## Future Consideration
-To avoid this duplication issue in the future, these action buttons could be extracted into a shared `SubaccountActionButtons` component that accepts props for which actions to show based on the user's role. This would ensure consistency across portals automatically.
