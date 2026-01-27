@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, X, Trash2, Tags } from "lucide-react";
+import { Plus, X, Trash2, Tags, ChevronLeft, GripVertical, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,8 +11,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { CampaignFormData, BUSINESS_TYPES, DynamicColumn, TitlePattern, Entity } from "../types";
 import { EntitySelector, suggestEntityFromPattern } from "../EntitySelector";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BuildFromScratchStepProps {
   formData: CampaignFormData;
@@ -36,6 +54,21 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   const [isCreatingEntity, setIsCreatingEntity] = useState(false);
   const [newEntityName, setNewEntityName] = useState("");
   const patternInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag and drop state
+  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  // Collapse state
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+
+  // Delete state
+  const [columnToDelete, setColumnToDelete] = useState<string | null>(null);
+
+  // AI autofill state
+  const [aiColumnId, setAiColumnId] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Initialize dynamic columns from business type if not already set
   useEffect(() => {
@@ -73,6 +106,156 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
       ];
 
   const entities = formData.entities || [];
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, columnId: string) => {
+    setDraggedColumn(columnId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, columnId: string) => {
+    e.preventDefault();
+    if (columnId !== draggedColumn) {
+      setDragOverColumn(columnId);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedColumn(null);
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetColumnId: string) => {
+    e.preventDefault();
+    if (!draggedColumn || draggedColumn === targetColumnId) {
+      handleDragEnd();
+      return;
+    }
+    
+    const cols = [...formData.dynamicColumns];
+    const dragIndex = cols.findIndex(c => c.id === draggedColumn);
+    const targetIndex = cols.findIndex(c => c.id === targetColumnId);
+    
+    if (dragIndex === -1 || targetIndex === -1) {
+      handleDragEnd();
+      return;
+    }
+    
+    const [removed] = cols.splice(dragIndex, 1);
+    cols.splice(targetIndex, 0, removed);
+    
+    updateFormData({ dynamicColumns: cols });
+    handleDragEnd();
+  };
+
+  // Collapse toggle
+  const toggleCollapse = (columnId: string) => {
+    setCollapsedColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(columnId)) {
+        next.delete(columnId);
+      } else {
+        next.add(columnId);
+      }
+      return next;
+    });
+  };
+
+  // Delete column
+  const handleDeleteColumn = (columnId: string) => {
+    const column = formData.dynamicColumns.find(c => c.id === columnId);
+    if (!column) return;
+    
+    // Remove column from dynamicColumns
+    const updatedColumns = formData.dynamicColumns.filter(c => c.id !== columnId);
+    
+    // Remove column data from scratchData
+    const { [columnId]: removed, ...updatedScratchData } = formData.scratchData;
+    
+    // Remove patterns that reference this variable
+    const varPattern = `{{${column.variableName}}}`;
+    const updatedPatterns = (formData.titlePatterns || []).filter(pattern => {
+      return !pattern.pattern.toLowerCase().includes(varPattern.toLowerCase());
+    });
+    
+    const patternsRemoved = (formData.titlePatterns || []).length - updatedPatterns.length;
+    
+    updateFormData({
+      dynamicColumns: updatedColumns,
+      scratchData: updatedScratchData,
+      titlePatterns: updatedPatterns,
+    });
+    
+    setColumnToDelete(null);
+    
+    if (patternsRemoved > 0) {
+      toast.warning(`${patternsRemoved} pattern(s) using {{${column.variableName}}} were removed`);
+    } else {
+      toast.success(`Column "${column.displayName}" deleted`);
+    }
+  };
+
+  // AI generate items
+  const handleAIGenerate = async (columnId: string, prompt: string) => {
+    if (!prompt.trim()) return;
+    
+    setIsGenerating(true);
+    
+    try {
+      const column = formData.dynamicColumns.find(c => c.id === columnId);
+      const existingItems = formData.scratchData[columnId] || [];
+      
+      const response = await supabase.functions.invoke("generate-column-items", {
+        body: {
+          column_name: column?.displayName,
+          business_type: formData.businessType,
+          business_name: formData.businessName,
+          prompt: prompt,
+          existing_items: existingItems,
+          max_items: 20,
+        },
+      });
+      
+      if (response.error) {
+        if (response.error.message?.includes("429")) {
+          toast.error("Rate limit exceeded. Please try again later.");
+        } else if (response.error.message?.includes("402")) {
+          toast.error("AI credits exhausted. Please add funds to continue.");
+        } else {
+          toast.error("Failed to generate items: " + response.error.message);
+        }
+        return;
+      }
+      
+      if (response.data?.items && Array.isArray(response.data.items)) {
+        const newItems = response.data.items.filter(
+          (item: string) => !existingItems.includes(item)
+        );
+        
+        if (newItems.length > 0) {
+          updateFormData({
+            scratchData: {
+              ...formData.scratchData,
+              [columnId]: [...existingItems, ...newItems],
+            },
+          });
+          
+          toast.success(`Added ${newItems.length} items to ${column?.displayName}`);
+        } else {
+          toast.info("No new items to add (all generated items already exist)");
+        }
+      } else {
+        toast.error("Unexpected response from AI");
+      }
+    } catch (error) {
+      console.error("AI generation error:", error);
+      toast.error("Failed to generate items");
+    } finally {
+      setIsGenerating(false);
+      setAiColumnId(null);
+      setAiPrompt("");
+    }
+  };
 
   const handleColumnRename = (columnId: string, newDisplayName: string, newVariableName: string) => {
     const oldColumn = formData.dynamicColumns.find(c => c.id === columnId);
@@ -313,14 +496,62 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         </p>
       </div>
 
-      {/* Columns Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Columns - Horizontal Side-by-Side Layout */}
+      <div className="flex flex-row gap-4 overflow-x-auto pb-4">
         {columns.map((col) => {
           const items = formData.scratchData[col.id] || [];
+          const isCollapsed = collapsedColumns.has(col.id);
+          const isDragging = draggedColumn === col.id;
+          const isDragOver = dragOverColumn === col.id;
           
+          // Collapsed column
+          if (isCollapsed) {
+            return (
+              <div
+                key={col.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, col.id)}
+                onDragOver={(e) => handleDragOver(e, col.id)}
+                onDrop={(e) => handleDrop(e, col.id)}
+                onDragEnd={handleDragEnd}
+                onClick={() => toggleCollapse(col.id)}
+                className={cn(
+                  "flex-shrink-0 w-12 min-h-[350px] border rounded-xl flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-all",
+                  isDragOver && "ring-2 ring-primary ring-offset-2",
+                  isDragging && "opacity-50"
+                )}
+              >
+                <span 
+                  className="font-semibold text-sm whitespace-nowrap text-muted-foreground"
+                  style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+                >
+                  {col.displayName} ({items.length})
+                </span>
+              </div>
+            );
+          }
+          
+          // Expanded column
           return (
-            <div key={col.id} className="border rounded-xl p-4 space-y-4">
-              <div className="flex items-center justify-between">
+            <div
+              key={col.id}
+              draggable
+              onDragStart={(e) => handleDragStart(e, col.id)}
+              onDragOver={(e) => handleDragOver(e, col.id)}
+              onDrop={(e) => handleDrop(e, col.id)}
+              onDragEnd={handleDragEnd}
+              className={cn(
+                "flex-shrink-0 w-72 border rounded-xl p-4 space-y-4 transition-all",
+                isDragOver && "ring-2 ring-primary ring-offset-2",
+                isDragging && "opacity-50"
+              )}
+            >
+              {/* Column Header */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1 cursor-grab active:cursor-grabbing">
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                </div>
+                
                 {editingColumn?.columnId === col.id ? (
                   <div className="flex-1 space-y-2">
                     <Input
@@ -369,16 +600,99 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                       displayName: col.displayName,
                       variableName: col.variableName 
                     })}
-                    className="font-semibold hover:text-primary transition-colors text-left"
+                    className="flex-1 font-semibold hover:text-primary transition-colors text-left truncate"
                   >
                     <span>{col.displayName}</span>
-                    <span className="text-xs text-muted-foreground font-mono ml-2">
+                    <span className="text-xs text-muted-foreground font-mono ml-1">
                       {`{{${col.variableName}}}`}
                     </span>
                   </button>
                 )}
-                <span className="text-sm text-primary">{items.length}/100 items</span>
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-0.5">
+                  {/* AI Magic Wand */}
+                  <Popover open={aiColumnId === col.id} onOpenChange={(open) => {
+                    if (!open) {
+                      setAiColumnId(null);
+                      setAiPrompt("");
+                    }
+                  }}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setAiColumnId(col.id)}
+                      >
+                        <Sparkles className="h-4 w-4 text-primary" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80" align="start">
+                      <div className="space-y-3">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          AI Autofill
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          Describe what items to generate for "{col.displayName}"
+                        </p>
+                        <Input
+                          placeholder="e.g., Cities in France, Plumbing services..."
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && aiPrompt.trim() && !isGenerating) {
+                              handleAIGenerate(col.id, aiPrompt);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <Button 
+                          className="w-full" 
+                          onClick={() => handleAIGenerate(col.id, aiPrompt)}
+                          disabled={!aiPrompt.trim() || isGenerating}
+                        >
+                          {isGenerating ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-4 w-4 mr-2" />
+                              Generate Items
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Delete Column */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => setColumnToDelete(col.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+
+                  {/* Collapse Column */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => toggleCollapse(col.id)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
+
+              {/* Items count */}
+              <span className="text-sm text-primary">{items.length}/100 items</span>
 
               {/* Items List */}
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -387,10 +701,10 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                     key={index}
                     className="flex items-center justify-between p-2.5 bg-muted/50 rounded-lg group"
                   >
-                    <span className="text-sm">{item}</span>
+                    <span className="text-sm truncate">{item}</span>
                     <button
                       onClick={() => removeItem(col.id, index)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                     >
                       <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                     </button>
@@ -427,13 +741,39 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         })}
         
         {/* Add New Column Card */}
-        <div className="border rounded-xl p-4 flex items-center justify-center min-h-[200px] border-dashed hover:border-primary transition-colors cursor-pointer">
-          <Button variant="ghost" onClick={handleAddColumn}>
+        <div 
+          className="flex-shrink-0 w-48 border rounded-xl p-4 flex items-center justify-center min-h-[350px] border-dashed hover:border-primary transition-colors cursor-pointer"
+          onClick={handleAddColumn}
+        >
+          <Button variant="ghost">
             <Plus className="h-5 w-5 mr-2" />
             Add Column
           </Button>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!columnToDelete} onOpenChange={() => setColumnToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Column?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete "{columnToDelete && formData.dynamicColumns.find(c => c.id === columnToDelete)?.displayName}" 
+              and all its items. Patterns using this variable will also be removed.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => columnToDelete && handleDeleteColumn(columnToDelete)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Title Patterns Section */}
       <div className="border rounded-xl p-6 space-y-4 bg-primary/5 border-primary/20">

@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.accept-partner-invite]
 verify_jwt = false
+
+[functions.generate-column-items]
+verify_jwt = false
