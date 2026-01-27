@@ -493,6 +493,7 @@ export type Database = {
           deadline: string | null
           description: string | null
           id: string
+          implemented_at: string | null
           position: number
           priority: string | null
           stage_id: string | null
@@ -506,6 +507,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          implemented_at?: string | null
           position?: number
           priority?: string | null
           stage_id?: string | null
@@ -519,6 +521,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          implemented_at?: string | null
           position?: number
           priority?: string | null
           stage_id?: string | null

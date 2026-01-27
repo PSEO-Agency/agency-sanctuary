@@ -1,5 +1,5 @@
 import { format, isPast, isToday } from "date-fns";
-import { Calendar, GripVertical } from "lucide-react";
+import { Calendar, CheckCircle2, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -71,6 +71,12 @@ export function FeatureCard({
               >
                 <Calendar className="h-3 w-3" />
                 {format(deadline, "MMM d")}
+              </span>
+            )}
+            {feature.implemented_at && (
+              <span className="text-[10px] flex items-center gap-1 text-emerald-600">
+                <CheckCircle2 className="h-3 w-3" />
+                {format(new Date(feature.implemented_at), "MMM d, yyyy")}
               </span>
             )}
           </div>
