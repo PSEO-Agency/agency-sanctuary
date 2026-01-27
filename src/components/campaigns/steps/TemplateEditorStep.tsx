@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { CampaignFormData, TemplateStyleConfig, TemplateImagesConfig } from "../types";
+import { CampaignFormData, TemplateStyleConfig, TemplateImagesConfig, TemplateContentConfig, Entity } from "../types";
 import { getTemplateForBusinessType, TemplateSection } from "@/lib/campaignTemplates";
 import { UnifiedPageBuilder, DEFAULT_STYLE_CONFIG, DEFAULT_IMAGES_CONFIG } from "@/components/page-builder";
 import { loadGoogleFont } from "@/lib/fontLoader";
+import { EntitySelector } from "../EntitySelector";
 
 interface TemplateEditorStepProps {
   formData: CampaignFormData;
@@ -16,27 +17,89 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
   // Get template based on business type or selected template
   const baseTemplate = getTemplateForBusinessType(formData.businessType);
   
+  // Get entities from form data
+  const entities = formData.entities || [];
+  
+  // Track which entity is currently being edited
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(
+    entities.length > 0 ? entities[0].id : null
+  );
+
+  // Calculate pages per entity for display
+  const pagesPerEntity: Record<string, number> = {};
+  (formData.titlePatterns || []).forEach(pattern => {
+    const patternLower = pattern.pattern.toLowerCase();
+    const usedColumns = formData.dynamicColumns.filter(col => 
+      patternLower.includes(`{{${col.variableName.toLowerCase()}}}`)
+    );
+    
+    if (usedColumns.length === 0) return;
+    
+    const pageCount = usedColumns.reduce((acc, col) => {
+      const items = formData.scratchData[col.id] || [];
+      return acc * (items.length || 1);
+    }, 1);
+    
+    pagesPerEntity[pattern.entityId] = (pagesPerEntity[pattern.entityId] || 0) + pageCount;
+  });
+
+  // Track completed entities (ones that have been customized)
+  const [completedEntities, setCompletedEntities] = useState<string[]>([]);
+
+  // Get current entity's template or initialize from defaults
+  const getEntityTemplate = (entityId: string | null): TemplateContentConfig => {
+    if (!entityId) {
+      return formData.templateContent || {
+        sections: [...baseTemplate.sections],
+        style: DEFAULT_STYLE_CONFIG,
+        images: DEFAULT_IMAGES_CONFIG,
+      };
+    }
+    
+    const entityTemplates = formData.entityTemplates || {};
+    if (entityTemplates[entityId]) {
+      return entityTemplates[entityId];
+    }
+    
+    // Initialize from base template or legacy templateContent
+    return formData.templateContent || {
+      sections: [...baseTemplate.sections],
+      style: DEFAULT_STYLE_CONFIG,
+      images: DEFAULT_IMAGES_CONFIG,
+    };
+  };
+
+  const currentTemplate = getEntityTemplate(selectedEntityId);
+  
   // Initialize template content from form data or base template
   const [templateSections, setTemplateSections] = useState<TemplateSection[]>(() => {
-    if (formData.templateContent?.sections && formData.templateContent.sections.length > 0) {
-      return formData.templateContent.sections as TemplateSection[];
+    if (currentTemplate?.sections && currentTemplate.sections.length > 0) {
+      return currentTemplate.sections as TemplateSection[];
     }
     return [...baseTemplate.sections];
   });
 
   const [styleConfig, setStyleConfig] = useState<TemplateStyleConfig>(() => {
-    if (formData.templateContent?.style) {
-      return formData.templateContent.style;
+    if (currentTemplate?.style) {
+      return currentTemplate.style;
     }
     return DEFAULT_STYLE_CONFIG;
   });
 
   const [imagesConfig, setImagesConfig] = useState<TemplateImagesConfig>(() => {
-    if (formData.templateContent?.images) {
-      return formData.templateContent.images;
+    if (currentTemplate?.images) {
+      return currentTemplate.images;
     }
     return DEFAULT_IMAGES_CONFIG;
   });
+
+  // Update local state when entity changes
+  useEffect(() => {
+    const template = getEntityTemplate(selectedEntityId);
+    setTemplateSections(template.sections as TemplateSection[] || [...baseTemplate.sections]);
+    setStyleConfig(template.style || DEFAULT_STYLE_CONFIG);
+    setImagesConfig(template.images || DEFAULT_IMAGES_CONFIG);
+  }, [selectedEntityId]);
 
   // Load font on mount
   useEffect(() => {
@@ -49,13 +112,30 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
     style: TemplateStyleConfig,
     images: TemplateImagesConfig
   ) => {
-    updateFormData({
-      templateContent: {
-        sections,
-        style,
-        images,
-      },
-    });
+    const newTemplate: TemplateContentConfig = { sections, style, images };
+    
+    if (selectedEntityId && entities.length > 0) {
+      // Save to entity-specific template
+      const updatedEntityTemplates = {
+        ...formData.entityTemplates,
+        [selectedEntityId]: newTemplate,
+      };
+      
+      updateFormData({
+        entityTemplates: updatedEntityTemplates,
+        templateContent: newTemplate, // Also update legacy field
+      });
+      
+      // Mark entity as completed
+      if (!completedEntities.includes(selectedEntityId)) {
+        setCompletedEntities([...completedEntities, selectedEntityId]);
+      }
+    } else {
+      // No entities - use legacy single template
+      updateFormData({
+        templateContent: newTemplate,
+      });
+    }
   };
 
   // Handle sections change
@@ -127,8 +207,31 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
     return data;
   };
 
+  // Get current entity name for display
+  const selectedEntity = entities.find(e => e.id === selectedEntityId);
+
   return (
     <div className="flex flex-col h-full">
+      {/* Entity Progress Bar - Only show if there are entities */}
+      {entities.length > 0 && (
+        <div className="border-b bg-muted/30 px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">Template Configuration by Entity</h3>
+            <span className="text-xs text-muted-foreground">
+              {completedEntities.length}/{entities.length} configured
+            </span>
+          </div>
+          <EntitySelector
+            entities={entities}
+            selectedEntityId={selectedEntityId}
+            onSelectEntity={setSelectedEntityId}
+            pagesPerEntity={pagesPerEntity}
+            completedEntities={completedEntities}
+            mode="progress-bar"
+          />
+        </div>
+      )}
+
       <UnifiedPageBuilder
         mode="template"
         sections={templateSections}
@@ -146,11 +249,19 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
         showResetButton={true}
         onReset={handleReset}
         headerContent={
-          onFinish && (
-            <Button onClick={onFinish} className="ml-auto">
-              Finish Campaign
-            </Button>
-          )
+          <div className="flex items-center gap-4 ml-auto">
+            {selectedEntity && (
+              <div className="text-sm text-muted-foreground">
+                Editing: <span className="font-medium text-foreground">{selectedEntity.name}</span>
+                <span className="text-xs ml-1">({selectedEntity.urlPrefix})</span>
+              </div>
+            )}
+            {onFinish && (
+              <Button onClick={onFinish}>
+                Finish Campaign
+              </Button>
+            )}
+          </div>
         }
       />
     </div>

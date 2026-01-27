@@ -93,6 +93,14 @@ export function useCampaigns() {
         dynamicColumns: formData.dynamicColumns,
       };
 
+      // Build template_config with entities and entityTemplates
+      const templateConfig = {
+        ...(formData.templateContent || {}),
+        entities: formData.entities || [],
+        entityTemplates: formData.entityTemplates || {},
+        titlePatterns: formData.titlePatterns || [],
+      };
+
       const insertData = {
         subaccount_id: subaccountId,
         name: formData.businessName || "New Campaign",
@@ -107,7 +115,7 @@ export function useCampaigns() {
         data_columns: formData.scratchData as unknown as Record<string, unknown>,
         column_mappings: columnMappings as unknown as Record<string, unknown>,
         template_id: formData.selectedTemplate,
-        template_config: (formData.templateContent || {}) as unknown as Record<string, unknown>,
+        template_config: templateConfig as unknown as Record<string, unknown>,
         total_pages: totalPages,
       };
 
@@ -139,7 +147,7 @@ export function useCampaigns() {
   const generateCampaignPages = async (campaignId: string, formData: CampaignFormData) => {
     if (!subaccountId) return;
 
-    const { dynamicColumns, scratchData, titlePatterns } = formData;
+    const { dynamicColumns, scratchData, titlePatterns, entities } = formData;
     
     if (dynamicColumns.length === 0 || titlePatterns.length === 0) return;
 
@@ -155,6 +163,10 @@ export function useCampaigns() {
     // Generate pages for each title pattern
     for (const pattern of titlePatterns) {
       const patternLower = pattern.pattern.toLowerCase();
+      
+      // Get the entity for this pattern
+      const entity = (entities || []).find(e => e.id === pattern.entityId);
+      const urlPrefix = entity?.urlPrefix || "/";
       
       // Find columns used in this pattern
       const usedColumns = dynamicColumns.filter(col =>
@@ -190,17 +202,16 @@ export function useCampaigns() {
           title = title.replace(regex, value);
         });
         
-        // Generate slug
-        const slugBase = pattern.urlPrefix || "";
+        // Generate slug using entity's urlPrefix
         const slugTitle = title.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        const slug = `${slugBase}${slugTitle}`.replace(/^\/+/, "").replace(/\/+$/, "");
+        const slug = `${urlPrefix}${slugTitle}`.replace(/^\/+/, "").replace(/\/+$/, "");
         
         allPages.push({
           campaign_id: campaignId,
           subaccount_id: subaccountId!,
           title,
           slug,
-          data_values: { ...combo, patternId: pattern.id },
+          data_values: { ...combo, patternId: pattern.id, entityId: pattern.entityId },
           status: "draft",
         });
       }
