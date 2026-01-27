@@ -18,6 +18,7 @@ export interface FeatureRequest {
   deadline: string | null;
   priority: "low" | "medium" | "high";
   category: string | null;
+  implemented_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -90,6 +91,7 @@ export function useFeatureBoard() {
           category: feature.category,
           deadline: feature.deadline,
           description: feature.description,
+          implemented_at: feature.implemented_at,
           created_by: user?.user?.id,
         })
         .select()

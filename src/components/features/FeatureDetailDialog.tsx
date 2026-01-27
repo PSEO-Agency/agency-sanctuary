@@ -63,6 +63,7 @@ export function FeatureDetailDialog({
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [category, setCategory] = useState<string>("");
   const [deadline, setDeadline] = useState<Date | undefined>();
+  const [implementedAt, setImplementedAt] = useState<Date | undefined>();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export function FeatureDetailDialog({
       setPriority(feature.priority);
       setCategory(feature.category || "");
       setDeadline(feature.deadline ? new Date(feature.deadline) : undefined);
+      setImplementedAt(feature.implemented_at ? new Date(feature.implemented_at) : undefined);
     }
   }, [feature]);
 
@@ -86,6 +88,7 @@ export function FeatureDetailDialog({
       priority,
       category: category || null,
       deadline: deadline ? format(deadline, "yyyy-MM-dd") : null,
+      implemented_at: implementedAt ? format(implementedAt, "yyyy-MM-dd") : null,
     });
     onOpenChange(false);
   };
@@ -195,41 +198,80 @@ export function FeatureDetailDialog({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Deadline</Label>
-              <Popover>
-                <PopoverTrigger asChild>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Deadline</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !deadline && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {deadline ? format(deadline, "MMM d") : "Deadline"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={deadline}
+                      onSelect={setDeadline}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {deadline && (
                   <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !deadline && "text-muted-foreground"
-                    )}
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => setDeadline(undefined)}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {deadline ? format(deadline, "PPP") : "Pick a date"}
+                    Clear
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={deadline}
-                    onSelect={setDeadline}
-                    initialFocus
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-              {deadline && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-muted-foreground"
-                  onClick={() => setDeadline(undefined)}
-                >
-                  Clear deadline
-                </Button>
-              )}
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Implemented</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !implementedAt && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {implementedAt ? format(implementedAt, "MMM d") : "Completed"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={implementedAt}
+                      onSelect={setImplementedAt}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {implementedAt && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => setImplementedAt(undefined)}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
 
             {feature && (
