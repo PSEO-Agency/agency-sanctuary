@@ -60,6 +60,8 @@ All colors MUST be HSL.
 
   /* Role-based theme variables */
   .theme-subaccount {
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
     --theme-primary: 262 83% 58%;
     --theme-gradient-from: 263 70% 50%;
     --theme-gradient-to: 271 81% 45%;
@@ -69,6 +71,8 @@ All colors MUST be HSL.
   }
 
   .theme-agency {
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
     --theme-primary: 217 91% 60%;
     --theme-gradient-from: 217 91% 55%;
     --theme-gradient-to: 224 76% 48%;
@@ -78,6 +82,8 @@ All colors MUST be HSL.
   }
 
   .theme-partner {
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 100%;
     --theme-primary: 25 95% 53%;
     --theme-gradient-from: 25 95% 53%;
     --theme-gradient-to: 38 92% 50%;
@@ -87,12 +93,15 @@ All colors MUST be HSL.
   }
 
   .theme-super-admin {
+    --primary: 220 13% 46%;
+    --primary-foreground: 0 0% 100%;
     --theme-primary: 220 13% 46%;
-    --theme-gradient-from: 220 13% 33%;
-    --theme-gradient-to: 217 19% 27%;
-    --theme-sidebar-text: 0 0% 100%;
-    --theme-sidebar-text-muted: 0 0% 100%;
-    --theme-sidebar-active-bg: 0 0% 100%;
+    /* White sidebar with neutral text */
+    --theme-gradient-from: 0 0% 100%;
+    --theme-gradient-to: 0 0% 98%;
+    --theme-sidebar-text: 220 13% 20%;
+    --theme-sidebar-text-muted: 220 13% 45%;
+    --theme-sidebar-active-bg: 220 13% 93%;
   }
 
   .dark {

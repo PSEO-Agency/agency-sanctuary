@@ -48,9 +48,10 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
 
   return (
     <Sidebar 
+      variant="floating"
       className={cn(
         collapsed ? "w-14" : "w-60",
-        "m-3 rounded-2xl shadow-xl overflow-hidden border-0"
+        "border-0"
       )} 
       collapsible="icon"
       style={gradientStyle}
