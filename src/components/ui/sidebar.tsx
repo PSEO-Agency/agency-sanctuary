@@ -185,7 +185,8 @@ const Sidebar = React.forwardRef<
       <div
         className={cn(
           "relative w-[--sidebar-width] bg-transparent transition-[width] duration-200 ease-linear",
-          variant === "floating" || variant === "inset" ? "h-[calc(100svh-1.5rem)]" : "h-svh",
+          // Match the fixed sidebar container height when floating (top offset below header + bottom margin)
+          variant === "floating" || variant === "inset" ? "h-[calc(100svh-5.5rem)]" : "h-svh",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -196,12 +197,18 @@ const Sidebar = React.forwardRef<
       <div
         className={cn(
           "fixed z-10 hidden w-[--sidebar-width] transition-[left,right,width,top,bottom] duration-200 ease-linear md:flex",
-          variant === "floating" || variant === "inset"
-            ? "top-3 bottom-3 left-3"
-            : "inset-y-0 left-0",
+          // Floating: sit below the app header so top rounding isn't hidden.
+          variant === "floating" || variant === "inset" ? "top-[4.75rem] bottom-3" : "inset-y-0",
+
           side === "left"
-            ? "group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
-            : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+            ? cn(
+                variant === "floating" || variant === "inset" ? "left-3" : "left-0",
+                "group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]",
+              )
+            : cn(
+                variant === "floating" || variant === "inset" ? "right-3" : "right-0",
+                "group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+              ),
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
