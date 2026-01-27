@@ -44,7 +44,7 @@ export function SuperAdminSidebar() {
   // Only super admins can see the Partners and Features pages
   if (isSuperAdmin) {
     menuItems.push({ title: "Country Partners", url: "/super-admin/partners", icon: Globe });
-    menuItems.push({ title: "Features", url: "/super-admin/features", icon: Lightbulb });
+    menuItems.push({ title: "Roadmap", url: "/super-admin/features", icon: Lightbulb });
   }
 
   const portalLabel = isPartnerOnly ? "Partner Portal" : "Super Admin";
