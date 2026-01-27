@@ -228,7 +228,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
       collapsible="icon"
       style={gradientStyle}
     >
-      <SidebarContent className="flex-1 pt-2">
+      <SidebarContent className="flex-1 pt-1">
         {!collapsed && (
           <div className="px-2 py-2 mt-2">
             <SubaccountSwitcher subaccountId={subaccountId} />
@@ -396,6 +396,22 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-white/10 p-3 space-y-3">
+        {/* Billing Widget - Above Settings */}
+        {subscription && (
+          <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-3">
+            <BillingWidget
+              subaccountId={subaccountId}
+              planName={subscription.planName}
+              articlesUsed={subscription.articlesUsed}
+              articleLimit={subscription.articleLimit}
+              otherCredits={subscription.otherCredits}
+              weeksUntilReset={getWeeksUntilReset()}
+              collapsed={collapsed}
+            />
+          </div>
+        )}
+
+        {/* Settings - At bottom */}
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
@@ -409,19 +425,6 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-
-        {/* Billing Widget */}
-        {subscription && (
-          <BillingWidget
-            subaccountId={subaccountId}
-            planName={subscription.planName}
-            articlesUsed={subscription.articlesUsed}
-            articleLimit={subscription.articleLimit}
-            otherCredits={subscription.otherCredits}
-            weeksUntilReset={getWeeksUntilReset()}
-            collapsed={collapsed}
-          />
-        )}
       </SidebarFooter>
     </Sidebar>
   );
