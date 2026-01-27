@@ -31,34 +31,34 @@ export function BillingWidget({
     <div className="space-y-3">
       {/* Plan Header */}
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded bg-muted flex items-center justify-center">
-          <FileText className="h-4 w-4 text-sidebar-foreground" />
+        <div className="w-7 h-7 rounded bg-white/20 flex items-center justify-center">
+          <FileText className="h-4 w-4 text-white" />
         </div>
-        <span className="font-medium text-sm text-sidebar-foreground">{planName} Plan</span>
+        <span className="font-medium text-sm text-white">{planName} Plan</span>
       </div>
 
       {/* Articles Usage */}
       <div className="space-y-1">
         <div className="flex justify-between text-xs">
-          <span className="text-sidebar-foreground/70">Articles</span>
-          <span className="text-sidebar-foreground">
+          <span className="text-white/70">Articles</span>
+          <span className="text-white">
             {articlesUsed} / {articleLimit}
           </span>
         </div>
         <Progress 
           value={usagePercentage} 
-          className={`h-1 ${isNearLimit ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'}`}
+          className={`h-1 bg-white/20 ${isNearLimit ? '[&>div]:bg-destructive' : '[&>div]:bg-white'}`}
         />
       </div>
 
       {/* Reset Info */}
-      <p className="text-xs text-sidebar-foreground/60">
+      <p className="text-xs text-white/60">
         Usage resets in {weeksUntilReset} week{weeksUntilReset !== 1 ? 's' : ''}
       </p>
 
       {/* Other Credits */}
-      <p className="text-xs text-sidebar-foreground/70">
-        Other Credits <span className="text-sidebar-foreground">{otherCredits}</span> remaining
+      <p className="text-xs text-white/70">
+        Other Credits <span className="text-white">{otherCredits}</span> remaining
       </p>
 
       {/* Upgrade Button */}
@@ -66,7 +66,7 @@ export function BillingWidget({
         <Button 
           variant="outline" 
           size="sm" 
-          className="w-full text-xs h-8 border-sidebar-border text-sidebar-foreground hover:bg-muted"
+          className="w-full text-xs h-8 border-white/30 text-white hover:bg-white/10 bg-transparent"
         >
           Upgrade plan
         </Button>

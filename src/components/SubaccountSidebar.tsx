@@ -228,7 +228,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
       collapsible="icon"
       style={gradientStyle}
     >
-      <SidebarContent className="flex-1 pt-4">
+      <SidebarContent className="flex-1 pt-2">
         {!collapsed && (
           <div className="px-2 py-2 mt-2">
             <SubaccountSwitcher subaccountId={subaccountId} />
