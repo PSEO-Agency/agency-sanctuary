@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LayoutDashboard, FolderKanban, FileText, BarChart3, Settings, Rocket, Send, BookOpen, ArrowRightLeft, Zap, Layers, FileStack, Link2 } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { SubaccountSwitcher } from "./SubaccountSwitcher";
 import { BillingWidget } from "./BillingWidget";
+import { ModeSwitchDialog } from "./ModeSwitchDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ interface SubscriptionData {
 export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   const { state } = useSidebar();
   const location = useLocation();
+  const navigate = useNavigate();
   const collapsed = state === "collapsed";
   const [pseoBuilderEnabled, setPseoBuilderEnabled] = useState(false);
   const [activeMode, setActiveMode] = useState<"content-machine" | "pseo-builder">(() => {
@@ -41,6 +43,8 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   });
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showModeSwitchDialog, setShowModeSwitchDialog] = useState(false);
+  const [pendingMode, setPendingMode] = useState<"content-machine" | "pseo-builder" | null>(null);
 
   useEffect(() => {
     fetchFeatureSettings();
@@ -64,15 +68,42 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   };
 
   const toggleMode = () => {
+    const newMode = activeMode === "content-machine" ? "pseo-builder" : "content-machine";
+    const hideDialog = localStorage.getItem("hide-mode-switch-dialog") === "true";
+
+    if (hideDialog) {
+      // Skip modal, switch directly
+      performModeSwitch(newMode);
+    } else {
+      // Show modal
+      setPendingMode(newMode);
+      setShowModeSwitchDialog(true);
+    }
+  };
+
+  const performModeSwitch = (newMode: "content-machine" | "pseo-builder") => {
     setIsTransitioning(true);
     setTimeout(() => {
-      setActiveMode(prev => {
-        const newMode = prev === "content-machine" ? "pseo-builder" : "content-machine";
-        localStorage.setItem(`sidebar-mode-${subaccountId}`, newMode);
-        return newMode;
-      });
+      setActiveMode(newMode);
+      localStorage.setItem(`sidebar-mode-${subaccountId}`, newMode);
+      
+      // Navigate to the appropriate route
+      if (newMode === "pseo-builder") {
+        navigate(`/subaccount/${subaccountId}/campaigns`);
+      } else {
+        navigate(`/subaccount/${subaccountId}/projects`);
+      }
+      
       setTimeout(() => setIsTransitioning(false), 150);
     }, 150);
+  };
+
+  const handleModeSwitchConfirm = () => {
+    setShowModeSwitchDialog(false);
+    if (pendingMode) {
+      performModeSwitch(pendingMode);
+      setPendingMode(null);
+    }
   };
 
   const fetchSubscription = async () => {
@@ -425,6 +456,17 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      {/* Mode Switch Dialog */}
+      <ModeSwitchDialog
+        open={showModeSwitchDialog}
+        mode={pendingMode || "content-machine"}
+        onConfirm={handleModeSwitchConfirm}
+        onOpenChange={(open) => {
+          setShowModeSwitchDialog(open);
+          if (!open) setPendingMode(null);
+        }}
+      />
     </Sidebar>
   );
 }
