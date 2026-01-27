@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignFormData, Entity, DynamicColumn, TemplateContentConfig } from "../types";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface AITemplateGeneratorDialogProps {
   open: boolean;
@@ -50,6 +52,7 @@ export function AITemplateGeneratorDialog({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<"idle" | "generating" | "reviewing" | "complete">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [userPrompt, setUserPrompt] = useState("");
 
   // Get entities from formData - if none, create a default one
   const entities: Entity[] = formData.entities?.length > 0 
@@ -84,6 +87,7 @@ export function AITemplateGeneratorDialog({
           entity: currentEntity,
           variables: formData.dynamicColumns.map((c) => c.variableName),
           existing_data: formData.scratchData,
+          user_prompt: userPrompt || undefined,
         },
       });
 
@@ -190,23 +194,45 @@ export function AITemplateGeneratorDialog({
 
         {/* Generation status: idle */}
         {generationStatus === "idle" && (
-          <div className="text-center py-12 space-y-4">
-            <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
-              <LayoutTemplate className="h-8 w-8 text-primary" />
-            </div>
-            <div>
+          <div className="py-8 space-y-6">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <LayoutTemplate className="h-8 w-8 text-primary" />
+              </div>
               <h3 className="font-semibold text-lg">Ready to Generate</h3>
               <p className="text-muted-foreground text-sm mt-1">
                 AI will create a custom template structure for {currentEntity?.name || "your pages"}
               </p>
             </div>
+
+            {/* User prompt input */}
+            <div className="space-y-2">
+              <Label htmlFor="ai-prompt" className="text-sm font-medium">
+                Guide the AI (optional)
+              </Label>
+              <Textarea
+                id="ai-prompt"
+                placeholder="e.g., Focus on trust and credibility, include FAQ section, keep it minimal and clean, emphasize local service areas, use professional tone..."
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                Describe what you want the template to emphasize or include. Leave empty for default generation.
+              </p>
+            </div>
+
             {error && (
-              <p className="text-destructive text-sm">{error}</p>
+              <p className="text-destructive text-sm text-center">{error}</p>
             )}
-            <Button onClick={generateTemplate} size="lg" className="mt-4">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate Template for {currentEntity?.name}
-            </Button>
+
+            <div className="text-center">
+              <Button onClick={generateTemplate} size="lg">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate Template for {currentEntity?.name}
+              </Button>
+            </div>
           </div>
         )}
 
