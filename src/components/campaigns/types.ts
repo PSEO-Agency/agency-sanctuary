@@ -89,6 +89,9 @@ export interface CampaignFormData {
   // Step 5: Template Editor - Per-Entity Templates
   entityTemplates: Record<string, TemplateContentConfig>;  // entityId → template
   templateContent?: TemplateContentConfig; // Legacy/default template
+  
+  // Wizard progress tracking (for DB sync)
+  _campaignId?: string;  // DB record ID when resuming
 }
 
 export interface GeneratedTitle {

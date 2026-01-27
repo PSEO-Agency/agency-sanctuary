@@ -374,6 +374,7 @@ export type Database = {
           deployment_settings: Json | null
           description: string | null
           id: string
+          is_finalized: boolean | null
           name: string
           pages_generated: number | null
           preview_settings: Json | null
@@ -385,6 +386,8 @@ export type Database = {
           total_pages: number | null
           updated_at: string
           website_url: string | null
+          wizard_state: Json | null
+          wizard_step: number | null
         }
         Insert: {
           business_address?: string | null
@@ -399,6 +402,7 @@ export type Database = {
           deployment_settings?: Json | null
           description?: string | null
           id?: string
+          is_finalized?: boolean | null
           name: string
           pages_generated?: number | null
           preview_settings?: Json | null
@@ -410,6 +414,8 @@ export type Database = {
           total_pages?: number | null
           updated_at?: string
           website_url?: string | null
+          wizard_state?: Json | null
+          wizard_step?: number | null
         }
         Update: {
           business_address?: string | null
@@ -424,6 +430,7 @@ export type Database = {
           deployment_settings?: Json | null
           description?: string | null
           id?: string
+          is_finalized?: boolean | null
           name?: string
           pages_generated?: number | null
           preview_settings?: Json | null
@@ -435,6 +442,8 @@ export type Database = {
           total_pages?: number | null
           updated_at?: string
           website_url?: string | null
+          wizard_state?: Json | null
+          wizard_step?: number | null
         }
         Relationships: [
           {

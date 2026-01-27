@@ -5,6 +5,7 @@ import { Plus, Search, Filter, Loader2 } from "lucide-react";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CreateCampaignDialog } from "@/components/campaigns/CreateCampaignDialog";
 import { CampaignDetailDialog } from "@/components/campaigns/detail/CampaignDetailDialog";
+import { DraftCampaignsBanner } from "@/components/campaigns/DraftCampaignsBanner";
 import { CampaignFormData } from "@/components/campaigns/types";
 import { useCampaigns, CampaignDB } from "@/hooks/useCampaigns";
 
@@ -13,8 +14,9 @@ export default function Campaigns() {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDB | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [existingCampaignId, setExistingCampaignId] = useState<string | null>(null);
 
-  const { campaigns, loading, createCampaign, updateCampaign, deleteCampaign } = useCampaigns();
+  const { campaigns, draftCampaigns, loading, createCampaign, updateCampaign, deleteCampaign, refetch, refetchDrafts } = useCampaigns();
 
   const filteredCampaigns = campaigns.filter((campaign) =>
     campaign.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -22,6 +24,8 @@ export default function Campaigns() {
 
   const handleCreateCampaign = async (data: CampaignFormData) => {
     await createCampaign(data);
+    refetch();
+    refetchDrafts();
   };
 
   const handleViewCampaign = (id: string) => {
@@ -39,6 +43,24 @@ export default function Campaigns() {
 
   const handleDeleteCampaign = async (id: string) => {
     await deleteCampaign(id);
+  };
+
+  const handleContinueDraft = (id: string) => {
+    setExistingCampaignId(id);
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleDiscardDraft = async (id: string) => {
+    await deleteCampaign(id);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setIsCreateDialogOpen(open);
+    if (!open) {
+      setExistingCampaignId(null);
+      refetch();
+      refetchDrafts();
+    }
   };
 
   // Convert CampaignDB to the format expected by CampaignCard
@@ -60,11 +82,21 @@ export default function Campaigns() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Campaigns</h1>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
+        <Button onClick={() => {
+          setExistingCampaignId(null);
+          setIsCreateDialogOpen(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" />
           Add New
         </Button>
       </div>
+
+      {/* Draft Campaigns Banner */}
+      <DraftCampaignsBanner
+        drafts={draftCampaigns}
+        onContinue={handleContinueDraft}
+        onDiscard={handleDiscardDraft}
+      />
 
       {/* Search and Filter */}
       <div className="flex gap-4">
@@ -92,7 +124,10 @@ export default function Campaigns() {
         ) : filteredCampaigns.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">No campaigns found</p>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Button onClick={() => {
+              setExistingCampaignId(null);
+              setIsCreateDialogOpen(true);
+            }}>
               <Plus className="mr-2 h-4 w-4" />
               Create your first campaign
             </Button>
@@ -112,8 +147,9 @@ export default function Campaigns() {
       {/* Create Campaign Dialog */}
       <CreateCampaignDialog
         open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
+        onOpenChange={handleDialogClose}
         onComplete={handleCreateCampaign}
+        existingCampaignId={existingCampaignId}
       />
 
       {/* Campaign Detail Dialog */}
