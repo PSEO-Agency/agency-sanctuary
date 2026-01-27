@@ -25,11 +25,14 @@ export function SuperAdminSidebar() {
   const isSuperAdmin = hasRole("super_admin");
   const isCountryPartner = hasRole("country_partner");
 
-  // Determine which gradient to use based on role
+  // Determine which style to use based on role
   const isPartnerOnly = isCountryPartner && !isSuperAdmin;
-  const gradientStyle = isPartnerOnly 
+  
+  // Partner: orange gradient with white text
+  // Super Admin: white/neutral background with dark text
+  const sidebarStyle = isPartnerOnly 
     ? { background: 'linear-gradient(to bottom, hsl(25 95% 53%), hsl(38 92% 50%))' }
-    : { background: 'linear-gradient(to bottom, hsl(220 13% 33%), hsl(217 19% 27%))' };
+    : { background: 'linear-gradient(to bottom, hsl(0 0% 100%), hsl(0 0% 98%))' };
 
   // Build menu items based on role
   const menuItems = [
@@ -46,31 +49,53 @@ export function SuperAdminSidebar() {
   const portalLabel = isPartnerOnly ? "Partner Portal" : "Super Admin";
 
   const getMenuItemClassName = (isActive: boolean) => {
-    if (isActive) {
-      return "bg-white/15 text-white font-medium hover:bg-white/20";
+    if (isPartnerOnly) {
+      // Partner: white text on orange gradient
+      if (isActive) {
+        return "bg-white/15 text-white font-medium hover:bg-white/20";
+      }
+      return "text-white/80 hover:bg-white/10 hover:text-white";
+    } else {
+      // Super Admin: dark text on white background
+      if (isActive) {
+        return "bg-gray-100 text-gray-900 font-medium hover:bg-gray-200";
+      }
+      return "text-gray-600 hover:bg-gray-50 hover:text-gray-900";
     }
-    return "text-white/80 hover:bg-white/10 hover:text-white";
   };
 
   const getIconClassName = (isActive: boolean) => {
-    if (isActive) {
-      return "h-5 w-5 text-white";
+    if (isPartnerOnly) {
+      // Partner: white icons
+      if (isActive) {
+        return "h-5 w-5 text-white";
+      }
+      return "h-5 w-5 text-white/70";
+    } else {
+      // Super Admin: gray icons
+      if (isActive) {
+        return "h-5 w-5 text-gray-900";
+      }
+      return "h-5 w-5 text-gray-500";
     }
-    return "h-5 w-5 text-white/70";
   };
+  
+  const labelClassName = isPartnerOnly ? "text-white/50" : "text-gray-400";
 
   return (
     <Sidebar 
+      variant="floating"
       className={cn(
         collapsed ? "w-14" : "w-60",
-        "m-3 rounded-2xl shadow-xl overflow-hidden border-0"
+        "border-0",
+        !isPartnerOnly && "border border-gray-200"
       )} 
       collapsible="icon"
-      style={gradientStyle}
+      style={sidebarStyle}
     >
       <SidebarContent className="pt-16">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-white/50 uppercase text-xs">
+          <SidebarGroupLabel className={cn("uppercase text-xs", labelClassName)}>
             {portalLabel}
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -96,10 +121,10 @@ export function SuperAdminSidebar() {
               {isSuperAdmin && profile?.agency_id && (
                 <SidebarMenuItem>
                   <SidebarMenuButton 
-                    className="text-white/80 hover:bg-white/10 hover:text-white"
+                    className={getMenuItemClassName(false)}
                     onClick={() => navigate(`/agency/${profile.agency_id}`)}
                   >
-                    <Building className="h-5 w-5 text-white/70" />
+                    <Building className={getIconClassName(false)} />
                     {!collapsed && <span>My Agency</span>}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -109,7 +134,7 @@ export function SuperAdminSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-white/10 p-2">
+      <SidebarFooter className={cn("border-t p-2", isPartnerOnly ? "border-white/10" : "border-gray-200")}>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
