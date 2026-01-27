@@ -28,7 +28,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, LogIn, Search, Link, Copy, Check, Globe } from "lucide-react";
+import { Plus, LogIn, Search, Link, Copy, Check, Globe, MoreVertical, Settings } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -421,22 +433,37 @@ export default function Agencies() {
                     )}
                     <TableCell>{new Date(agency.created_at).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">Manage</Button>
-                        {isSuperAdmin && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleAssignClick(agency)}
-                          >
-                            <Globe className="mr-1 h-4 w-4" />
-                            Assign
-                          </Button>
-                        )}
-                        <Button variant="secondary" size="sm" onClick={() => handleLoginAs(agency.id)}>
-                          <LogIn className="mr-2 h-4 w-4" />
-                          Login As
-                        </Button>
+                      <div className="flex justify-end items-center gap-1">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Manage</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleLoginAs(agency.id)}>
+                              <LogIn className="h-4 w-4 mr-2" />
+                              Login As
+                            </DropdownMenuItem>
+                            {isSuperAdmin && (
+                              <DropdownMenuItem onClick={() => handleAssignClick(agency)}>
+                                <Globe className="h-4 w-4 mr-2" />
+                                Assign to Partner
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
