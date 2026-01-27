@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AgencySidebar } from "@/components/AgencySidebar";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { AnnouncementDropdown } from "@/components/announcements/AnnouncementDropdown";
 import { Bell, User, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ export function AgencyLayout({ children, agencyId }: AgencyLayoutProps) {
           </div>
 
           <div className="ml-auto flex items-center gap-4">
+            <AnnouncementDropdown />
             <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />
             </Button>

@@ -1,7 +1,11 @@
+import { useState, useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { SubaccountSidebar } from "@/components/SubaccountSidebar";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { TrialStatusWidget } from "@/components/TrialStatusWidget";
+import { AnnouncementDropdown } from "@/components/announcements/AnnouncementDropdown";
+import { AnnouncementModal } from "@/components/announcements/AnnouncementModal";
+import { useAnnouncements } from "@/hooks/useAnnouncements";
 import { Bell, Search, User, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +29,17 @@ interface SubaccountLayoutProps {
 export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutProps) {
   const { user, profile, signOut, hasRole } = useAuth();
   const navigate = useNavigate();
+  const { unreadCount } = useAnnouncements();
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+
+  // Show announcement modal on login if there are unread announcements
+  useEffect(() => {
+    const hasShownModal = sessionStorage.getItem("announcementModalShown");
+    if (unreadCount > 0 && !hasShownModal) {
+      setShowAnnouncementModal(true);
+      sessionStorage.setItem("announcementModalShown", "true");
+    }
+  }, [unreadCount]);
 
   return (
     <SidebarProvider>
@@ -51,6 +66,8 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
           <div className="flex items-center gap-2 md:gap-4 ml-auto">
             {/* Trial Status Widget */}
             <TrialStatusWidget subaccountId={subaccountId} />
+
+            <AnnouncementDropdown />
 
             <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />
@@ -96,6 +113,12 @@ export function SubaccountLayout({ children, subaccountId }: SubaccountLayoutPro
             {children}
           </main>
         </div>
+
+        {/* Announcement Modal for unread notifications on login */}
+        <AnnouncementModal 
+          open={showAnnouncementModal} 
+          onOpenChange={setShowAnnouncementModal} 
+        />
       </div>
     </SidebarProvider>
   );
