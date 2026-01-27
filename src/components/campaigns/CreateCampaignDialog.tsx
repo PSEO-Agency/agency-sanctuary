@@ -89,6 +89,11 @@ export function CreateCampaignDialog({
     onOpenChange(false);
   };
 
+  const handleFinishCampaign = () => {
+    onComplete(formData);
+    handleClose();
+  };
+
   const renderStep = () => {
     switch (currentStep) {
       case 1:
@@ -116,6 +121,7 @@ export function CreateCampaignDialog({
             formData={formData} 
             updateFormData={updateFormData} 
             onBack={() => setCurrentStep(4)}
+            onFinish={handleFinishCampaign}
           />
         );
       default:
@@ -123,61 +129,55 @@ export function CreateCampaignDialog({
     }
   };
 
+  // Step 5 renders as full-screen portal
+  if (open && currentStep === 5) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background">
+        {renderStep()}
+      </div>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className={currentStep === 5 ? "max-w-[95vw] h-[90vh] overflow-hidden p-0" : "max-w-4xl max-h-[90vh] overflow-y-auto p-0"}>
-        {/* Header with Progress - hide on step 5 */}
-        {currentStep !== 5 && (
-          <div className="sticky top-0 bg-background z-10 px-6 pt-6 pb-4 border-b">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm text-muted-foreground">
-                Step {currentStep} of {totalSteps}
-              </span>
-              <span className="text-sm font-medium">{getStepTitle()}</span>
-            </div>
-            <Progress value={(currentStep / totalSteps) * 100} className="h-1.5" />
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Header with Progress */}
+        <div className="sticky top-0 bg-background z-10 px-6 pt-6 pb-4 border-b">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-muted-foreground">
+              Step {currentStep} of {totalSteps}
+            </span>
+            <span className="text-sm font-medium">{getStepTitle()}</span>
           </div>
-        )}
+          <Progress value={(currentStep / totalSteps) * 100} className="h-1.5" />
+        </div>
 
         {/* Step Content */}
-        <div className={currentStep === 5 ? "h-full" : "px-6 py-8"}>{renderStep()}</div>
+        <div className="px-6 py-8">{renderStep()}</div>
 
-        {/* Footer - hide on step 5 */}
-        {currentStep !== 5 && (
-          <div className="sticky bottom-0 bg-background border-t px-6 py-4">
-            <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                disabled={currentStep === 1}
-                className="min-w-[100px]"
-              >
-                Back
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Your progress is saved automatically.
-              </span>
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed()}
-                className="min-w-[100px]"
-              >
-                {currentStep === totalSteps ? "Finish" : "Next"}
-              </Button>
-            </div>
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-background border-t px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 1}
+              className="min-w-[100px]"
+            >
+              Back
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Your progress is saved automatically.
+            </span>
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed()}
+              className="min-w-[100px]"
+            >
+              {currentStep === totalSteps ? "Finish" : "Next"}
+            </Button>
           </div>
-        )}
-
-        {/* Step 5 has its own footer inside TemplateEditorStep */}
-        {currentStep === 5 && (
-          <div className="absolute bottom-0 left-0 right-0 bg-background border-t px-6 py-4">
-            <div className="flex items-center justify-end">
-              <Button onClick={handleNext} className="min-w-[120px]">
-                Finish
-              </Button>
-            </div>
-          </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );
