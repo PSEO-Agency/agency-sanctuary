@@ -124,6 +124,80 @@ export type Database = {
           },
         ]
       }
+      announcement_reads: {
+        Row: {
+          announcement_id: string
+          id: string
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          id?: string
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          id?: string
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_reads_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          audience: string[]
+          created_at: string | null
+          created_by: string | null
+          cta_text: string | null
+          cta_url: string | null
+          description: string
+          id: string
+          image_url: string | null
+          is_draft: boolean | null
+          published_at: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          audience?: string[]
+          created_at?: string | null
+          created_by?: string | null
+          cta_text?: string | null
+          cta_url?: string | null
+          description: string
+          id?: string
+          image_url?: string | null
+          is_draft?: boolean | null
+          published_at?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          audience?: string[]
+          created_at?: string | null
+          created_by?: string | null
+          cta_text?: string | null
+          cta_url?: string | null
+          description?: string
+          id?: string
+          image_url?: string | null
+          is_draft?: boolean | null
+          published_at?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       article_publications: {
         Row: {
           article_airtable_id: string
@@ -481,6 +555,36 @@ export type Database = {
           name?: string
           owner_user_id?: string | null
           settings?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          created_at: string | null
+          html_content: string
+          id: string
+          is_active: boolean | null
+          name: string
+          subject: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          html_content: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          subject: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          html_content?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          subject?: string
           updated_at?: string | null
         }
         Relationships: []
