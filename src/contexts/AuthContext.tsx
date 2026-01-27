@@ -261,8 +261,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Security: Validate OAuth URL before redirect to prevent open redirect
       if (data?.url) {
         const oauthUrl = new URL(data.url);
-        const allowedHosts = ['accounts.google.com'];
-        if (!allowedHosts.some(host => oauthUrl.hostname === host)) {
+        // OAuth flow goes through Supabase first, then to Google
+        const isValidSupabaseAuth = oauthUrl.hostname.endsWith('.supabase.co');
+        if (!isValidSupabaseAuth) {
           throw new Error('Invalid OAuth redirect URL');
         }
         window.location.href = data.url; // Manual redirect
