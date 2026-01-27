@@ -1,190 +1,184 @@
 
-# Consolidate Table Action Buttons into Dropdown Menu
+
+# Role-Based Theming System
 
 ## Overview
 
-Refactor the action buttons in both the Subaccounts and Agencies tables to reduce horizontal scrolling by:
-1. Converting primary actions (View/Manage) to small icon-only buttons with hover tooltips
-2. Grouping secondary actions (Transfer, Upgrade, Delete, Assign, Login As) into a "more actions" dropdown menu (three dots icon)
+This plan addresses two issues:
+1. **Bug Fix**: Country Partner users incorrectly seeing "Super Admin" label
+2. **Visual Clarity**: Implement distinct color themes for each portal type to reduce confusion when switching between dashboards
 
-This follows the ElevenLabs table pattern where primary actions are compact icons and secondary actions are hidden in a dropdown.
+## Proposed Theme Colors
 
-## Current State
+| Portal | Primary Color | Sidebar Style |
+|--------|--------------|---------------|
+| **Subaccount** | Purple (262, 83%, 58%) | Gradient sidebar like reference image |
+| **Agency** | Blue (217, 91%, 60%) | Gradient sidebar |
+| **Country Partner** | Orange (25, 95%, 53%) | Gradient sidebar |
+| **Super Admin** | Slate/Neutral (220, 9%, 46%) | Clean neutral sidebar |
 
-### Subaccounts Table Actions (4 buttons causing scroll)
-```text
-[View] [Transfer] [Upgrade] [Delete]
+## Visual Reference
+
+Based on the uploaded image, the sidebar will feature:
+- Rounded container with gradient background
+- White/light text for nav items
+- Semi-transparent highlight for active items
+- Soft shadow and rounded corners
+
+---
+
+## Implementation Plan
+
+### Phase 1: Create Theme Context and CSS Variables
+
+**New File: `src/contexts/ThemeContext.tsx`**
+
+Create a context that provides role-based theming:
+- Detects current portal type from URL path (`/super-admin`, `/agency`, `/subaccount`)
+- Sets appropriate CSS variables dynamically
+- Provides theme info to components
+
+**File: `src/index.css`**
+
+Add new CSS variable sets for each role theme:
+- `.theme-subaccount` - Purple gradient sidebar
+- `.theme-agency` - Blue gradient sidebar  
+- `.theme-partner` - Orange gradient sidebar
+- `.theme-super-admin` - Neutral/slate sidebar
+
+### Phase 2: Update Layout Components
+
+**File: `src/components/layout/SuperAdminLayout.tsx`**
+
+1. Fix role display logic - ensure country_partner shows "Country Partner" label
+2. Apply `.theme-partner` or `.theme-super-admin` class based on actual role
+3. Update header styling to reflect current theme
+
+**File: `src/components/layout/AgencyLayout.tsx`**
+
+1. Apply `.theme-agency` class
+2. Update header accent colors to blue
+3. Update BETA badge styling
+
+**File: `src/components/layout/SubaccountLayout.tsx`**
+
+1. Apply `.theme-subaccount` class
+2. Keep current purple styling (default)
+
+### Phase 3: Redesign Sidebars with Gradient Backgrounds
+
+**File: `src/components/SubaccountSidebar.tsx`**
+
+Redesign to match reference image:
+- Rounded container with purple gradient (`from-violet-500 to-purple-600`)
+- White text for menu items
+- Semi-transparent white background for active/hover states
+- Remove border, add subtle shadow
+
+**File: `src/components/AgencySidebar.tsx`**
+
+Apply blue gradient theme:
+- Blue gradient (`from-blue-500 to-blue-600`)
+- Same structure as subaccount sidebar
+
+**File: `src/components/SuperAdminSidebar.tsx`**
+
+Apply role-specific theme:
+- For Country Partners: Orange gradient (`from-orange-500 to-amber-600`)
+- For Super Admins: Neutral slate (`from-slate-600 to-slate-700`)
+
+### Phase 4: Update Header Styling
+
+Each layout header will feature:
+- BETA badge using the current theme's primary color
+- Subtle theme indicator (colored bar or accent)
+
+---
+
+## Technical Details
+
+### CSS Variable Structure
+
+```css
+.theme-subaccount {
+  --theme-primary: 262 83% 58%;
+  --theme-gradient-from: 263 70% 50%;
+  --theme-gradient-to: 271 81% 45%;
+  --sidebar-text: 0 0% 100%;
+  --sidebar-text-muted: 0 0% 100% / 0.7;
+  --sidebar-active-bg: 0 0% 100% / 0.15;
+}
+
+.theme-agency {
+  --theme-primary: 217 91% 60%;
+  --theme-gradient-from: 217 91% 55%;
+  --theme-gradient-to: 224 76% 48%;
+  /* ... */
+}
+
+.theme-partner {
+  --theme-primary: 25 95% 53%;
+  --theme-gradient-from: 25 95% 53%;
+  --theme-gradient-to: 38 92% 50%;
+  /* ... */
+}
+
+.theme-super-admin {
+  --theme-primary: 220 9% 46%;
+  --theme-gradient-from: 220 13% 33%;
+  --theme-gradient-to: 217 19% 27%;
+  /* ... */
+}
 ```
 
-### Agencies Table Actions (3 buttons)
-```text
-[Manage] [Assign] [Login As]
-```
+### Sidebar Component Updates
 
-## Proposed Design
-
-### Subaccounts Table - New Layout
-```text
-[Eye icon] [MoreVertical dropdown]
-    └── Transfer
-    └── Upgrade to Agency (Super Admin only)
-    └── ────────────────
-    └── Delete (destructive)
-```
-
-### Agencies Table - New Layout
-```text
-[Settings icon] [MoreVertical dropdown]
-    └── Login As
-    └── Assign to Partner (Super Admin only)
-```
-
-## Visual Mockup
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Name          │ Location ID │ Agency │ Created  │ Actions   │
-├──────────────────────────────────────────────────────────────┤
-│ My Subaccount │ loc_123     │ Acme   │ Jan 15   │ 👁️  ⋮    │
-│               │             │        │          │           │
-└──────────────────────────────────────────────────────────────┘
-
-Hover over 👁️ shows: "View"
-
-Click ⋮ shows dropdown:
-┌─────────────────────┐
-│ ↔️ Transfer         │
-│ ⬆️ Upgrade to Agency│
-│ ─────────────────── │
-│ 🗑️ Delete           │
-└─────────────────────┘
-```
-
-## Implementation Details
-
-### File Changes
-
-#### 1. `src/pages/super-admin/Subaccounts.tsx`
-
-**Add imports:**
-- `MoreVertical` from lucide-react
-- `DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuSeparator`, `DropdownMenuTrigger` from ui/dropdown-menu
-- `Tooltip`, `TooltipContent`, `TooltipProvider`, `TooltipTrigger` from ui/tooltip
-
-**Replace the actions cell (lines 376-409) with:**
+Each sidebar will use:
 ```tsx
-<TableCell className="text-right">
-  <div className="flex justify-end items-center gap-1">
-    {/* View button - icon only with tooltip */}
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <Eye className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>View</TooltipContent>
-    </Tooltip>
-    
-    {/* More actions dropdown */}
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => handleTransferClick(subaccount)}>
-          <ArrowRightLeft className="h-4 w-4 mr-2" />
-          Transfer
-        </DropdownMenuItem>
-        {isSuperAdmin && (
-          <DropdownMenuItem onClick={() => handleUpgradeClick(subaccount)}>
-            <ArrowUpCircle className="h-4 w-4 mr-2" />
-            Upgrade to Agency
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem 
-          onClick={() => handleDeleteClick(subaccount)}
-          className="text-destructive focus:text-destructive"
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  </div>
-</TableCell>
+<Sidebar className={cn(
+  collapsed ? "w-14" : "w-60",
+  "bg-gradient-to-b from-[hsl(var(--theme-gradient-from))] to-[hsl(var(--theme-gradient-to))]",
+  "text-white rounded-2xl m-3 shadow-lg"
+)} collapsible="icon">
 ```
 
-#### 2. `src/pages/super-admin/Agencies.tsx`
+### Role Label Fix
 
-**Add imports:**
-- `MoreVertical`, `Settings` from lucide-react  
-- `DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuTrigger` from ui/dropdown-menu
-- `Tooltip`, `TooltipContent`, `TooltipProvider`, `TooltipTrigger` from ui/tooltip
-
-**Replace the actions cell (lines 423-439) with:**
+In `SuperAdminLayout.tsx`, update the role detection:
 ```tsx
-<TableCell className="text-right">
-  <div className="flex justify-end items-center gap-1">
-    {/* Manage button - icon only with tooltip */}
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <Settings className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>Manage</TooltipContent>
-    </Tooltip>
-    
-    {/* More actions dropdown */}
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => handleLoginAs(agency.id)}>
-          <LogIn className="h-4 w-4 mr-2" />
-          Login As
-        </DropdownMenuItem>
-        {isSuperAdmin && (
-          <DropdownMenuItem onClick={() => handleAssignClick(agency)}>
-            <Globe className="h-4 w-4 mr-2" />
-            Assign to Partner
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  </div>
-</TableCell>
+// Check country_partner FIRST since it's more specific
+const isCountryPartner = hasRole("country_partner");
+const isSuperAdmin = hasRole("super_admin");
+
+// Priority: country_partner over super_admin for display purposes
+const roleLabel = isCountryPartner && !isSuperAdmin 
+  ? "Country Partner" 
+  : isSuperAdmin 
+  ? "Super Admin" 
+  : "Admin";
 ```
 
-### Wrap Tables with TooltipProvider
-
-Both tables need to be wrapped with `<TooltipProvider>` at the component level for tooltips to work.
-
-## Benefits
-
-| Before | After |
-|--------|-------|
-| 4 buttons with text labels | 2 small icons |
-| Horizontal scrolling on smaller screens | Fits within table width |
-| All actions equally prominent | Primary action visible, secondary tucked away |
-| ~300px actions column width | ~80px actions column width |
-
-## Accessibility Considerations
-
-- Tooltips provide text labels for icon-only buttons
-- Dropdown menu items include icons and text labels
-- Destructive actions are visually distinguished with red color
-- Keyboard navigation works via Radix primitives
+---
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/super-admin/Subaccounts.tsx` | Replace action buttons with icon + dropdown pattern |
-| `src/pages/super-admin/Agencies.tsx` | Replace action buttons with icon + dropdown pattern |
+| `src/index.css` | Add theme CSS variables for each role |
+| `src/components/layout/SuperAdminLayout.tsx` | Fix role label, apply theme class |
+| `src/components/layout/AgencyLayout.tsx` | Apply agency theme class |
+| `src/components/layout/SubaccountLayout.tsx` | Apply subaccount theme class |
+| `src/components/SubaccountSidebar.tsx` | Purple gradient sidebar design |
+| `src/components/AgencySidebar.tsx` | Blue gradient sidebar design |
+| `src/components/SuperAdminSidebar.tsx` | Orange/neutral gradient based on role |
+
+---
+
+## Benefits
+
+- **Clear Visual Distinction**: Users immediately know which portal they're in
+- **Reduced Confusion**: Color coding prevents accidental actions in wrong context
+- **Consistent Design Language**: All sidebars follow the same gradient pattern
+- **Future-Ready**: Agency whitelabeling can extend this theming system
+- **Bug Fixed**: Country Partners correctly labeled
+
