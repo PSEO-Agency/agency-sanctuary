@@ -14,6 +14,119 @@ interface GenerateTemplateRequest {
   user_prompt?: string;
 }
 
+// Get default content for a section type based on available variables
+function getDefaultContent(
+  type: string, 
+  variables: string[],
+  businessName: string
+): Record<string, any> {
+  const mainVar = variables[0] || "item";
+  
+  const defaults: Record<string, Record<string, any>> = {
+    hero: {
+      headline: `{{${mainVar}}} - ${businessName}`,
+      subheadline: `prompt("Write an engaging 1-2 sentence introduction about {{${mainVar}}} for ${businessName}")`,
+      cta_text: "Learn More"
+    },
+    features: {
+      title: `Key Features of {{${mainVar}}}`,
+      items: [
+        `prompt("Describe feature 1 of {{${mainVar}}}")`,
+        `prompt("Describe feature 2 of {{${mainVar}}}")`,
+        `prompt("Describe feature 3 of {{${mainVar}}}")`,
+      ]
+    },
+    content: {
+      title: `About {{${mainVar}}}`,
+      body: `prompt("Write detailed, informative content about {{${mainVar}}} for ${businessName}. Include key information that visitors would want to know.")`
+    },
+    faq: {
+      title: `Frequently Asked Questions about {{${mainVar}}}`,
+      items: [
+        `What is {{${mainVar}}}?|prompt("Provide a comprehensive answer about what {{${mainVar}}} is and why it matters")`,
+        `Why choose {{${mainVar}}}?|prompt("Explain the key benefits and reasons to choose {{${mainVar}}}")`
+      ]
+    },
+    pros_cons: {
+      title: `Pros and Cons of {{${mainVar}}}`,
+      pros: [
+        `prompt("List advantage 1 of {{${mainVar}}}")`,
+        `prompt("List advantage 2 of {{${mainVar}}}")`,
+        `prompt("List advantage 3 of {{${mainVar}}}")`
+      ],
+      cons: [
+        `prompt("List potential drawback 1 of {{${mainVar}}}")`,
+        `prompt("List potential drawback 2 of {{${mainVar}}}")`
+      ]
+    },
+    pricing: {
+      title: `{{${mainVar}}} Pricing`,
+      price: `prompt("Estimate a typical price range for {{${mainVar}}}")`,
+      description: `prompt("Describe what's included and any pricing factors for {{${mainVar}}}")`,
+      cta_text: "Get Quote"
+    },
+    testimonials: {
+      title: "What Our Customers Say",
+      items: [
+        `prompt("Write a testimonial from a satisfied customer about {{${mainVar}}}")|Happy Customer`,
+        `prompt("Write another positive customer review about {{${mainVar}}}")|Verified Buyer`
+      ]
+    },
+    benefits: {
+      title: `Benefits of {{${mainVar}}}`,
+      items: [
+        `prompt("Describe key benefit 1 of {{${mainVar}}}")`,
+        `prompt("Describe key benefit 2 of {{${mainVar}}}")`,
+        `prompt("Describe key benefit 3 of {{${mainVar}}}")`
+      ]
+    },
+    process: {
+      title: "How It Works",
+      steps: [
+        `prompt("Describe step 1 of the process for {{${mainVar}}}")`,
+        `prompt("Describe step 2 of the process for {{${mainVar}}}")`,
+        `prompt("Describe step 3 of the process for {{${mainVar}}}")`
+      ]
+    },
+    gallery: {
+      title: `{{${mainVar}}} Gallery`,
+      images: [
+        `image_prompt("High quality professional photo of {{${mainVar}}}")`,
+        `image_prompt("Detailed view of {{${mainVar}}}")`
+      ]
+    },
+    image: {
+      src: `image_prompt("High quality professional photo of {{${mainVar}}}")`,
+      alt: `{{${mainVar}}} image`
+    },
+    cta: {
+      headline: `Ready to Learn About {{${mainVar}}}?`,
+      subtext: `Contact ${businessName} today for more information`,
+      button_text: "Contact Us"
+    }
+  };
+  
+  return defaults[type] || { 
+    title: `{{${mainVar}}}`,
+    body: `prompt("Write informative content about {{${mainVar}}}")`
+  };
+}
+
+// Ensure all sections have populated content
+function ensureContentPopulated(
+  sections: any[], 
+  variables: string[],
+  businessName: string
+): any[] {
+  return sections.map(section => {
+    if (!section.content || Object.keys(section.content).length === 0) {
+      console.log(`Section ${section.id} (${section.type}) has empty content, adding defaults`);
+      section.content = getDefaultContent(section.type, variables, businessName);
+    }
+    return section;
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -48,6 +161,7 @@ serve(async (req) => {
       .join("\n");
 
     const variableList = (variables || []).map((v) => `{{${v}}}`).join(", ");
+    const mainVariable = variables?.[0] || "item";
 
     // Build user instructions section if provided
     const userInstructions = user_prompt 
@@ -65,70 +179,201 @@ Data samples from the campaign:
 ${dataContext || "No data samples provided"}
 ${userInstructions}
 
-SECTION TYPES AND THEIR CONTENT FIELDS:
+=== CRITICAL: CONTENT STRUCTURE EXAMPLES ===
 
-1. hero: Main banner section
-   - headline: Main title using {{variable}} (e.g., "Everything About {{breed}}")
-   - subheadline: Use prompt("instruction") for AI-generated subtitle about {{variable}}
-   - cta_text: Button text (e.g., "Get Quote", "Contact Us", "Learn More")
+EVERY section MUST have fully populated content fields with real values. NEVER return empty content objects.
 
-2. features: Feature grid with checkmarks
-   - title: Section heading
-   - items: Array of 4-6 feature strings (can include {{variable}})
+EXAMPLE HERO SECTION (COPY THIS STRUCTURE):
+{
+  "id": "hero-${entity.id}",
+  "type": "hero",
+  "name": "Hero Banner",
+  "content": {
+    "headline": "Everything About {{${mainVariable}}}",
+    "subheadline": "prompt(\\"Write a compelling 1-2 sentence introduction about {{${mainVariable}}} for ${business_name}\\")",
+    "cta_text": "Get a Quote"
+  }
+}
 
-3. content: Rich text block
-   - title: Section heading
-   - body: Use prompt("instruction about {{variable}}") for AI-generated content
+EXAMPLE FEATURES SECTION:
+{
+  "id": "features-${entity.id}",
+  "type": "features",
+  "name": "Key Features",
+  "content": {
+    "title": "Why Choose {{${mainVariable}}}",
+    "items": [
+      "prompt(\\"Describe feature 1 of {{${mainVariable}}}\\")",
+      "prompt(\\"Describe feature 2 of {{${mainVariable}}}\\")",
+      "prompt(\\"Describe feature 3 of {{${mainVariable}}}\\")",
+      "prompt(\\"Describe feature 4 of {{${mainVariable}}}\\")"
+    ]
+  }
+}
 
-4. pricing: Price display card
-   - title: "Pricing" or "Cost Range"
-   - price: Use prompt("estimate price range for {{variable}}") or static text
-   - description: Additional pricing notes
-   - features: Array of included features (optional)
-   - cta_text: "Get Quote" or similar
+EXAMPLE CONTENT SECTION:
+{
+  "id": "content-${entity.id}",
+  "type": "content",
+  "name": "About Section",
+  "content": {
+    "title": "About {{${mainVariable}}}",
+    "body": "prompt(\\"Write detailed, informative content about {{${mainVariable}}} for ${business_name}. Include key information, benefits, and what makes it special.\\")"
+  }
+}
 
-5. faq: Q&A accordion (IMPORTANT: Use pipe | separator between question and answer)
-   - title: "Frequently Asked Questions about {{variable}}"
-   - items: Array of strings in format "Question about {{variable}}|prompt("answer about {{variable}}")"
+EXAMPLE FAQ SECTION (use pipe | separator):
+{
+  "id": "faq-${entity.id}",
+  "type": "faq",
+  "name": "Frequently Asked Questions",
+  "content": {
+    "title": "Common Questions About {{${mainVariable}}}",
+    "items": [
+      "What is {{${mainVariable}}}?|prompt(\\"Provide a detailed answer about what {{${mainVariable}}} is and its key characteristics\\")",
+      "How much does {{${mainVariable}}} cost?|prompt(\\"Provide pricing information and factors that affect the cost of {{${mainVariable}}}\\")",
+      "Why should I choose {{${mainVariable}}}?|prompt(\\"Explain the key benefits and reasons to choose {{${mainVariable}}}\\")"
+    ]
+  }
+}
 
-6. pros_cons: Two-column comparison table
-   - title: "Pros & Cons of {{variable}}"
-   - pros: Array of positive points (use prompt for each or static text)
-   - cons: Array of negative points (use prompt for each or static text)
+EXAMPLE PROS_CONS SECTION:
+{
+  "id": "pros-cons-${entity.id}",
+  "type": "pros_cons",
+  "name": "Pros and Cons",
+  "content": {
+    "title": "Is {{${mainVariable}}} Right for You?",
+    "pros": [
+      "prompt(\\"List advantage 1 of {{${mainVariable}}}\\")",
+      "prompt(\\"List advantage 2 of {{${mainVariable}}}\\")",
+      "prompt(\\"List advantage 3 of {{${mainVariable}}}\\")"
+    ],
+    "cons": [
+      "prompt(\\"List potential drawback 1 of {{${mainVariable}}}\\")",
+      "prompt(\\"List potential drawback 2 of {{${mainVariable}}}\\")"
+    ]
+  }
+}
 
-7. testimonials: Customer quote cards
-   - title: "What Customers Say"
-   - items: Array of "Quote text|Author Name" strings
+EXAMPLE PRICING SECTION:
+{
+  "id": "pricing-${entity.id}",
+  "type": "pricing",
+  "name": "Pricing Information",
+  "content": {
+    "title": "{{${mainVariable}}} Pricing",
+    "price": "prompt(\\"Estimate a typical price range for {{${mainVariable}}}\\")",
+    "description": "prompt(\\"Describe what's included and any factors that affect pricing\\")",
+    "cta_text": "Get Quote"
+  }
+}
 
-8. benefits: Icon/benefit grid
-   - title: Section heading
-   - items: Array of benefit strings
+EXAMPLE IMAGE SECTION:
+{
+  "id": "image-${entity.id}",
+  "type": "image",
+  "name": "Featured Image",
+  "content": {
+    "src": "image_prompt(\\"High quality professional photo of {{${mainVariable}}}\\")",
+    "alt": "{{${mainVariable}}} image"
+  }
+}
 
-9. process: Step-by-step flow
-   - title: "How It Works" or similar
-   - steps: Array of step descriptions
+EXAMPLE CTA SECTION:
+{
+  "id": "cta-${entity.id}",
+  "type": "cta",
+  "name": "Call to Action",
+  "content": {
+    "headline": "Ready to Learn About {{${mainVariable}}}?",
+    "subtext": "Contact ${business_name} today for more information",
+    "button_text": "Contact Us"
+  }
+}
 
-10. gallery: Image grid placeholder
-    - title: "Gallery" or similar
-    - images: Array of image_prompt("description") strings
+EXAMPLE TESTIMONIALS SECTION:
+{
+  "id": "testimonials-${entity.id}",
+  "type": "testimonials",
+  "name": "Customer Reviews",
+  "content": {
+    "title": "What Our Customers Say",
+    "items": [
+      "prompt(\\"Write a testimonial from a satisfied customer about {{${mainVariable}}}\\")|Happy Customer",
+      "prompt(\\"Write another positive review about {{${mainVariable}}}\\")|Verified Buyer"
+    ]
+  }
+}
 
-11. image: Single image section
-    - src: Use image_prompt("detailed description for {{variable}}") for AI-generated image
-    - alt: Alt text description
+EXAMPLE BENEFITS SECTION:
+{
+  "id": "benefits-${entity.id}",
+  "type": "benefits",
+  "name": "Key Benefits",
+  "content": {
+    "title": "Benefits of {{${mainVariable}}}",
+    "items": [
+      "prompt(\\"Describe key benefit 1 of {{${mainVariable}}}\\")",
+      "prompt(\\"Describe key benefit 2 of {{${mainVariable}}}\\")",
+      "prompt(\\"Describe key benefit 3 of {{${mainVariable}}}\\")"
+    ]
+  }
+}
 
-12. cta: Call-to-action banner
-    - headline: Compelling action text (e.g., "Ready to Learn About {{variable}}?")
-    - subtext: Supporting message
-    - button_text: Action button text
+EXAMPLE PROCESS SECTION:
+{
+  "id": "process-${entity.id}",
+  "type": "process",
+  "name": "How It Works",
+  "content": {
+    "title": "How It Works",
+    "steps": [
+      "prompt(\\"Describe step 1 of the process for {{${mainVariable}}}\\")",
+      "prompt(\\"Describe step 2 of the process\\")",
+      "prompt(\\"Describe step 3 of the process\\")"
+    ]
+  }
+}
 
-SYNTAX RULES:
+EXAMPLE GALLERY SECTION:
+{
+  "id": "gallery-${entity.id}",
+  "type": "gallery",
+  "name": "Photo Gallery",
+  "content": {
+    "title": "{{${mainVariable}}} Gallery",
+    "images": [
+      "image_prompt(\\"Professional photo of {{${mainVariable}}} from front view\\")",
+      "image_prompt(\\"Detailed close-up of {{${mainVariable}}}\\")"
+    ]
+  }
+}
+
+=== SYNTAX RULES ===
 1. Use {{variable}} for direct data substitution from campaign data
-2. Use prompt("instruction about {{variable}}") for AI-generated TEXT content
+2. Use prompt("instruction about {{variable}}") for AI-generated TEXT content - ALWAYS include instructions inside
 3. Use image_prompt("description of image for {{variable}}") for AI-generated IMAGES
 4. For FAQ items, use format: "Question here|Answer or prompt here"
 5. For testimonials, use format: "Quote text|Author Name"
 
-IMPORTANT GUIDELINES:
+=== SECTION CONTENT REQUIREMENTS ===
+- hero: MUST have headline, subheadline, cta_text
+- features: MUST have title, items (array of strings)
+- content: MUST have title, body
+- faq: MUST have title, items (array of "question|answer" strings)
+- pros_cons: MUST have title, pros (array), cons (array)
+- pricing: MUST have title, price, description, cta_text
+- testimonials: MUST have title, items (array of "quote|author" strings)
+- benefits: MUST have title, items (array)
+- process: MUST have title, steps (array)
+- gallery: MUST have title, images (array of image_prompt strings)
+- image: MUST have src (image_prompt), alt
+- cta: MUST have headline, subtext, button_text
+
+CRITICAL RULES:
+- NEVER return content: {} - this is INVALID and will be rejected
+- EVERY section MUST have ALL required fields for its type
 - Generate 5-8 sections based on user instructions
 - Start with a hero section
 - End with a CTA section
@@ -151,7 +396,9 @@ IMPORTANT GUIDELINES:
           },
           {
             role: "user",
-            content: `Generate a complete landing page template for "${entity.name}" pages. ${user_prompt ? `Focus on: ${user_prompt}` : `Include a hero section, relevant content sections, and a CTA section.`} Use the available variables: ${variableList}`,
+            content: `Generate a complete landing page template for "${entity.name}" pages. ${user_prompt ? `Focus on: ${user_prompt}` : `Include a hero section, relevant content sections, and a CTA section.`} Use the available variables: ${variableList}. 
+
+IMPORTANT: Make sure EVERY section has fully populated content fields following the examples I provided. Do not return any section with empty content.`,
           },
         ],
         tools: [
@@ -159,7 +406,7 @@ IMPORTANT GUIDELINES:
             type: "function",
             function: {
               name: "create_template",
-              description: "Create a landing page template with multiple sections",
+              description: "Create a landing page template with multiple sections. Each section MUST have all required content fields populated.",
               parameters: {
                 type: "object",
                 properties: {
@@ -183,7 +430,8 @@ IMPORTANT GUIDELINES:
                         },
                         content: {
                           type: "object",
-                          description: "Key-value pairs of content fields. Use strings for simple values, arrays for list items. Values can include {{variable}} placeholders, prompt('...') for AI text, or image_prompt('...') for AI images."
+                          description: "REQUIRED: Content fields for the section. Must include all required fields for the section type. Use {{variable}} for data, prompt('...') for AI text, image_prompt('...') for AI images.",
+                          additionalProperties: true
                         },
                       },
                       required: ["id", "type", "name", "content"],
@@ -242,13 +490,26 @@ IMPORTANT GUIDELINES:
       throw new Error("Invalid template format from AI");
     }
 
-    console.log("Generated template with", template.sections?.length || 0, "sections");
+    // Post-process: Ensure all sections have content
+    const processedSections = ensureContentPopulated(
+      template.sections || [],
+      variables || [],
+      business_name
+    );
+
+    console.log("Generated template with", processedSections.length, "sections");
+
+    // Log section content for debugging
+    processedSections.forEach(section => {
+      const contentKeys = Object.keys(section.content || {});
+      console.log(`Section ${section.id} (${section.type}): ${contentKeys.length} content fields - ${contentKeys.join(', ')}`);
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
         template: {
-          sections: template.sections || [],
+          sections: processedSections,
           style: {
             primaryColor: "#6366f1",
             backgroundColor: "#ffffff",

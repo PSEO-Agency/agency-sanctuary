@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Loader2, RotateCcw, Check, Tags, ChevronRight, LayoutTemplate, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Sparkles, Loader2, RotateCcw, Check, Tags, LayoutTemplate, AlertCircle, Pencil, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignFormData, Entity, DynamicColumn, TemplateContentConfig } from "../types";
@@ -90,7 +91,7 @@ export function AITemplateGeneratorDialog({
   const [error, setError] = useState<string | null>(null);
   const [userPrompt, setUserPrompt] = useState("");
   
-  // NEW: State for selected variables
+  // State for selected variables
   const [selectedVariables, setSelectedVariables] = useState<string[]>([]);
 
   // Get entities from formData - if none, create a default one
@@ -153,6 +154,27 @@ export function AITemplateGeneratorDialog({
     );
   };
 
+  // Update template in state
+  const handleTemplateUpdate = (updatedTemplate: GeneratedTemplate) => {
+    if (!currentEntity) return;
+    
+    setGeneratedTemplates(prev => ({
+      ...prev,
+      [currentEntity.id]: updatedTemplate,
+    }));
+    
+    // Also update formData for persistence
+    const updatedEntityTemplates = {
+      ...formData.entityTemplates,
+      [currentEntity.id]: {
+        sections: updatedTemplate.sections,
+        style: updatedTemplate.style,
+        images: updatedTemplate.images,
+      },
+    };
+    updateFormData({ entityTemplates: updatedEntityTemplates });
+  };
+
   // Generate template for current entity
   const generateTemplate = async () => {
     if (!currentEntity) return;
@@ -172,7 +194,7 @@ export function AITemplateGeneratorDialog({
           business_name: formData.businessName || "Business",
           business_type: formData.businessType || "local",
           entity: currentEntity,
-          variables: selectedVariables, // Only pass selected variables
+          variables: selectedVariables,
           existing_data: formData.scratchData,
           user_prompt: userPrompt || undefined,
         },
@@ -219,7 +241,7 @@ export function AITemplateGeneratorDialog({
     const currentTemplate = generatedTemplates[currentEntity?.id];
     
     if (currentTemplate) {
-      // Immediately sync this entity's template to formData (already done on generation, but ensure it's saved)
+      // Sync this entity's template to formData
       const updatedEntityTemplates = {
         ...formData.entityTemplates,
         [currentEntity.id]: {
@@ -239,18 +261,6 @@ export function AITemplateGeneratorDialog({
       setSelectedVariables(formData.dynamicColumns.map(c => c.variableName));
     } else {
       // All entities done
-      onComplete();
-    }
-  };
-
-  // Skip current entity
-  const handleSkip = () => {
-    if (currentEntityIndex < entities.length - 1) {
-      setCurrentEntityIndex((prev) => prev + 1);
-      setGenerationStatus("idle");
-      // Reset selected variables for next entity
-      setSelectedVariables(formData.dynamicColumns.map(c => c.variableName));
-    } else {
       onComplete();
     }
   };
@@ -432,26 +442,21 @@ export function AITemplateGeneratorDialog({
             entity={currentEntity}
             variables={formData.dynamicColumns}
             selectedVariables={selectedVariables}
+            onTemplateUpdate={handleTemplateUpdate}
           />
         )}
 
-        {/* Action buttons */}
+        {/* Action buttons - No Skip button */}
         {generationStatus === "reviewing" && (
-          <div className="flex justify-between gap-3 pt-4 border-t">
-            <Button variant="ghost" onClick={handleSkip} className="text-muted-foreground">
-              Skip
-              <ChevronRight className="h-4 w-4 ml-1" />
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={generateTemplate} disabled={isGenerating}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Regenerate
             </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={generateTemplate} disabled={isGenerating}>
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Regenerate
-              </Button>
-              <Button onClick={handleApprove}>
-                <Check className="h-4 w-4 mr-2" />
-                {currentEntityIndex < entities.length - 1 ? "Approve & Next" : "Approve & Finish"}
-              </Button>
-            </div>
+            <Button onClick={handleApprove}>
+              <Check className="h-4 w-4 mr-2" />
+              {currentEntityIndex < entities.length - 1 ? "Approve & Next" : "Approve & Finish"}
+            </Button>
           </div>
         )}
       </DialogContent>
@@ -483,6 +488,47 @@ function analyzeContent(value: string | string[]): { variables: string[]; hasPro
   });
 
   return { variables, hasPrompt, hasImagePrompt };
+}
+
+// Analyze if section is missing expected content for its type
+function getSectionWarnings(section: GeneratedSection, selectedVars: string[]): string[] {
+  const warnings: string[] = [];
+  const content = section.content;
+  
+  // Check if content is empty
+  if (!content || Object.keys(content).length === 0) {
+    warnings.push("Section has no content - click Edit to add");
+    return warnings;
+  }
+  
+  // Check for missing variables in key fields
+  const keyFields = ['headline', 'title', 'body', 'subheadline'];
+  const hasVariable = keyFields.some(field => 
+    content[field] && /\{\{\w+\}\}/.test(String(content[field]))
+  );
+  
+  // Only warn if user selected variables but none are used in key fields
+  if (!hasVariable && selectedVars.length > 0) {
+    // Check if variables are used anywhere in the section
+    const hasAnyVariable = Object.values(content).some(v => 
+      /\{\{\w+\}\}/.test(String(Array.isArray(v) ? v.join('') : v))
+    );
+    if (!hasAnyVariable) {
+      warnings.push("No variables used in this section");
+    }
+  }
+  
+  // Check if prompts exist for dynamic content
+  const hasPrompt = Object.values(content).some(v => 
+    /prompt\s*\(/.test(String(Array.isArray(v) ? v.join('') : v))
+  );
+  
+  // For content-heavy sections, warn if no prompts
+  if (['content', 'faq', 'pros_cons', 'testimonials', 'benefits', 'process'].includes(section.type) && !hasPrompt) {
+    warnings.push("Consider adding AI prompts for dynamic content");
+  }
+  
+  return warnings;
 }
 
 // Helper component to highlight variables and prompts in content
@@ -547,15 +593,57 @@ function HighlightedContent({ value }: { value: string | string[] }) {
   return <span className="ml-2 text-xs break-all">{parts}</span>;
 }
 
-// Template preview component with enhanced variable analysis
+// Template preview component with enhanced variable analysis and inline editing
 interface TemplatePreviewProps {
   template: GeneratedTemplate;
   entity: Entity;
   variables: DynamicColumn[];
   selectedVariables: string[];
+  onTemplateUpdate?: (template: GeneratedTemplate) => void;
 }
 
-function TemplatePreview({ template, entity, variables, selectedVariables }: TemplatePreviewProps) {
+function TemplatePreview({ template, entity, variables, selectedVariables, onTemplateUpdate }: TemplatePreviewProps) {
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  
+  // Handle content edit for a section
+  const handleContentEdit = (sectionId: string, field: string, value: any) => {
+    const updatedSections = template.sections.map(s => {
+      if (s.id === sectionId) {
+        return {
+          ...s,
+          content: {
+            ...s.content,
+            [field]: value
+          }
+        };
+      }
+      return s;
+    });
+    
+    onTemplateUpdate?.({
+      ...template,
+      sections: updatedSections,
+    });
+  };
+  
+  // Handle adding item to array field
+  const handleAddItem = (sectionId: string, field: string, currentValue: string[]) => {
+    handleContentEdit(sectionId, field, [...currentValue, ""]);
+  };
+  
+  // Handle removing item from array field
+  const handleRemoveItem = (sectionId: string, field: string, currentValue: string[], index: number) => {
+    const newItems = currentValue.filter((_, i) => i !== index);
+    handleContentEdit(sectionId, field, newItems);
+  };
+  
+  // Handle updating item in array field
+  const handleUpdateItem = (sectionId: string, field: string, currentValue: string[], index: number, newValue: string) => {
+    const newItems = [...currentValue];
+    newItems[index] = newValue;
+    handleContentEdit(sectionId, field, newItems);
+  };
+  
   // Analyze each section for variable and prompt usage
   const sectionAnalysis = template.sections.map((section) => {
     const usedVariables: string[] = [];
@@ -572,12 +660,15 @@ function TemplatePreview({ template, entity, variables, selectedVariables }: Tem
       if (analysis.hasPrompt) hasPrompts = true;
       if (analysis.hasImagePrompt) hasImagePrompts = true;
     });
+    
+    const warnings = getSectionWarnings(section, selectedVariables);
 
     return {
       section,
       usedVariables,
       hasPrompts,
       hasImagePrompts,
+      warnings,
     };
   });
 
@@ -600,17 +691,25 @@ function TemplatePreview({ template, entity, variables, selectedVariables }: Tem
       <div>
         <h4 className="font-semibold text-sm mb-3">Generated Sections</h4>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {template.sections.map((section) => (
-            <div
-              key={section.id}
-              className="border rounded-lg p-3 text-center bg-muted/20"
-            >
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                {section.type}
+          {template.sections.map((section) => {
+            const analysis = sectionAnalysis.find(a => a.section.id === section.id);
+            const hasWarnings = (analysis?.warnings.length || 0) > 0;
+            return (
+              <div
+                key={section.id}
+                className={cn(
+                  "border rounded-lg p-3 text-center bg-muted/20",
+                  hasWarnings && "border-amber-300 bg-amber-50/50"
+                )}
+              >
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1">
+                  {section.type}
+                  {hasWarnings && <AlertCircle className="h-3 w-3 text-amber-500" />}
+                </div>
+                <div className="font-medium text-sm mt-1">{section.name}</div>
               </div>
-              <div className="font-medium text-sm mt-1">{section.name}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -646,16 +745,16 @@ function TemplatePreview({ template, entity, variables, selectedVariables }: Tem
         {variableUsageSummary.some(v => v.usedIn === 0) && (
           <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
             <AlertCircle className="h-3 w-3" />
-            Some variables are not used. Consider regenerating with different instructions.
+            Some variables are not used. You can edit sections below to add them, or regenerate.
           </p>
         )}
       </div>
 
-      {/* Variable Usage by Section - Collapsible */}
+      {/* Variable Usage by Section - Collapsible with Editing */}
       <div>
         <h4 className="font-semibold text-sm mb-3">Section Details</h4>
         <Accordion type="multiple" className="w-full">
-          {sectionAnalysis.map(({ section, usedVariables, hasPrompts, hasImagePrompts }) => (
+          {sectionAnalysis.map(({ section, usedVariables, hasPrompts, hasImagePrompts, warnings }) => (
             <AccordionItem key={section.id} value={section.id}>
               <AccordionTrigger className="text-sm hover:no-underline">
                 <div className="flex items-center gap-2 flex-1">
@@ -663,6 +762,11 @@ function TemplatePreview({ template, entity, variables, selectedVariables }: Tem
                     {section.type}
                   </Badge>
                   <span className="font-medium">{section.name}</span>
+                  {warnings.length > 0 && (
+                    <Badge variant="destructive" className="text-[10px] px-1.5">
+                      {warnings.length} issue{warnings.length > 1 ? 's' : ''}
+                    </Badge>
+                  )}
                   <div className="flex items-center gap-1 ml-auto mr-2">
                     {usedVariables.length > 0 && (
                       <Badge variant="secondary" className="text-[10px] px-1.5">
@@ -679,20 +783,86 @@ function TemplatePreview({ template, entity, variables, selectedVariables }: Tem
                         AI image
                       </Badge>
                     )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2 ml-1"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setEditingSection(editingSection === section.id ? null : section.id); 
+                      }}
+                    >
+                      <Pencil className="h-3 w-3 mr-1" /> 
+                      {editingSection === section.id ? "Done" : "Edit"}
+                    </Button>
                   </div>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                <div className="space-y-2 pl-4 border-l-2 border-muted">
-                  {Object.entries(section.content).map(([key, value]) => (
-                    <div key={key} className="text-sm flex flex-wrap items-start">
-                      <code className="text-xs bg-muted px-1 rounded shrink-0">
-                        {key}:
-                      </code>
-                      <HighlightedContent value={value} />
-                    </div>
-                  ))}
-                </div>
+                {/* Warnings display */}
+                {warnings.length > 0 && (
+                  <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                    {warnings.map((w, i) => <div key={i}>• {w}</div>)}
+                  </div>
+                )}
+                
+                {/* Editing mode */}
+                {editingSection === section.id ? (
+                  <div className="space-y-3 pl-4 border-l-2 border-primary/30">
+                    {Object.entries(section.content).map(([key, value]) => (
+                      <div key={key} className="space-y-1">
+                        <Label className="text-xs font-mono">{key}</Label>
+                        {Array.isArray(value) ? (
+                          <div className="space-y-1">
+                            {value.map((item, i) => (
+                              <div key={i} className="flex gap-2">
+                                <Input 
+                                  value={item}
+                                  onChange={(e) => handleUpdateItem(section.id, key, value, i, e.target.value)}
+                                  className="font-mono text-xs"
+                                />
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="shrink-0 h-10 w-10"
+                                  onClick={() => handleRemoveItem(section.id, key, value, i)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleAddItem(section.id, key, value)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" /> Add Item
+                            </Button>
+                          </div>
+                        ) : (
+                          <Textarea
+                            value={String(value)}
+                            onChange={(e) => handleContentEdit(section.id, key, e.target.value)}
+                            className="font-mono text-xs min-h-[60px]"
+                            placeholder={`Enter ${key}...`}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* View mode */
+                  <div className="space-y-2 pl-4 border-l-2 border-muted">
+                    {Object.entries(section.content).map(([key, value]) => (
+                      <div key={key} className="text-sm flex flex-wrap items-start">
+                        <code className="text-xs bg-muted px-1 rounded shrink-0">
+                          {key}:
+                        </code>
+                        <HighlightedContent value={value} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </AccordionContent>
             </AccordionItem>
           ))}
