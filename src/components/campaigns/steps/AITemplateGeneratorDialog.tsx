@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Loader2, RotateCcw, Check, Tags, LayoutTemplate, AlertCircle, Pencil, X, Plus } from "lucide-react";
+import { Sparkles, Loader2, RotateCcw, Check, Tags, LayoutTemplate, AlertCircle, Pencil, X, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignFormData, Entity, DynamicColumn, TemplateContentConfig } from "../types";
@@ -241,6 +241,19 @@ export function AITemplateGeneratorDialog({
     const currentTemplate = generatedTemplates[currentEntity?.id];
     
     if (currentTemplate) {
+      // Check for empty sections - block progress if any section has no content
+      const emptySections = currentTemplate.sections.filter(
+        s => !s.content || Object.keys(s.content).length === 0 ||
+          Object.values(s.content).every(v => 
+            v === "" || (Array.isArray(v) && v.length === 0)
+          )
+      );
+      
+      if (emptySections.length > 0) {
+        toast.error(`Cannot proceed: ${emptySections.length} section(s) have no content. Please edit or remove empty sections.`);
+        return;
+      }
+      
       // Sync this entity's template to formData
       const updatedEntityTemplates = {
         ...formData.entityTemplates,
@@ -507,16 +520,7 @@ function getSectionWarnings(section: GeneratedSection, selectedVars: string[]): 
     content[field] && /\{\{\w+\}\}/.test(String(content[field]))
   );
   
-  // Only warn if user selected variables but none are used in key fields
-  if (!hasVariable && selectedVars.length > 0) {
-    // Check if variables are used anywhere in the section
-    const hasAnyVariable = Object.values(content).some(v => 
-      /\{\{\w+\}\}/.test(String(Array.isArray(v) ? v.join('') : v))
-    );
-    if (!hasAnyVariable) {
-      warnings.push("No variables used in this section");
-    }
-  }
+  // Variable usage is now purely informational - no warnings for unused variables
   
   // Check if prompts exist for dynamic content
   const hasPrompt = Object.values(content).some(v => 
@@ -644,6 +648,16 @@ function TemplatePreview({ template, entity, variables, selectedVariables, onTem
     handleContentEdit(sectionId, field, newItems);
   };
   
+  // Handle removing a section
+  const handleRemoveSection = (sectionId: string) => {
+    const updatedSections = template.sections.filter(s => s.id !== sectionId);
+    onTemplateUpdate?.({
+      ...template,
+      sections: updatedSections,
+    });
+    toast.success("Section removed");
+  };
+  
   // Analyze each section for variable and prompt usage
   const sectionAnalysis = template.sections.map((section) => {
     const usedVariables: string[] = [];
@@ -734,18 +748,15 @@ function TemplatePreview({ template, entity, variables, selectedVariables, onTem
               <span className="text-xs text-muted-foreground min-w-[60px] text-right">
                 {usedIn}/{totalSections} sections
               </span>
-              {usedIn > 0 ? (
+              {usedIn > 0 && (
                 <Check className="h-4 w-4 text-green-500 shrink-0" />
-              ) : (
-                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
               )}
             </div>
           ))}
         </div>
         {variableUsageSummary.some(v => v.usedIn === 0) && (
-          <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Some variables are not used. You can edit sections below to add them, or regenerate.
+          <p className="text-xs text-muted-foreground mt-3">
+            Some variables are not used in this template. This is fine if intentional.
           </p>
         )}
       </div>
@@ -794,6 +805,17 @@ function TemplatePreview({ template, entity, variables, selectedVariables, onTem
                     >
                       <Pencil className="h-3 w-3 mr-1" /> 
                       {editingSection === section.id ? "Done" : "Edit"}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        handleRemoveSection(section.id); 
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
