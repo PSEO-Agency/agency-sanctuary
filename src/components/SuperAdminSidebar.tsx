@@ -93,7 +93,7 @@ export function SuperAdminSidebar() {
       collapsible="icon"
       style={sidebarStyle}
     >
-      <SidebarContent className="pt-16">
+      <SidebarContent className="pt-4">
         <SidebarGroup>
           <SidebarGroupLabel className={cn("uppercase text-xs", labelClassName)}>
             {portalLabel}

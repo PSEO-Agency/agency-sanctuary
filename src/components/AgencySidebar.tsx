@@ -56,7 +56,7 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
       collapsible="icon"
       style={gradientStyle}
     >
-      <SidebarContent className="flex-1 pt-16">
+      <SidebarContent className="flex-1 pt-4">
         {!collapsed && (
           <div className="px-2 py-2 mt-2">
             <SubaccountSwitcher />
