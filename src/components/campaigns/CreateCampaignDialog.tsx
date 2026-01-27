@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -129,12 +130,13 @@ export function CreateCampaignDialog({
     }
   };
 
-  // Step 5 renders as full-screen portal
+  // Step 5 renders as full-screen portal to escape layout DOM
   if (open && currentStep === 5) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background">
+    return createPortal(
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col h-screen overflow-hidden">
         {renderStep()}
-      </div>
+      </div>,
+      document.body
     );
   }
 

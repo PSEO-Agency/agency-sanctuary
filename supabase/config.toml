@@ -107,3 +107,9 @@ verify_jwt = false
 
 [functions.generate-column-items]
 verify_jwt = false
+
+[functions.ai-website-editor]
+verify_jwt = false
+
+[functions.generate-template-ai]
+verify_jwt = false
