@@ -25,6 +25,12 @@ export function SuperAdminSidebar() {
   const isSuperAdmin = hasRole("super_admin");
   const isCountryPartner = hasRole("country_partner");
 
+  // Determine which gradient to use based on role
+  const isPartnerOnly = isCountryPartner && !isSuperAdmin;
+  const gradientStyle = isPartnerOnly 
+    ? { background: 'linear-gradient(to bottom, hsl(25 95% 53%), hsl(38 92% 50%))' }
+    : { background: 'linear-gradient(to bottom, hsl(220 13% 33%), hsl(217 19% 27%))' };
+
   // Build menu items based on role
   const menuItems = [
     { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
@@ -37,7 +43,7 @@ export function SuperAdminSidebar() {
     menuItems.push({ title: "Country Partners", url: "/super-admin/partners", icon: Globe });
   }
 
-  const portalLabel = isCountryPartner && !isSuperAdmin ? "Partner Portal" : "Super Admin";
+  const portalLabel = isPartnerOnly ? "Partner Portal" : "Super Admin";
 
   const getMenuItemClassName = (isActive: boolean) => {
     if (isActive) {
@@ -57,10 +63,10 @@ export function SuperAdminSidebar() {
     <Sidebar 
       className={cn(
         collapsed ? "w-14" : "w-60",
-        "m-3 rounded-2xl shadow-xl overflow-hidden",
-        "bg-gradient-to-b from-[hsl(var(--theme-gradient-from))] to-[hsl(var(--theme-gradient-to))]"
+        "m-3 rounded-2xl shadow-xl overflow-hidden border-0"
       )} 
       collapsible="icon"
+      style={gradientStyle}
     >
       <SidebarContent className="pt-16">
         <SidebarGroup>

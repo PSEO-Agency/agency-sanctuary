@@ -51,6 +51,11 @@ All colors MUST be HSL.
     --sidebar-ring: 262 83% 58%;
 
     --gradient-sidebar: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
+    
+    /* Default theme variables (purple - subaccount default) */
+    --theme-primary: 262 83% 58%;
+    --theme-gradient-from: 263 70% 50%;
+    --theme-gradient-to: 271 81% 45%;
   }
 
   /* Role-based theme variables */

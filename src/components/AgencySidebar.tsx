@@ -44,14 +44,16 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
     return "h-5 w-5 text-white/70";
   };
 
+  const gradientStyle = { background: 'linear-gradient(to bottom, hsl(217 91% 55%), hsl(224 76% 48%))' };
+
   return (
     <Sidebar 
       className={cn(
         collapsed ? "w-14" : "w-60",
-        "m-3 rounded-2xl shadow-xl overflow-hidden",
-        "bg-gradient-to-b from-[hsl(var(--theme-gradient-from))] to-[hsl(var(--theme-gradient-to))]"
+        "m-3 rounded-2xl shadow-xl overflow-hidden border-0"
       )} 
       collapsible="icon"
+      style={gradientStyle}
     >
       <SidebarContent className="flex-1 pt-16">
         {!collapsed && (
