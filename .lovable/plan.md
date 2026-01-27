@@ -1,419 +1,280 @@
 
 
-# Plan: Fix Empty AI Templates & Enforce Review Flow
+# Plan: Super Admin Feature Kanban Board
 
-## Problem Analysis
+## Overview
 
-### Issue 1: Empty Section Content
-The AI template generator is returning sections with empty `content: {}` objects. Looking at the network response:
-```json
-{"sections":[{"name":"Hero Section","type":"hero","content":{},"id":"hero-breeds"}...]}
+Create a Trello-style Kanban board for Super Admins to track feature development. The implementation will be simple, elegant, and use existing patterns from the codebase (native HTML5 Drag & Drop, existing UI components).
+
+## Database Design
+
+### New Table: `feature_requests`
+
+```sql
+CREATE TABLE public.feature_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  description text,
+  stage_id uuid REFERENCES public.feature_stages(id) ON DELETE SET NULL,
+  position integer NOT NULL DEFAULT 0,
+  deadline date,
+  priority text DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.feature_requests ENABLE ROW LEVEL SECURITY;
+
+-- Only super admins can manage features
+CREATE POLICY "Super admins can manage features"
+  ON public.feature_requests FOR ALL
+  USING (has_role(auth.uid(), 'super_admin'));
 ```
 
-The AI is successfully creating section types and names, but not populating the content fields despite instructions.
+### New Table: `feature_stages`
 
-**Root Cause:** The tool schema in `generate-template-ai` marks `content` as a generic object without specifying the required fields per section type. The AI is "lazy" and returns empty objects when the structure isn't enforced.
+```sql
+CREATE TABLE public.feature_stages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  color text NOT NULL DEFAULT '#e2e8f0', -- Pastel colors
+  position integer NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
 
-### Issue 2: Review Flow Gaps
-- Users cannot edit section content inline before approving
-- No mechanism to manually add missing variables/prompts
-- Skip button exists but shouldn't
+-- Enable RLS
+ALTER TABLE public.feature_stages ENABLE ROW LEVEL SECURITY;
 
----
+-- Only super admins can manage stages
+CREATE POLICY "Super admins can manage stages"
+  ON public.feature_stages FOR ALL
+  USING (has_role(auth.uid(), 'super_admin'));
 
-## Solution
-
-### Part 1: Fix AI Template Generation (Edge Function)
-
-**File:** `supabase/functions/generate-template-ai/index.ts`
-
-The fix involves two changes:
-
-1. **Add concrete content examples to the prompt** - Give the AI actual JSON examples of what each section type should look like with `{{variable}}` and `prompt(...)` filled in.
-
-2. **Post-process AI output** - If sections come back empty, populate them with sensible defaults based on type and available variables.
-
-#### Updated System Prompt
-```typescript
-const systemPrompt = `You are an expert landing page architect...
-
-CRITICAL: Every section MUST have populated content fields. Empty content objects are NOT allowed.
-
-EXAMPLE OUTPUT FOR HERO SECTION:
-{
-  "id": "hero-1",
-  "type": "hero",
-  "name": "Hero Banner",
-  "content": {
-    "headline": "Everything About {{breed}}",
-    "subheadline": "prompt(\"Write a compelling 1-2 sentence introduction about {{breed}} cats for {{company}}\")",
-    "cta_text": "Get a Quote"
-  }
-}
-
-EXAMPLE OUTPUT FOR FAQ SECTION:
-{
-  "id": "faq-1",
-  "type": "faq",
-  "name": "Frequently Asked Questions",
-  "content": {
-    "title": "Common Questions About {{breed}}",
-    "items": [
-      "What is the temperament of {{breed}} cats?|prompt(\"Write a detailed answer about {{breed}} cat temperament\")",
-      "How much does a {{breed}} cat cost?|prompt(\"Provide pricing information for {{breed}} cats\")"
-    ]
-  }
-}
-
-EXAMPLE OUTPUT FOR PROS_CONS SECTION:
-{
-  "id": "pros-cons-1",
-  "type": "pros_cons",
-  "name": "Pros and Cons",
-  "content": {
-    "title": "Is {{breed}} Right for You?",
-    "pros": ["prompt(\"List 3 advantages of owning a {{breed}} cat\")"],
-    "cons": ["prompt(\"List 3 potential challenges of owning a {{breed}} cat\")"]
-  }
-}
-...similar examples for each section type...
-
-RULES:
-- EVERY section MUST have content fields populated
-- Use {{variable}} placeholders from: ${variableList}
-- Use prompt("...") for AI-generated text
-- Use image_prompt("...") for AI-generated images
-- NEVER return content: {} - this is invalid`;
+-- Insert default stages with pastel colors
+INSERT INTO public.feature_stages (name, color, position) VALUES
+  ('Backlog', '#f1f5f9', 0),      -- Slate pastel
+  ('In Progress', '#dbeafe', 1),   -- Blue pastel
+  ('Review', '#fef3c7', 2),        -- Amber pastel
+  ('Done', '#dcfce7', 3);          -- Green pastel
 ```
 
-#### Default Content Generator (Post-Processing)
+## UI Components
+
+### File Structure
+
+```
+src/
+  pages/
+    super-admin/
+      Features.tsx              # Main Kanban page
+  components/
+    features/
+      FeatureKanbanBoard.tsx    # Main board with columns
+      FeatureCard.tsx           # Individual feature card
+      FeatureDetailDialog.tsx   # Dialog for viewing/editing feature
+      StageSettingsDialog.tsx   # Dialog for managing stages
+  hooks/
+    useFeatureBoard.ts          # React Query hooks for CRUD
+```
+
+### Kanban Board Layout
+
+```
++------------------------------------------------------------------+
+| Features                                         [ + Add Feature ] |
+| Track and manage platform features                [ Stage Settings]|
++------------------------------------------------------------------+
+|                                                                    |
+| +---------------+ +---------------+ +---------------+ +----------+ |
+| | Backlog       | | In Progress   | | Review        | | Done     | |
+| | (slate bg)    | | (blue bg)     | | (amber bg)    | |(green bg)| |
+| +---------------+ +---------------+ +---------------+ +----------+ |
+| |               | |               | |               | |          | |
+| | +----------+  | | +----------+  | | +----------+  | |+--------+| |
+| | | Feature 1|  | | | Feature 3|  | | | Feature 5|  | ||Feature 6| |
+| | | High     |  | | | Medium   |  | | | Low      |  | ||        || |
+| | | Dec 15   |  | | +----------+  | | | Jan 10   |  | |+--------+| |
+| | +----------+  | |               | | +----------+  | |          | |
+| |               | | +----------+  | |               | |          | |
+| | +----------+  | | | Feature 4|  | |               | |          | |
+| | | Feature 2|  | | +----------+  | |               | |          | |
+| | +----------+  | |               | |               | |          | |
+| |               | |               | |               | |          | |
+| | [+ Add card]  | | [+ Add card]  | | [+ Add card]  | |[+ Add]   | |
+| +---------------+ +---------------+ +---------------+ +----------+ |
++------------------------------------------------------------------+
+```
+
+### Feature Card Design
+
+```
++------------------------+
+| Feature Title          |
+|------------------------|
+| [Priority Badge]       |
+|                        |
+| Due: Jan 15, 2026      |
++------------------------+
+```
+
+- Cards show: Title, Priority badge (colored), Deadline (if set)
+- Click to open detail dialog
+- Drag to move between stages or reorder within stage
+
+### Feature Detail Dialog
+
+```
++----------------------------------------+
+| Feature Details                    [X] |
++----------------------------------------+
+|                                        |
+| Title: [________________________]      |
+|                                        |
+| Description:                           |
+| [                                ]     |
+| [    Rich text area               ]    |
+| [                                ]     |
+|                                        |
+| Stage:    [Dropdown: Backlog    v]     |
+| Priority: [Dropdown: Medium     v]     |
+| Deadline: [Date picker: Jan 15  ]      |
+|                                        |
+| Created: Dec 1, 2025 by Admin          |
+|                                        |
+|           [Delete]  [Cancel]  [Save]   |
++----------------------------------------+
+```
+
+## Technical Implementation
+
+### 1. React Query Hook (`useFeatureBoard.ts`)
+
 ```typescript
-// After parsing AI response, ensure all sections have content
-function ensureContentPopulated(
-  sections: any[], 
-  variables: string[],
-  businessName: string
-): any[] {
-  return sections.map(section => {
-    if (!section.content || Object.keys(section.content).length === 0) {
-      section.content = getDefaultContent(section.type, variables, businessName);
+export function useFeatureBoard() {
+  // Fetch stages
+  const { data: stages } = useQuery({
+    queryKey: ['feature-stages'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('feature_stages')
+        .select('*')
+        .order('position');
+      return data;
     }
-    return section;
   });
-}
 
-function getDefaultContent(
-  type: string, 
-  variables: string[],
-  businessName: string
-): Record<string, any> {
-  const mainVar = variables[0] || "item";
-  
-  const defaults: Record<string, Record<string, any>> = {
-    hero: {
-      headline: `{{${mainVar}}} - ${businessName}`,
-      subheadline: `prompt("Write an engaging introduction about {{${mainVar}}} for ${businessName}")`,
-      cta_text: "Learn More"
-    },
-    features: {
-      title: `Key Features of {{${mainVar}}}`,
-      items: [
-        `prompt("List feature 1 of {{${mainVar}}}")`,
-        `prompt("List feature 2 of {{${mainVar}}}")`,
-        `prompt("List feature 3 of {{${mainVar}}}")`,
-      ]
-    },
-    content: {
-      title: `About {{${mainVar}}}`,
-      body: `prompt("Write detailed content about {{${mainVar}}} for ${businessName}")`
-    },
-    faq: {
-      title: `Frequently Asked Questions about {{${mainVar}}}`,
-      items: [
-        `What is {{${mainVar}}}?|prompt("Answer the question: What is {{${mainVar}}}?")`,
-        `Why choose {{${mainVar}}}?|prompt("Explain why {{${mainVar}}} is a good choice")`
-      ]
-    },
-    pros_cons: {
-      title: `Pros and Cons of {{${mainVar}}}`,
-      pros: [`prompt("List advantages of {{${mainVar}}}")`],
-      cons: [`prompt("List disadvantages of {{${mainVar}}}")`]
-    },
-    pricing: {
-      title: `{{${mainVar}}} Pricing`,
-      price: `prompt("Estimate price range for {{${mainVar}}}")`,
-      description: `prompt("Describe what's included")`,
-      cta_text: "Get Quote"
-    },
-    testimonials: {
-      title: "What Our Customers Say",
-      items: [
-        `prompt("Write a testimonial about {{${mainVar}}}")|Happy Customer`
-      ]
-    },
-    benefits: {
-      title: `Benefits of {{${mainVar}}}`,
-      items: [
-        `prompt("Benefit 1 of {{${mainVar}}}")`,
-        `prompt("Benefit 2 of {{${mainVar}}}")`
-      ]
-    },
-    process: {
-      title: "How It Works",
-      steps: [
-        `prompt("Step 1 for {{${mainVar}}}")`,
-        `prompt("Step 2 for {{${mainVar}}}")`
-      ]
-    },
-    image: {
-      src: `image_prompt("High quality photo of {{${mainVar}}}")`,
-      alt: `{{${mainVar}}} image`
-    },
-    cta: {
-      headline: `Ready to Learn About {{${mainVar}}}?`,
-      subtext: `Contact ${businessName} today`,
-      button_text: "Contact Us"
+  // Fetch features
+  const { data: features } = useQuery({
+    queryKey: ['feature-requests'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('feature_requests')
+        .select('*')
+        .order('position');
+      return data;
     }
-  };
-  
-  return defaults[type] || { 
-    title: `{{${mainVar}}}`,
-    body: `prompt("Write content about {{${mainVar}}}")`
-  };
+  });
+
+  // Mutations for CRUD operations
+  const createFeature = useMutation(...);
+  const updateFeature = useMutation(...);
+  const deleteFeature = useMutation(...);
+  const moveFeature = useMutation(...);  // For drag & drop
+
+  return { stages, features, createFeature, updateFeature, deleteFeature, moveFeature };
 }
 ```
 
----
+### 2. Drag & Drop (Native HTML5)
 
-### Part 2: Add Inline Content Editing in Preview
+Using the same pattern from `BuildFromScratchStep.tsx`:
 
-**File:** `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx`
-
-Add an "Edit" mode to the `TemplatePreview` component that allows users to:
-1. Click on a section to expand and edit its content fields
-2. Edit text fields inline (textarea for prompts/variables)
-3. Add/remove items from arrays
-4. See changes reflected immediately
-
-#### New State and Handlers
 ```typescript
-// In TemplatePreview component
-const [editingSection, setEditingSection] = useState<string | null>(null);
-const [editedContent, setEditedContent] = useState<Record<string, Record<string, any>>>({});
+const handleDragStart = (e: React.DragEvent, featureId: string) => {
+  e.dataTransfer.setData('featureId', featureId);
+  e.dataTransfer.effectAllowed = 'move';
+  setDraggedFeature(featureId);
+};
 
-const handleContentEdit = (sectionId: string, field: string, value: any) => {
-  setEditedContent(prev => ({
-    ...prev,
-    [sectionId]: {
-      ...prev[sectionId],
-      [field]: value
-    }
-  }));
-  
-  // Update the template in parent state
-  const updatedSections = template.sections.map(s => 
-    s.id === sectionId 
-      ? { ...s, content: { ...s.content, ...editedContent[sectionId], [field]: value } }
-      : s
-  );
-  onTemplateUpdate?.({ ...template, sections: updatedSections });
+const handleDrop = async (e: React.DragEvent, targetStageId: string) => {
+  e.preventDefault();
+  const featureId = e.dataTransfer.getData('featureId');
+  await moveFeature.mutateAsync({ featureId, targetStageId });
 };
 ```
 
-#### Inline Editor UI
-```tsx
-// For each field in section content
-{editingSection === section.id && (
-  <div className="mt-2 space-y-3 pl-4 border-l-2 border-primary/30">
-    {Object.entries(section.content).map(([key, value]) => (
-      <div key={key} className="space-y-1">
-        <Label className="text-xs font-mono">{key}</Label>
-        {Array.isArray(value) ? (
-          <div className="space-y-1">
-            {value.map((item, i) => (
-              <div key={i} className="flex gap-2">
-                <Input 
-                  value={item}
-                  onChange={(e) => {
-                    const newItems = [...value];
-                    newItems[i] = e.target.value;
-                    handleContentEdit(section.id, key, newItems);
-                  }}
-                  className="font-mono text-xs"
-                />
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => {
-                    const newItems = value.filter((_, idx) => idx !== i);
-                    handleContentEdit(section.id, key, newItems);
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => handleContentEdit(section.id, key, [...value, ""])}
-            >
-              <Plus className="h-3 w-3 mr-1" /> Add Item
-            </Button>
-          </div>
-        ) : (
-          <Textarea
-            value={String(value)}
-            onChange={(e) => handleContentEdit(section.id, key, e.target.value)}
-            className="font-mono text-xs min-h-[60px]"
-            placeholder={`Enter ${key}...`}
-          />
-        )}
-      </div>
-    ))}
-  </div>
-)}
-```
+### 3. Stage Settings Dialog
 
----
+Simple dialog to:
+- Rename stages
+- Change pastel colors (predefined palette)
+- Reorder stages
+- Add/delete stages
 
-### Part 3: Remove Skip & Add Context-Based Warnings
-
-**File:** `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx`
-
-#### Remove Skip Button
-```tsx
-// Remove the Skip button entirely from action buttons
-<div className="flex justify-end gap-3 pt-4 border-t">
-  <Button variant="outline" onClick={generateTemplate} disabled={isGenerating}>
-    <RotateCcw className="h-4 w-4 mr-2" />
-    Regenerate
-  </Button>
-  <Button onClick={handleApprove}>
-    <Check className="h-4 w-4 mr-2" />
-    {currentEntityIndex < entities.length - 1 ? "Approve & Next" : "Approve & Finish"}
-  </Button>
-</div>
-```
-
-#### Context-Based Warnings
-Show warnings based on section context, not blanket rules:
+### Pastel Color Palette
 
 ```typescript
-// Analyze if section is missing expected content for its type
-const getSectionWarnings = (section: GeneratedSection, selectedVars: string[]): string[] => {
-  const warnings: string[] = [];
-  const content = section.content;
-  
-  // Check if content is empty
-  if (!content || Object.keys(content).length === 0) {
-    warnings.push("Section has no content - click to add");
-    return warnings;
-  }
-  
-  // Check for missing variables in key fields
-  const keyFields = ['headline', 'title', 'body', 'subheadline'];
-  const hasVariable = keyFields.some(field => 
-    content[field] && /\{\{\w+\}\}/.test(String(content[field]))
-  );
-  
-  if (!hasVariable && selectedVars.length > 0) {
-    warnings.push(`No variables used in main content`);
-  }
-  
-  // Check if prompts exist for dynamic content
-  const hasPrompt = Object.values(content).some(v => 
-    /prompt\s*\(/.test(String(Array.isArray(v) ? v.join('') : v))
-  );
-  
-  // For content-heavy sections, warn if no prompts
-  if (['content', 'faq', 'pros_cons', 'testimonials'].includes(section.type) && !hasPrompt) {
-    warnings.push("Consider adding AI prompts for dynamic content");
-  }
-  
-  return warnings;
-};
+const PASTEL_COLORS = [
+  { name: 'Slate', value: '#f1f5f9' },
+  { name: 'Blue', value: '#dbeafe' },
+  { name: 'Amber', value: '#fef3c7' },
+  { name: 'Green', value: '#dcfce7' },
+  { name: 'Pink', value: '#fce7f3' },
+  { name: 'Purple', value: '#f3e8ff' },
+  { name: 'Cyan', value: '#cffafe' },
+  { name: 'Orange', value: '#ffedd5' },
+];
 ```
 
-#### Warning Display in Accordion
-```tsx
-<AccordionItem key={section.id} value={section.id}>
-  <AccordionTrigger className="text-sm hover:no-underline">
-    <div className="flex items-center gap-2 flex-1">
-      <Badge variant="outline" className="text-xs">{section.type}</Badge>
-      <span className="font-medium">{section.name}</span>
-      {warnings.length > 0 && (
-        <Badge variant="destructive" className="text-[10px] px-1.5">
-          {warnings.length} issue{warnings.length > 1 ? 's' : ''}
-        </Badge>
-      )}
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className="ml-auto h-6 px-2"
-        onClick={(e) => { e.stopPropagation(); setEditingSection(section.id); }}
-      >
-        <Pencil className="h-3 w-3 mr-1" /> Edit
-      </Button>
-    </div>
-  </AccordionTrigger>
-  <AccordionContent>
-    {warnings.length > 0 && (
-      <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
-        {warnings.map((w, i) => <div key={i}>• {w}</div>)}
-      </div>
-    )}
-    {/* Content fields display/edit */}
-  </AccordionContent>
-</AccordionItem>
+## Routing & Navigation
+
+### Update SuperAdmin Router
+
+```typescript
+// src/pages/SuperAdmin.tsx
+<Route path="/features" element={<Features />} />
 ```
 
----
+### Update SuperAdmin Sidebar
 
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/generate-template-ai/index.ts` | Add concrete examples to prompt, add post-processing to ensure content is populated |
-| `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx` | Add inline editing, remove skip button, add context-based warnings, enable template updates |
-
----
-
-## Technical Implementation Notes
-
-### Edge Function Changes
-1. Update system prompt with explicit JSON examples for every section type
-2. Add `ensureContentPopulated()` function to post-process AI response
-3. Add `getDefaultContent()` fallback generator per section type
-
-### Frontend Changes
-1. Add `editingSection` state and `handleContentEdit` handler
-2. Add `onTemplateUpdate` prop to `TemplatePreview` for bidirectional updates
-3. Replace section display with editable inputs when in edit mode
-4. Remove Skip button from action bar
-5. Add `getSectionWarnings()` for context-aware warnings
-6. Add Edit button per section in accordion header
-
-### Data Flow
+```typescript
+// Add to menuItems (only for super_admin, not country_partner)
+if (isSuperAdmin) {
+  menuItems.push({ title: "Features", url: "/super-admin/features", icon: Lightbulb });
+}
 ```
-User clicks "Generate"
-    ↓
-Edge function calls AI with detailed examples
-    ↓
-Post-process: ensureContentPopulated() fills any empty sections
-    ↓
-Return to frontend
-    ↓
-TemplatePreview shows sections with edit capability
-    ↓
-User can edit inline if issues detected
-    ↓
-Changes sync to generatedTemplates state
-    ↓
-User clicks "Approve" 
-    ↓
-Template saved to formData.entityTemplates
-    ↓
-Proceed to next entity (no skip option)
-```
+
+## Files to Create/Modify
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/pages/super-admin/Features.tsx` | Create | Main Kanban page |
+| `src/components/features/FeatureKanbanBoard.tsx` | Create | Board with columns |
+| `src/components/features/FeatureCard.tsx` | Create | Draggable card component |
+| `src/components/features/FeatureDetailDialog.tsx` | Create | Edit/view dialog |
+| `src/components/features/StageSettingsDialog.tsx` | Create | Manage stages |
+| `src/hooks/useFeatureBoard.ts` | Create | React Query hooks |
+| `src/pages/SuperAdmin.tsx` | Modify | Add route |
+| `src/components/SuperAdminSidebar.tsx` | Modify | Add nav item |
+| Database migration | Create | Tables + RLS policies |
+
+## Key Features Summary
+
+1. **Simple Card Creation**: Quick add via inline input at bottom of each column
+2. **Detail Dialog**: Click card to open full editor with title, description, stage, priority, deadline
+3. **Drag & Drop**: Move cards between stages and reorder within stages
+4. **Pastel Stage Colors**: Each column has a customizable pastel background
+5. **Priority Badges**: Visual priority indicators (Low/Medium/High)
+6. **Deadline Display**: Shows due date on cards with overdue highlighting
+7. **Stage Management**: Add, rename, reorder, and color-customize stages
+
+## Simplicity Principles
+
+- No complex libraries - uses native HTML5 drag & drop
+- Leverages existing UI components (Card, Dialog, Button, Input, Badge, Popover)
+- Single-page experience - no nested routes
+- Inline quick-add for fast entry
+- Minimal required fields (just title to create)
 
