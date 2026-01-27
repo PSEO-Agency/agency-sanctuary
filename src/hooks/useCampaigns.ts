@@ -65,39 +65,55 @@ export function useCampaigns() {
     if (!subaccountId) return null;
 
     try {
-      // Calculate total pages from title patterns
+      // Calculate total pages from title patterns using dynamic columns
       const totalPages = formData.dataUploadMethod === "scratch"
         ? (formData.titlePatterns || []).reduce((acc, pattern) => {
             const patternLower = pattern.pattern.toLowerCase();
-            const usedColumnIds = Object.keys(formData.scratchData).filter(colId =>
-              patternLower.includes(`{{${colId.toLowerCase()}}}`)
+            
+            // Find columns whose variable names appear in the pattern
+            const usedColumns = formData.dynamicColumns.filter(col =>
+              patternLower.includes(`{{${col.variableName.toLowerCase()}}}`)
             );
-            if (usedColumnIds.length === 0) return acc;
-            const patternPages = usedColumnIds.reduce((pAcc, colId) => {
-              return pAcc * (formData.scratchData[colId]?.length || 1);
+            
+            if (usedColumns.length === 0) return acc;
+            
+            // Calculate product of all used columns
+            const patternPages = usedColumns.reduce((pAcc, col) => {
+              const items = formData.scratchData[col.id] || [];
+              return pAcc * (items.length || 1);
             }, 1);
+            
             return acc + patternPages;
           }, 0)
         : 0;
 
+      // Store dynamic columns in column_mappings for persistence
+      const columnMappings = {
+        ...formData.columnMappings,
+        dynamicColumns: formData.dynamicColumns,
+      };
+
+      const insertData = {
+        subaccount_id: subaccountId,
+        name: formData.businessName || "New Campaign",
+        description: `${formData.businessType} campaign with ${formData.selectedTemplate} template.`,
+        status: "draft",
+        business_name: formData.businessName,
+        website_url: formData.websiteUrl,
+        business_address: formData.businessAddress,
+        business_logo_url: formData.businessLogoPreview || null,
+        business_type: formData.businessType as "saas" | "ecommerce" | "local" || null,
+        data_source_type: formData.dataUploadMethod,
+        data_columns: formData.scratchData as unknown as Record<string, unknown>,
+        column_mappings: columnMappings as unknown as Record<string, unknown>,
+        template_id: formData.selectedTemplate,
+        template_config: (formData.templateContent || {}) as unknown as Record<string, unknown>,
+        total_pages: totalPages,
+      };
+
       const { data, error: insertError } = await supabase
         .from("campaigns")
-        .insert({
-          subaccount_id: subaccountId,
-          name: formData.businessName || "New Campaign",
-          description: `${formData.businessType} campaign with ${formData.selectedTemplate} template.`,
-          status: "draft",
-          business_name: formData.businessName,
-          website_url: formData.websiteUrl,
-          business_address: formData.businessAddress,
-          business_logo_url: formData.businessLogoPreview || null,
-          business_type: formData.businessType as "saas" | "ecommerce" | "local" || null,
-          data_source_type: formData.dataUploadMethod,
-          data_columns: formData.scratchData,
-          column_mappings: formData.columnMappings,
-          template_id: formData.selectedTemplate,
-          total_pages: totalPages,
-        })
+        .insert(insertData as any)
         .select()
         .single();
 
@@ -107,7 +123,7 @@ export function useCampaigns() {
       
       // Generate pages from combinations if building from scratch
       if (formData.dataUploadMethod === "scratch" && Object.keys(formData.scratchData).length > 0) {
-        await generateCampaignPages(newCampaign.id, formData.scratchData);
+        await generateCampaignPages(newCampaign.id, formData);
       }
 
       setCampaigns(prev => [newCampaign, ...prev]);
@@ -120,54 +136,83 @@ export function useCampaigns() {
     }
   };
 
-  const generateCampaignPages = async (campaignId: string, dataColumns: Record<string, string[]>) => {
+  const generateCampaignPages = async (campaignId: string, formData: CampaignFormData) => {
     if (!subaccountId) return;
 
-    const columnKeys = Object.keys(dataColumns);
-    const columnValues = Object.values(dataColumns);
+    const { dynamicColumns, scratchData, titlePatterns } = formData;
     
-    if (columnKeys.length === 0 || columnValues.some(v => v.length === 0)) return;
+    if (dynamicColumns.length === 0 || titlePatterns.length === 0) return;
 
-    // Generate all combinations
-    const combinations: Record<string, string>[] = [];
-    
-    const generateCombos = (index: number, current: Record<string, string>) => {
-      if (index === columnKeys.length) {
-        combinations.push({ ...current });
-        return;
+    const allPages: Array<{
+      campaign_id: string;
+      subaccount_id: string;
+      title: string;
+      slug: string;
+      data_values: Record<string, string>;
+      status: "draft";
+    }> = [];
+
+    // Generate pages for each title pattern
+    for (const pattern of titlePatterns) {
+      const patternLower = pattern.pattern.toLowerCase();
+      
+      // Find columns used in this pattern
+      const usedColumns = dynamicColumns.filter(col =>
+        patternLower.includes(`{{${col.variableName.toLowerCase()}}}`)
+      );
+      
+      if (usedColumns.length === 0) continue;
+
+      // Generate combinations for this pattern only
+      const combinations: Record<string, string>[] = [];
+      
+      const generateCombos = (index: number, current: Record<string, string>) => {
+        if (index === usedColumns.length) {
+          combinations.push({ ...current });
+          return;
+        }
+        const col = usedColumns[index];
+        const values = scratchData[col.id] || [];
+        for (const value of values) {
+          current[col.variableName] = value;
+          generateCombos(index + 1, current);
+        }
+      };
+      
+      generateCombos(0, {});
+
+      // Create page records for this pattern
+      for (const combo of combinations) {
+        // Generate title by replacing variables in pattern
+        let title = pattern.pattern;
+        Object.entries(combo).forEach(([varName, value]) => {
+          const regex = new RegExp(`\\{\\{${varName}\\}\\}`, 'gi');
+          title = title.replace(regex, value);
+        });
+        
+        // Generate slug
+        const slugBase = pattern.urlPrefix || "";
+        const slugTitle = title.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+        const slug = `${slugBase}${slugTitle}`.replace(/^\/+/, "").replace(/\/+$/, "");
+        
+        allPages.push({
+          campaign_id: campaignId,
+          subaccount_id: subaccountId!,
+          title,
+          slug,
+          data_values: { ...combo, patternId: pattern.id },
+          status: "draft",
+        });
       }
-      const key = columnKeys[index];
-      for (const value of dataColumns[key]) {
-        current[key] = value;
-        generateCombos(index + 1, current);
-      }
-    };
-    
-    generateCombos(0, {});
+    }
 
     // Limit to 200 pages max
-    const limitedCombinations = combinations.slice(0, 200);
+    const limitedPages = allPages.slice(0, 200);
 
-    // Create page records
-    const pages = limitedCombinations.map(combo => {
-      const titleParts = Object.values(combo);
-      const title = titleParts.join(" in ");
-      const slug = title.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      
-      return {
-        campaign_id: campaignId,
-        subaccount_id: subaccountId,
-        title,
-        slug,
-        data_values: combo,
-        status: "draft" as const,
-      };
-    });
-
-    if (pages.length > 0) {
+    if (limitedPages.length > 0) {
       const { error: pagesError } = await supabase
         .from("campaign_pages")
-        .insert(pages);
+        .insert(limitedPages);
 
       if (pagesError) {
         console.error("Error creating campaign pages:", pagesError);

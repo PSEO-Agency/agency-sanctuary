@@ -1,9 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CampaignFormData, BUSINESS_TYPES, ColumnConfig, TitlePattern } from "../types";
+import { CampaignFormData, BUSINESS_TYPES, DynamicColumn, TitlePattern } from "../types";
 import { cn } from "@/lib/utils";
 
 interface BuildFromScratchStepProps {
@@ -11,23 +11,99 @@ interface BuildFromScratchStepProps {
   updateFormData: (updates: Partial<CampaignFormData>) => void;
 }
 
+// Sanitize variable name to only allow alphanumeric and underscore
+const sanitizeVariableName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+};
+
 export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScratchStepProps) {
   const [newItems, setNewItems] = useState<Record<string, string>>({});
-  const [editingColumn, setEditingColumn] = useState<{ columnId: string; name: string } | null>(null);
-  const [columnNames, setColumnNames] = useState<Record<string, string>>({});
+  const [editingColumn, setEditingColumn] = useState<{ columnId: string; displayName: string; variableName: string } | null>(null);
   const [newPattern, setNewPattern] = useState("");
   const [newUrlPrefix, setNewUrlPrefix] = useState("");
   const patternInputRef = useRef<HTMLInputElement>(null);
 
-  // Get columns based on business type
-  const businessType = BUSINESS_TYPES.find((t) => t.id === formData.businessType);
-  const columns: ColumnConfig[] = businessType?.columns || [
-    { id: "column1", name: "Column 1", placeholder: "Add Item" },
-    { id: "column2", name: "Column 2", placeholder: "Add Item" },
-    { id: "column3", name: "Column 3", placeholder: "Add Item" },
-  ];
+  // Initialize dynamic columns from business type if not already set
+  useEffect(() => {
+    if (formData.dynamicColumns.length === 0 && formData.businessType) {
+      const businessType = BUSINESS_TYPES.find((t) => t.id === formData.businessType);
+      if (businessType) {
+        const initialColumns: DynamicColumn[] = businessType.columns.map((col) => ({
+          id: `col-${col.id}-${Date.now()}`,
+          variableName: col.id,
+          displayName: col.name,
+          placeholder: col.placeholder,
+        }));
+        
+        // Initialize scratch data with empty arrays for each column
+        const initialScratchData: Record<string, string[]> = {};
+        initialColumns.forEach((col) => {
+          initialScratchData[col.id] = [];
+        });
+        
+        updateFormData({
+          dynamicColumns: initialColumns,
+          scratchData: initialScratchData,
+        });
+      }
+    }
+  }, [formData.businessType, formData.dynamicColumns.length, updateFormData]);
 
-  const getColumnName = (col: ColumnConfig) => columnNames[col.id] || col.name;
+  // Get columns from dynamic columns or fallback
+  const columns = formData.dynamicColumns.length > 0 
+    ? formData.dynamicColumns 
+    : [
+        { id: "col-1", variableName: "column1", displayName: "Column 1", placeholder: "Add Item" },
+        { id: "col-2", variableName: "column2", displayName: "Column 2", placeholder: "Add Item" },
+        { id: "col-3", variableName: "column3", displayName: "Column 3", placeholder: "Add Item" },
+      ];
+
+  const handleColumnRename = (columnId: string, newDisplayName: string, newVariableName: string) => {
+    const oldColumn = formData.dynamicColumns.find(c => c.id === columnId);
+    if (!oldColumn) return;
+
+    const sanitizedVarName = sanitizeVariableName(newVariableName);
+    
+    // Check for duplicate variable names
+    const isDuplicate = formData.dynamicColumns.some(
+      c => c.id !== columnId && c.variableName === sanitizedVarName
+    );
+    
+    if (isDuplicate) {
+      // If duplicate, append number suffix
+      let suffix = 1;
+      while (formData.dynamicColumns.some(
+        c => c.id !== columnId && c.variableName === `${sanitizedVarName}${suffix}`
+      )) {
+        suffix++;
+      }
+      return handleColumnRename(columnId, newDisplayName, `${sanitizedVarName}${suffix}`);
+    }
+
+    const oldVar = `{{${oldColumn.variableName}}}`;
+    const newVar = `{{${sanitizedVarName}}}`;
+
+    // Update column configuration
+    const updatedColumns = formData.dynamicColumns.map(col =>
+      col.id === columnId 
+        ? { ...col, displayName: newDisplayName, variableName: sanitizedVarName } 
+        : col
+    );
+
+    // Update all title patterns that reference this variable
+    const updatedPatterns = formData.titlePatterns.map(pattern => ({
+      ...pattern,
+      pattern: pattern.pattern.replace(new RegExp(oldVar.replace(/[{}]/g, '\\$&'), 'gi'), newVar)
+    }));
+
+    updateFormData({
+      dynamicColumns: updatedColumns,
+      titlePatterns: updatedPatterns,
+    });
+  };
 
   const addItem = (columnId: string) => {
     const item = newItems[columnId]?.trim();
@@ -53,8 +129,8 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     });
   };
 
-  const insertVariable = (columnId: string) => {
-    const placeholder = `{{${columnId}}}`;
+  const insertVariable = (variableName: string) => {
+    const placeholder = `{{${variableName}}}`;
     const input = patternInputRef.current;
     
     if (input) {
@@ -99,15 +175,15 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   // Calculate estimated pages for a pattern
   const calculatePagesForPattern = (pattern: TitlePattern): number => {
     const patternLower = pattern.pattern.toLowerCase();
-    const usedColumnIds = columns.filter(col => 
-      patternLower.includes(`{{${col.id.toLowerCase()}}}`)
-    ).map(col => col.id);
+    const usedColumns = columns.filter(col => 
+      patternLower.includes(`{{${col.variableName.toLowerCase()}}}`)
+    );
 
-    if (usedColumnIds.length === 0) return 0;
+    if (usedColumns.length === 0) return 0;
 
     // Calculate product of all used columns
-    return usedColumnIds.reduce((acc, colId) => {
-      const items = formData.scratchData[colId] || [];
+    return usedColumns.reduce((acc, col) => {
+      const items = formData.scratchData[col.id] || [];
       return acc * (items.length || 1);
     }, 1);
   };
@@ -131,34 +207,64 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {columns.map((col) => {
           const items = formData.scratchData[col.id] || [];
-          const displayName = getColumnName(col);
           
           return (
             <div key={col.id} className="border rounded-xl p-4 space-y-4">
               <div className="flex items-center justify-between">
                 {editingColumn?.columnId === col.id ? (
-                  <Input
-                    value={editingColumn.name}
-                    onChange={(e) => setEditingColumn({ ...editingColumn, name: e.target.value })}
-                    onBlur={() => {
-                      setColumnNames({ ...columnNames, [col.id]: editingColumn.name });
-                      setEditingColumn(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        setColumnNames({ ...columnNames, [col.id]: editingColumn.name });
-                        setEditingColumn(null);
-                      }
-                    }}
-                    className="h-7 text-sm font-semibold"
-                    autoFocus
-                  />
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      value={editingColumn.displayName}
+                      onChange={(e) => setEditingColumn({ ...editingColumn, displayName: e.target.value })}
+                      placeholder="Display Name"
+                      className="h-7 text-sm font-semibold"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">{`{{`}</span>
+                      <Input
+                        value={editingColumn.variableName}
+                        onChange={(e) => setEditingColumn({ ...editingColumn, variableName: e.target.value })}
+                        placeholder="variable_name"
+                        className="h-6 text-xs font-mono flex-1"
+                      />
+                      <span className="text-xs text-muted-foreground">{`}}`}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-6 text-xs"
+                        onClick={() => {
+                          handleColumnRename(col.id, editingColumn.displayName, editingColumn.variableName);
+                          setEditingColumn(null);
+                        }}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-xs"
+                        onClick={() => setEditingColumn(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <button
-                    onClick={() => setEditingColumn({ columnId: col.id, name: displayName })}
-                    className="font-semibold hover:text-primary transition-colors"
+                    onClick={() => setEditingColumn({ 
+                      columnId: col.id, 
+                      displayName: col.displayName,
+                      variableName: col.variableName 
+                    })}
+                    className="font-semibold hover:text-primary transition-colors text-left"
                   >
-                    {displayName}
+                    <span>{col.displayName}</span>
+                    <span className="text-xs text-muted-foreground font-mono ml-2">
+                      {`{{${col.variableName}}}`}
+                    </span>
                   </button>
                 )}
                 <span className="text-sm text-primary">{items.length}/100 items</span>
@@ -271,9 +377,9 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                 variant="outline"
                 size="sm"
                 className="h-7 px-2 text-xs font-mono bg-primary/5 hover:bg-primary/10 border-primary/20"
-                onClick={() => insertVariable(col.id)}
+                onClick={() => insertVariable(col.variableName)}
               >
-                {`{{${col.id}}}`}
+                {`{{${col.variableName}}}`}
               </Button>
             ))}
           </div>
@@ -283,7 +389,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
             <div className="flex-1">
               <Input
                 ref={patternInputRef}
-                placeholder="e.g., What is {{services}} or Best {{services}} in {{cities}}"
+                placeholder={`e.g., What is {{${columns[0]?.variableName || 'services'}}} or Best {{${columns[0]?.variableName || 'services'}}} in {{${columns[1]?.variableName || 'cities'}}}`}
                 value={newPattern}
                 onChange={(e) => setNewPattern(e.target.value)}
                 onKeyDown={(e) => {
@@ -319,8 +425,8 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
               <p className="text-xs text-muted-foreground mb-1">Preview:</p>
               <p className="text-sm font-medium">
                 {newPattern.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-                  const col = columns.find(c => c.id.toLowerCase() === key.toLowerCase());
-                  return col ? `[${col.name}]` : `{{${key}}}`;
+                  const col = columns.find(c => c.variableName.toLowerCase() === key.toLowerCase());
+                  return col ? `[${col.displayName}]` : `{{${key}}}`;
                 })}
               </p>
             </div>

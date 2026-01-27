@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { CampaignFormData, TemplateStyleConfig, TemplateImagesConfig } from "../types";
 import { getTemplateForBusinessType, TemplateSection } from "@/lib/campaignTemplates";
 import { UnifiedPageBuilder, DEFAULT_STYLE_CONFIG, DEFAULT_IMAGES_CONFIG } from "@/components/page-builder";
@@ -8,9 +9,10 @@ interface TemplateEditorStepProps {
   formData: CampaignFormData;
   updateFormData: (updates: Partial<CampaignFormData>) => void;
   onBack: () => void;
+  onFinish?: () => void;
 }
 
-export function TemplateEditorStep({ formData, updateFormData, onBack }: TemplateEditorStepProps) {
+export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish }: TemplateEditorStepProps) {
   // Get template based on business type or selected template
   const baseTemplate = getTemplateForBusinessType(formData.businessType);
   
@@ -87,15 +89,30 @@ export function TemplateEditorStep({ formData, updateFormData, onBack }: Templat
     syncToFormData(newSections, newStyle, newImages);
   };
 
-  // Get sample data for preview
+  // Get sample data for preview - use dynamic columns
   const getSampleData = (): Record<string, string> => {
     const data: Record<string, string> = {
       company: formData.businessName || "Your Company",
     };
 
-    // Get first value from each scratch data column
-    Object.entries(formData.scratchData).forEach(([key, values]) => {
+    // Get first value from each column using dynamic column config
+    formData.dynamicColumns.forEach((col) => {
+      const values = formData.scratchData[col.id] || [];
       if (values.length > 0) {
+        // Map by variable name for template placeholder matching
+        data[col.variableName] = values[0];
+        
+        // Also add plural form for backward compatibility
+        const pluralKey = col.variableName.endsWith("y") 
+          ? col.variableName.slice(0, -1) + "ies"
+          : col.variableName + "s";
+        data[pluralKey] = values[0];
+      }
+    });
+
+    // Fallback: Also process scratchData directly for CSV uploads
+    Object.entries(formData.scratchData).forEach(([key, values]) => {
+      if (values.length > 0 && !data[key]) {
         // Use singular form of the key for placeholder
         const singularKey = key.endsWith("ies") 
           ? key.slice(0, -3) + "y" 
@@ -103,7 +120,7 @@ export function TemplateEditorStep({ formData, updateFormData, onBack }: Templat
             ? key.slice(0, -1) 
             : key;
         data[singularKey] = values[0];
-        data[key] = values[0]; // Also keep plural version
+        data[key] = values[0];
       }
     });
 
@@ -111,7 +128,7 @@ export function TemplateEditorStep({ formData, updateFormData, onBack }: Templat
   };
 
   return (
-    <div className="flex flex-col h-full -mx-6 -my-8">
+    <div className="flex flex-col h-full">
       <UnifiedPageBuilder
         mode="template"
         sections={templateSections}
@@ -128,6 +145,13 @@ export function TemplateEditorStep({ formData, updateFormData, onBack }: Templat
         showViewportSwitcher={true}
         showResetButton={true}
         onReset={handleReset}
+        headerContent={
+          onFinish && (
+            <Button onClick={onFinish} className="ml-auto">
+              Finish Campaign
+            </Button>
+          )
+        }
       />
     </div>
   );

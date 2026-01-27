@@ -43,6 +43,13 @@ export interface TitlePattern {
   urlPrefix?: string;     // e.g., "/services/"
 }
 
+export interface DynamicColumn {
+  id: string;           // Generated unique ID (stable reference for data storage)
+  variableName: string; // User-editable variable name (e.g., "industries")
+  displayName: string;  // User-editable display name
+  placeholder: string;  // Placeholder text
+}
+
 export interface CampaignFormData {
   // Step 1: Business Details
   businessName: string;
@@ -64,7 +71,8 @@ export interface CampaignFormData {
   csvColumns: string[];
 
   // Step 3B: Build From Scratch
-  scratchData: Record<string, string[]>;
+  dynamicColumns: DynamicColumn[];  // User-editable column config
+  scratchData: Record<string, string[]>;  // Keyed by column.id (stable)
   titlePatterns: TitlePattern[];  // Multiple patterns with optional URL prefix
 
   // Step 4: Template Selection
@@ -183,6 +191,7 @@ export const initialFormData: CampaignFormData = {
   csvUploadDate: "",
   columnMappings: {},
   csvColumns: [],
+  dynamicColumns: [],
   scratchData: {},
   titlePatterns: [],
   selectedTemplate: "",
