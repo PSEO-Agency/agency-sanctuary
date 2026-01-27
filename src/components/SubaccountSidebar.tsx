@@ -183,7 +183,6 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   const mainNavItems = [
     { title: "Dashboard", url: `/subaccount/${subaccountId}/dashboard`, icon: LayoutDashboard },
     { title: "Launchpad", url: `/subaccount/${subaccountId}/launchpad`, icon: Rocket },
-    { title: "Knowledge Base", url: `/subaccount/${subaccountId}/knowledge-base`, icon: BookOpen },
   ];
 
   const contentMachineItems = [
