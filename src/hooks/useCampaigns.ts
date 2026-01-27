@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -26,14 +26,20 @@ export interface CampaignDB {
   clicks: number;
   created_at: string;
   updated_at: string;
+  // New wizard tracking columns
+  wizard_step: number;
+  is_finalized: boolean;
+  wizard_state: CampaignFormData | Record<string, unknown>;
 }
 
 export function useCampaigns() {
   const { subaccountId } = useParams<{ subaccountId: string }>();
   const [campaigns, setCampaigns] = useState<CampaignDB[]>([]);
+  const [draftCampaigns, setDraftCampaigns] = useState<CampaignDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch only finalized campaigns for the main list
   const fetchCampaigns = async () => {
     if (!subaccountId) return;
     
@@ -43,11 +49,11 @@ export function useCampaigns() {
         .from("campaigns")
         .select("*")
         .eq("subaccount_id", subaccountId)
+        .eq("is_finalized", true)
         .order("created_at", { ascending: false });
 
       if (fetchError) throw fetchError;
       
-      // Type assertion since we know the structure matches
       setCampaigns((data || []) as unknown as CampaignDB[]);
     } catch (err) {
       console.error("Error fetching campaigns:", err);
@@ -57,9 +63,206 @@ export function useCampaigns() {
     }
   };
 
+  // Fetch unfinished draft campaigns
+  const fetchDraftCampaigns = async () => {
+    if (!subaccountId) return;
+    
+    try {
+      const { data, error: fetchError } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("subaccount_id", subaccountId)
+        .eq("is_finalized", false)
+        .order("updated_at", { ascending: false });
+
+      if (fetchError) throw fetchError;
+      
+      setDraftCampaigns((data || []) as unknown as CampaignDB[]);
+    } catch (err) {
+      console.error("Error fetching draft campaigns:", err);
+    }
+  };
+
+  // Fetch a single campaign by ID (for resuming drafts)
+  const fetchCampaignById = async (campaignId: string): Promise<CampaignDB | null> => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("id", campaignId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      
+      return data as unknown as CampaignDB;
+    } catch (err) {
+      console.error("Error fetching campaign by ID:", err);
+      return null;
+    }
+  };
+
   useEffect(() => {
     fetchCampaigns();
+    fetchDraftCampaigns();
   }, [subaccountId]);
+
+  // Save or update a draft campaign at each step
+  const saveDraftCampaign = async (
+    formData: CampaignFormData, 
+    step: number, 
+    campaignId?: string
+  ): Promise<string | null> => {
+    if (!subaccountId) return null;
+
+    try {
+      // Prepare wizard_state (remove File objects as they can't be serialized)
+      const wizardState = {
+        ...formData,
+        businessLogo: null, // Can't serialize File objects
+        csvFile: null,
+      };
+
+      const campaignData = {
+        subaccount_id: subaccountId,
+        name: formData.businessName || "Untitled Campaign",
+        wizard_step: step,
+        wizard_state: wizardState as unknown as Record<string, unknown>,
+        is_finalized: false,
+        business_name: formData.businessName || null,
+        website_url: formData.websiteUrl || null,
+        business_address: formData.businessAddress || null,
+        business_logo_url: formData.businessLogoPreview || null,
+        business_type: (formData.businessType as "saas" | "ecommerce" | "local") || null,
+        data_source_type: formData.dataUploadMethod,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (campaignId) {
+        // Update existing draft
+        const { error: updateError } = await supabase
+          .from("campaigns")
+          .update(campaignData as any)
+          .eq("id", campaignId);
+
+        if (updateError) throw updateError;
+        
+        // Update local state
+        setDraftCampaigns(prev => 
+          prev.map(c => c.id === campaignId 
+            ? { ...c, ...campaignData, wizard_state: wizardState } as CampaignDB
+            : c
+          )
+        );
+        
+        return campaignId;
+      } else {
+        // Create new draft
+        const { data, error: insertError } = await supabase
+          .from("campaigns")
+          .insert({
+            ...campaignData,
+            status: "draft",
+          } as any)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        
+        const newCampaign = data as unknown as CampaignDB;
+        setDraftCampaigns(prev => [newCampaign, ...prev]);
+        
+        return newCampaign.id;
+      }
+    } catch (err) {
+      console.error("Error saving draft campaign:", err);
+      return null;
+    }
+  };
+
+  // Finalize a campaign and generate pages
+  const finalizeCampaign = async (campaignId: string, formData: CampaignFormData): Promise<CampaignDB | null> => {
+    if (!subaccountId) return null;
+
+    try {
+      // Calculate total pages from title patterns using dynamic columns
+      const totalPages = formData.dataUploadMethod === "scratch"
+        ? (formData.titlePatterns || []).reduce((acc, pattern) => {
+            const patternLower = pattern.pattern.toLowerCase();
+            
+            const usedColumns = formData.dynamicColumns.filter(col =>
+              patternLower.includes(`{{${col.variableName.toLowerCase()}}}`)
+            );
+            
+            if (usedColumns.length === 0) return acc;
+            
+            const patternPages = usedColumns.reduce((pAcc, col) => {
+              const items = formData.scratchData[col.id] || [];
+              return pAcc * (items.length || 1);
+            }, 1);
+            
+            return acc + patternPages;
+          }, 0)
+        : 0;
+
+      const columnMappings = {
+        ...formData.columnMappings,
+        dynamicColumns: formData.dynamicColumns,
+      };
+
+      const templateConfig = {
+        ...(formData.templateContent || {}),
+        entities: formData.entities || [],
+        entityTemplates: formData.entityTemplates || {},
+        titlePatterns: formData.titlePatterns || [],
+      };
+
+      const updateData = {
+        name: formData.businessName || "New Campaign",
+        description: `${formData.businessType} campaign with ${formData.selectedTemplate} template.`,
+        status: "draft",
+        business_name: formData.businessName,
+        website_url: formData.websiteUrl,
+        business_address: formData.businessAddress,
+        business_logo_url: formData.businessLogoPreview || null,
+        business_type: formData.businessType as "saas" | "ecommerce" | "local" || null,
+        data_source_type: formData.dataUploadMethod,
+        data_columns: formData.scratchData as unknown as Record<string, unknown>,
+        column_mappings: columnMappings as unknown as Record<string, unknown>,
+        template_id: formData.selectedTemplate,
+        template_config: templateConfig as unknown as Record<string, unknown>,
+        total_pages: totalPages,
+        is_finalized: true,
+        wizard_step: 5,
+      };
+
+      const { data, error: updateError } = await supabase
+        .from("campaigns")
+        .update(updateData as any)
+        .eq("id", campaignId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      const finalizedCampaign = data as unknown as CampaignDB;
+      
+      // Generate pages from combinations if building from scratch
+      if (formData.dataUploadMethod === "scratch" && Object.keys(formData.scratchData).length > 0) {
+        await generateCampaignPages(campaignId, formData);
+      }
+
+      // Move from drafts to finalized list
+      setDraftCampaigns(prev => prev.filter(c => c.id !== campaignId));
+      setCampaigns(prev => [finalizedCampaign, ...prev]);
+      
+      toast.success("Campaign created successfully!");
+      return finalizedCampaign;
+    } catch (err) {
+      console.error("Error finalizing campaign:", err);
+      toast.error("Failed to create campaign");
+      return null;
+    }
+  };
 
   const createCampaign = async (formData: CampaignFormData): Promise<CampaignDB | null> => {
     if (!subaccountId) return null;
@@ -117,6 +320,7 @@ export function useCampaigns() {
         template_id: formData.selectedTemplate,
         template_config: templateConfig as unknown as Record<string, unknown>,
         total_pages: totalPages,
+        is_finalized: true,
       };
 
       const { data, error: insertError } = await supabase
@@ -265,6 +469,7 @@ export function useCampaigns() {
       if (deleteError) throw deleteError;
 
       setCampaigns(prev => prev.filter(c => c.id !== id));
+      setDraftCampaigns(prev => prev.filter(c => c.id !== id));
       toast.success("Campaign deleted successfully!");
       return true;
     } catch (err) {
@@ -276,11 +481,16 @@ export function useCampaigns() {
 
   return {
     campaigns,
+    draftCampaigns,
     loading,
     error,
     createCampaign,
     updateCampaign,
     deleteCampaign,
+    saveDraftCampaign,
+    finalizeCampaign,
+    fetchCampaignById,
     refetch: fetchCampaigns,
+    refetchDrafts: fetchDraftCampaigns,
   };
 }
