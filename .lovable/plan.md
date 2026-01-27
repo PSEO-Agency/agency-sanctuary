@@ -1,113 +1,86 @@
 
-# Plan: Change AI Template Validation Logic
+# Plan: Fix AI Template Generator Entity Loop Bug
 
-## Overview
-Modify the AI Template Generator's validation to:
-1. Make unused variables purely informational (not a warning)
-2. Block progress only when a section has empty/missing content
+## Problem Identified
+The dialog keeps looping back to the first template because:
 
-## Changes to Make
+1. When user clicks "Approve & Next", the `handleApprove` function:
+   - Updates `currentEntityIndex` to move to next entity (index 1)
+   - Calls `updateFormData({ entityTemplates: ... })` to save the template
+
+2. This `updateFormData` call triggers the `useEffect` hook (line 105-146) because `formData.entityTemplates` is in its dependency array
+
+3. The `useEffect` then recalculates which entity to show:
+   - Both entities already have templates saved in `entityTemplates`
+   - `firstIncompleteIndex` returns `-1` (no entity without template)
+   - Falls back to `targetIndex = 0`
+   - Resets `currentEntityIndex` back to 0
+
+4. User sees the first template again, creating an infinite loop
+
+## Solution
+
+The fix is to prevent the `useEffect` from resetting the entity index after the initial dialog open. We should only run the initialization logic **once** when the dialog first opens, not on every `entityTemplates` change.
 
 ### File: `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx`
 
-#### 1. Update `getSectionWarnings` function to remove variable usage warnings
-Remove the warning about unused variables since the user only wants to use some of their variables:
+#### Change 1: Add an initialization flag
+Add a `useRef` to track whether we've already initialized the dialog state:
 
 ```typescript
-// REMOVE these lines (511-519):
-if (!hasVariable && selectedVars.length > 0) {
-  const hasAnyVariable = Object.values(content).some(v => 
-    /\{\{\w+\}\}/.test(String(Array.isArray(v) ? v.join('') : v))
-  );
-  if (!hasAnyVariable) {
-    warnings.push("No variables used in this section");
+const hasInitialized = useRef(false);
+```
+
+#### Change 2: Modify the useEffect to only run initialization once
+Update the effect to check the flag and skip re-initialization:
+
+```typescript
+useEffect(() => {
+  if (open && !hasInitialized.current) {
+    hasInitialized.current = true;
+    
+    // ... existing initialization logic ...
   }
-}
-```
-
-Keep only the empty section check at lines 499-502 which warns when a section has no content.
-
-#### 2. Update Variable Usage Summary UI (lines 745-749)
-Change the warning message to be informational rather than alarming:
-
-**Before:**
-```tsx
-{variableUsageSummary.some(v => v.usedIn === 0) && (
-  <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
-    <AlertCircle className="h-3 w-3" />
-    Some variables are not used. You can edit sections below to add them, or regenerate.
-  </p>
-)}
-```
-
-**After:**
-```tsx
-{variableUsageSummary.some(v => v.usedIn === 0) && (
-  <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
-    Some variables are not used in this template. This is fine if intentional.
-  </p>
-)}
-```
-
-#### 3. Change unused variable icons (lines 737-741)
-Make the unused variable indicator less alarming by using a neutral icon instead of warning:
-
-**Before:**
-```tsx
-{usedIn > 0 ? (
-  <Check className="h-4 w-4 text-green-500 shrink-0" />
-) : (
-  <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-)}
-```
-
-**After:**
-```tsx
-{usedIn > 0 && (
-  <Check className="h-4 w-4 text-green-500 shrink-0" />
-)}
-```
-
-(Simply remove the warning icon for unused variables)
-
-#### 4. Add actual blocking for empty sections
-Modify `handleApprove` function to check for sections with no content:
-
-```typescript
-const handleApprove = () => {
-  const currentTemplate = generatedTemplates[currentEntity?.id];
   
-  if (currentTemplate) {
-    // Check for empty sections - block progress if any section has no content
-    const emptySections = currentTemplate.sections.filter(
-      s => !s.content || Object.keys(s.content).length === 0 ||
-        Object.values(s.content).every(v => 
-          v === "" || (Array.isArray(v) && v.length === 0)
-        )
-    );
-    
-    if (emptySections.length > 0) {
-      toast.error(`Cannot proceed: ${emptySections.length} section(s) have no content. Please edit or remove empty sections.`);
-      return;
-    }
-    
-    // ... rest of existing logic
+  // Reset the flag when dialog closes
+  if (!open) {
+    hasInitialized.current = false;
   }
-};
+}, [open]); // Remove formData dependencies from array
 ```
 
-#### 5. Add a "Remove Section" button for truly empty sections
-Allow users to remove problematic empty sections instead of being stuck.
+#### Change 3: Separate the template restoration from index calculation
+Create a separate effect to keep templates in sync without resetting the index:
 
-## Summary of Behavior Changes
+```typescript
+// Keep generatedTemplates in sync with formData (without resetting index)
+useEffect(() => {
+  if (!open) return;
+  
+  const existingTemplates: Record<string, GeneratedTemplate> = {};
+  Object.entries(formData.entityTemplates || {}).forEach(([entityId, template]) => {
+    existingTemplates[entityId] = {
+      sections: template.sections as GeneratedSection[],
+      style: template.style || { /* defaults */ },
+      images: template.images || { sectionImages: [] },
+    };
+  });
+  setGeneratedTemplates(existingTemplates);
+}, [open, formData.entityTemplates]);
+```
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| Variable not used | ⚠️ Warning icon + amber message | ✓ Neutral text only |
-| Empty section | ⚠️ Warning only (non-blocking) | 🚫 Blocks "Approve" + toast error |
-| Partially used variables | Appears broken | Clear messaging that it's intentional |
+## Technical Details
 
-## Technical Notes
-- The variable selection step before generation is unchanged - users still select which variables they want to use
-- The empty section check uses strict validation: checks for empty object OR all empty values
-- Adding section removal capability ensures users aren't stuck with AI-generated empty sections
+The key insight is separating two concerns:
+1. **Initialization** (which entity to start with) - should only happen once when dialog opens
+2. **Data sync** (keeping templates updated) - can happen on formData changes
+
+By using a ref to track initialization status, we prevent the entity index from being reset every time the template data changes.
+
+## Testing
+After this fix:
+1. User clicks "Approve & Next" on first template
+2. Index increments to 1
+3. `updateFormData` triggers, but initialization is skipped (already initialized)
+4. User correctly sees the second entity's template
+5. Dialog only resets when it closes and reopens
