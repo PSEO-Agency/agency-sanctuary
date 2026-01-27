@@ -9,6 +9,7 @@ interface AnnouncementCardProps {
   announcement: Announcement;
   isRead: boolean;
   onMarkRead?: () => void;
+  onClick?: () => void;
   compact?: boolean;
   showAudienceBadges?: boolean;
 }
@@ -23,10 +24,18 @@ export function AnnouncementCard({
   announcement, 
   isRead, 
   onMarkRead,
+  onClick,
   compact = false,
   showAudienceBadges = false,
 }: AnnouncementCardProps) {
   const timeAgo = formatDistanceToNow(new Date(announcement.published_at), { addSuffix: true });
+
+  const handleClick = () => {
+    onClick?.();
+    if (!isRead && onMarkRead) {
+      onMarkRead();
+    }
+  };
 
   if (compact) {
     return (
@@ -35,21 +44,40 @@ export function AnnouncementCard({
           "flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-muted/50",
           !isRead && "bg-primary/5"
         )}
-        onClick={onMarkRead}
+        onClick={handleClick}
       >
-        <div className={cn(
-          "mt-1.5 w-2 h-2 rounded-full shrink-0",
-          isRead ? "bg-muted-foreground/30" : "bg-primary"
-        )} />
+        {/* Thumbnail */}
+        {announcement.image_url && (
+          <div className="shrink-0 w-14 h-10 rounded overflow-hidden bg-muted">
+            <img 
+              src={announcement.image_url} 
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+        
+        {/* Unread indicator (if no image) */}
+        {!announcement.image_url && (
+          <div className={cn(
+            "mt-1.5 w-2 h-2 rounded-full shrink-0",
+            isRead ? "bg-muted-foreground/30" : "bg-primary"
+          )} />
+        )}
+        
         <div className="flex-1 min-w-0">
           <p className={cn(
-            "text-sm truncate",
+            "text-sm line-clamp-1",
             !isRead && "font-medium"
           )}>
             {announcement.title}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">{timeAgo}</p>
+          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+            {announcement.description}
+          </p>
+          <p className="text-xs text-muted-foreground/70 mt-1">{timeAgo}</p>
         </div>
+        
         {!isRead && onMarkRead && (
           <Button
             variant="ghost"
@@ -68,10 +96,13 @@ export function AnnouncementCard({
   }
 
   return (
-    <div className={cn(
-      "rounded-xl border overflow-hidden",
-      !isRead && "ring-2 ring-primary/20"
-    )}>
+    <div 
+      className={cn(
+        "rounded-xl border overflow-hidden cursor-pointer transition-shadow hover:shadow-md",
+        !isRead && "ring-2 ring-primary/20"
+      )}
+      onClick={handleClick}
+    >
       {announcement.image_url && (
         <div className="aspect-video w-full overflow-hidden bg-muted">
           <img 
@@ -110,7 +141,11 @@ export function AnnouncementCard({
 
         <div className="flex items-center gap-2 pt-1">
           {announcement.cta_url && announcement.cta_text && (
-            <Button size="sm" asChild>
+            <Button 
+              size="sm" 
+              asChild
+              onClick={(e) => e.stopPropagation()}
+            >
               <a href={announcement.cta_url} target="_blank" rel="noopener noreferrer">
                 {announcement.cta_text}
                 <ExternalLink className="ml-1.5 h-3 w-3" />
@@ -118,7 +153,14 @@ export function AnnouncementCard({
             </Button>
           )}
           {!isRead && onMarkRead && (
-            <Button size="sm" variant="ghost" onClick={onMarkRead}>
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkRead();
+              }}
+            >
               <Check className="mr-1.5 h-3 w-3" />
               Mark as read
             </Button>

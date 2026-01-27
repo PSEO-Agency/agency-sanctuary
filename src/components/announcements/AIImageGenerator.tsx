@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Check, X, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,7 @@ export function AIImageGenerator({ onImageGenerated, selectedAudience }: AIImage
     selectedAudience[0] || "subaccount"
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -49,6 +50,8 @@ export function AIImageGenerator({ onImageGenerated, selectedAudience }: AIImage
     }
 
     setIsGenerating(true);
+    setPreviewUrl(null);
+    
     try {
       const { data, error } = await supabase.functions.invoke("generate-announcement-image", {
         body: { prompt, theme },
@@ -57,8 +60,9 @@ export function AIImageGenerator({ onImageGenerated, selectedAudience }: AIImage
       if (error) throw error;
 
       if (data?.image_url) {
-        onImageGenerated(data.image_url);
-        toast.success("Image generated successfully");
+        // Show preview for approval instead of immediately using
+        setPreviewUrl(data.image_url);
+        toast.success("Image generated! Review and approve below.");
       } else {
         throw new Error("No image returned");
       }
@@ -69,6 +73,78 @@ export function AIImageGenerator({ onImageGenerated, selectedAudience }: AIImage
       setIsGenerating(false);
     }
   };
+
+  const handleApprove = () => {
+    if (previewUrl) {
+      onImageGenerated(previewUrl);
+      setPreviewUrl(null);
+      setPrompt("");
+      toast.success("Image approved and added to announcement");
+    }
+  };
+
+  const handleReject = () => {
+    setPreviewUrl(null);
+    toast.info("Image rejected. Generate a new one or enter a different prompt.");
+  };
+
+  const handleRegenerate = async () => {
+    setPreviewUrl(null);
+    await handleGenerate();
+  };
+
+  // Show preview with approval buttons if we have a generated image
+  if (previewUrl) {
+    return (
+      <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <Label className="font-medium">Review Generated Image</Label>
+        </div>
+
+        <div className="relative rounded-lg overflow-hidden border bg-muted">
+          <img 
+            src={previewUrl} 
+            alt="Generated preview" 
+            className="w-full aspect-video object-cover"
+          />
+        </div>
+
+        <p className="text-sm text-muted-foreground text-center">
+          Does this image look good? Approve it to use, or regenerate for a different result.
+        </p>
+
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleApprove}
+            className="flex-1"
+            variant="default"
+          >
+            <Check className="mr-2 h-4 w-4" />
+            Approve & Use
+          </Button>
+          <Button 
+            onClick={handleRegenerate}
+            variant="outline"
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
+          <Button 
+            onClick={handleReject}
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
@@ -129,6 +205,10 @@ export function AIImageGenerator({ onImageGenerated, selectedAudience }: AIImage
           </>
         )}
       </Button>
+
+      <p className="text-xs text-muted-foreground text-center">
+        You'll be able to review and approve the image before using it.
+      </p>
     </div>
   );
 }
