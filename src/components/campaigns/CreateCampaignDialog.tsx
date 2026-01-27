@@ -11,6 +11,7 @@ import { DatasetApprovalStep } from "./steps/DatasetApprovalStep";
 import { BuildFromScratchStep } from "./steps/BuildFromScratchStep";
 import { TemplateSelectionStep } from "./steps/TemplateSelectionStep";
 import { TemplateEditorStep } from "./steps/TemplateEditorStep";
+import { SamplePagePreviewStep } from "./steps/SamplePagePreviewStep";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { Loader2 } from "lucide-react";
 
@@ -21,7 +22,7 @@ interface CreateCampaignDialogProps {
   existingCampaignId?: string | null;
 }
 
-// Step titles for scratch path (6 steps) vs CSV path (5 steps)
+// Step titles for scratch path (7 steps) vs CSV path (6 steps)
 const STEP_TITLES_SCRATCH = [
   "Business Details",
   "Data Upload Method",
@@ -29,6 +30,7 @@ const STEP_TITLES_SCRATCH = [
   "Build Your Datasets",
   "Template Selection",
   "Customize Template",
+  "Preview Samples",
 ];
 
 const STEP_TITLES_CSV = [
@@ -37,6 +39,7 @@ const STEP_TITLES_CSV = [
   "CSV Upload",
   "Template Selection",
   "Customize Template",
+  "Preview Samples",
 ];
 
 export function CreateCampaignDialog({
@@ -58,7 +61,7 @@ export function CreateCampaignDialog({
   const lastSavedRef = useRef<string>("");
 
   // Dynamic total steps based on data upload method
-  const totalSteps = formData.dataUploadMethod === "scratch" ? 6 : 5;
+  const totalSteps = formData.dataUploadMethod === "scratch" ? 7 : 6;
   const stepTitles = formData.dataUploadMethod === "scratch" ? STEP_TITLES_SCRATCH : STEP_TITLES_CSV;
 
   // Load existing draft if resuming
@@ -143,7 +146,7 @@ export function CreateCampaignDialog({
 
   const canProceed = () => {
     if (formData.dataUploadMethod === "scratch") {
-      // 6-step flow for scratch
+      // 7-step flow for scratch
       switch (currentStep) {
         case 1:
           return formData.businessName && formData.businessType;
@@ -159,11 +162,13 @@ export function CreateCampaignDialog({
           return formData.selectedTemplate !== "";
         case 6:
           return true; // Template editor is optional
+        case 7:
+          return true; // Sample preview
         default:
           return true;
       }
     } else {
-      // 5-step flow for CSV
+      // 6-step flow for CSV
       switch (currentStep) {
         case 1:
           return formData.businessName && formData.businessType;
@@ -175,6 +180,8 @@ export function CreateCampaignDialog({
           return formData.selectedTemplate !== "";
         case 5:
           return true; // Template editor is optional
+        case 6:
+          return true; // Sample preview
         default:
           return true;
       }
@@ -223,7 +230,7 @@ export function CreateCampaignDialog({
 
   const renderStep = () => {
     if (formData.dataUploadMethod === "scratch") {
-      // 6-step flow for scratch
+      // 7-step flow for scratch
       switch (currentStep) {
         case 1:
           return <BusinessDetailsStep formData={formData} updateFormData={updateFormData} />;
@@ -241,6 +248,15 @@ export function CreateCampaignDialog({
               formData={formData} 
               updateFormData={updateFormData} 
               onBack={() => setCurrentStep(5)}
+              onFinish={() => setCurrentStep(7)}
+            />
+          );
+        case 7:
+          return (
+            <SamplePagePreviewStep
+              formData={formData}
+              updateFormData={updateFormData}
+              onBack={() => setCurrentStep(6)}
               onFinish={handleFinishCampaign}
             />
           );
@@ -248,7 +264,7 @@ export function CreateCampaignDialog({
           return null;
       }
     } else {
-      // 5-step flow for CSV (or before method is selected)
+      // 6-step flow for CSV (or before method is selected)
       switch (currentStep) {
         case 1:
           return <BusinessDetailsStep formData={formData} updateFormData={updateFormData} />;
@@ -268,6 +284,15 @@ export function CreateCampaignDialog({
               formData={formData} 
               updateFormData={updateFormData} 
               onBack={() => setCurrentStep(4)}
+              onFinish={() => setCurrentStep(6)}
+            />
+          );
+        case 6:
+          return (
+            <SamplePagePreviewStep
+              formData={formData}
+              updateFormData={updateFormData}
+              onBack={() => setCurrentStep(5)}
               onFinish={handleFinishCampaign}
             />
           );
@@ -277,10 +302,12 @@ export function CreateCampaignDialog({
     }
   };
 
-  // Final step (Template Editor) renders as full-screen portal to escape layout DOM
-  const isTemplateEditorStep = formData.dataUploadMethod === "scratch" ? currentStep === 6 : currentStep === 5;
+  // Template Editor and Sample Preview steps render as full-screen portal
+  const isFullScreenStep = formData.dataUploadMethod === "scratch" 
+    ? currentStep === 6 || currentStep === 7
+    : currentStep === 5 || currentStep === 6;
   
-  if (open && isTemplateEditorStep) {
+  if (open && isFullScreenStep) {
     return createPortal(
       <div className="fixed inset-0 z-[100] bg-background flex flex-col h-screen overflow-hidden">
         {renderStep()}
