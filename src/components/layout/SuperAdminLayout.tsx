@@ -19,7 +19,11 @@ interface SuperAdminLayoutProps {
 }
 
 export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, hasRole } = useAuth();
+  
+  const isSuperAdmin = hasRole("super_admin");
+  const isCountryPartner = hasRole("country_partner");
+  const roleLabel = isSuperAdmin ? "Super Admin" : isCountryPartner ? "Country Partner" : "Admin";
 
   return (
     <SidebarProvider>
@@ -50,7 +54,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
               <DropdownMenuContent align="end" className="w-56 z-50">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">Super Admin</p>
+                    <p className="text-sm font-medium">{roleLabel}</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
                 </DropdownMenuLabel>

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -19,10 +21,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, LogIn, Search, Link, Copy, Check } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, LogIn, Search, Link, Copy, Check, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+
+interface CountryPartner {
+  id: string;
+  name: string;
+  country: string | null;
+}
 
 interface Agency {
   id: string;
@@ -30,6 +45,8 @@ interface Agency {
   slug: string;
   created_at: string;
   owner_user_id: string | null;
+  country_partner_id: string | null;
+  country_partner?: CountryPartner | null;
 }
 
 interface Invite {
@@ -43,28 +60,43 @@ interface Invite {
 
 export default function Agencies() {
   const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [partners, setPartners] = useState<CountryPartner[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterPartner, setFilterPartner] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [newAgency, setNewAgency] = useState({ name: "", slug: "" });
   const [inviteEmail, setInviteEmail] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const { impersonateUser } = useAuth();
+  const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
+  const [assignPartnerId, setAssignPartnerId] = useState<string>("");
+  const [assigning, setAssigning] = useState(false);
+  const { impersonateUser, hasRole } = useAuth();
+
+  const isSuperAdmin = hasRole("super_admin");
+  const isCountryPartner = hasRole("country_partner");
 
   useEffect(() => {
     fetchAgencies();
     fetchInvites();
-  }, []);
+    if (isSuperAdmin) {
+      fetchPartners();
+    }
+  }, [isSuperAdmin]);
 
   const fetchAgencies = async () => {
     try {
       const { data, error } = await supabase
         .from("agencies")
-        .select("*")
+        .select(`
+          *,
+          country_partner:country_partners(id, name, country)
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -74,6 +106,20 @@ export default function Agencies() {
       toast.error("Failed to fetch agencies");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPartners = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("country_partners")
+        .select("id, name, country")
+        .order("name");
+
+      if (error) throw error;
+      setPartners(data || []);
+    } catch (error) {
+      console.error("Error fetching partners:", error);
     }
   };
 
@@ -156,10 +202,48 @@ export default function Agencies() {
     }
   };
 
-  const filteredAgencies = agencies.filter(agency =>
-    agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    agency.slug.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleAssignClick = (agency: Agency) => {
+    setSelectedAgency(agency);
+    setAssignPartnerId(agency.country_partner_id || "none");
+    setIsAssignOpen(true);
+  };
+
+  const handleAssignPartner = async () => {
+    if (!selectedAgency) return;
+
+    setAssigning(true);
+    try {
+      const newPartnerId = assignPartnerId === "none" ? null : assignPartnerId;
+      
+      const { error } = await supabase
+        .from("agencies")
+        .update({ country_partner_id: newPartnerId })
+        .eq("id", selectedAgency.id);
+
+      if (error) throw error;
+
+      toast.success("Agency assignment updated");
+      setIsAssignOpen(false);
+      fetchAgencies();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update assignment");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const filteredAgencies = agencies.filter(agency => {
+    const matchesSearch = 
+      agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      agency.slug.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesPartner = 
+      filterPartner === "all" || 
+      (filterPartner === "none" && !agency.country_partner_id) ||
+      agency.country_partner_id === filterPartner;
+    
+    return matchesSearch && matchesPartner;
+  });
 
   return (
     <div className="space-y-6">
@@ -167,7 +251,10 @@ export default function Agencies() {
         <div>
           <h1 className="text-3xl font-bold">Agencies</h1>
           <p className="text-muted-foreground mt-2">
-            Manage all agencies in the system
+            {isCountryPartner && !isSuperAdmin 
+              ? "Manage agencies assigned to your partner region"
+              : "Manage all agencies in the system"
+            }
           </p>
         </div>
         
@@ -220,52 +307,54 @@ export default function Agencies() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Agency
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Agency</DialogTitle>
-                <DialogDescription>
-                  Add a new agency to the system (without owner)
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Agency Name</Label>
-                  <Input
-                    id="name"
-                    value={newAgency.name}
-                    onChange={(e) => setNewAgency({ ...newAgency, name: e.target.value })}
-                    placeholder="Acme Agency"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="slug">Slug</Label>
-                  <Input
-                    id="slug"
-                    value={newAgency.slug}
-                    onChange={(e) => setNewAgency({ ...newAgency, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                    placeholder="acme-agency"
-                  />
-                </div>
-                <Button onClick={handleCreateAgency} className="w-full">
+          {isSuperAdmin && (
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
                   Create Agency
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New Agency</DialogTitle>
+                  <DialogDescription>
+                    Add a new agency to the system (without owner)
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Agency Name</Label>
+                    <Input
+                      id="name"
+                      value={newAgency.name}
+                      onChange={(e) => setNewAgency({ ...newAgency, name: e.target.value })}
+                      placeholder="Acme Agency"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="slug">Slug</Label>
+                    <Input
+                      id="slug"
+                      value={newAgency.slug}
+                      onChange={(e) => setNewAgency({ ...newAgency, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                      placeholder="acme-agency"
+                    />
+                  </div>
+                  <Button onClick={handleCreateAgency} className="w-full">
+                    Create Agency
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search agencies..."
@@ -274,6 +363,23 @@ export default function Agencies() {
                 className="pl-10"
               />
             </div>
+            {isSuperAdmin && partners.length > 0 && (
+              <Select value={filterPartner} onValueChange={setFilterPartner}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <Globe className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by partner" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Partners</SelectItem>
+                  <SelectItem value="none">No Partner</SelectItem>
+                  {partners.map((partner) => (
+                    <SelectItem key={partner.id} value={partner.id}>
+                      {partner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -282,6 +388,7 @@ export default function Agencies() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
+                {isSuperAdmin && <TableHead>Partner</TableHead>}
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -289,21 +396,43 @@ export default function Agencies() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={isSuperAdmin ? 5 : 4} className="text-center">Loading...</TableCell>
                 </TableRow>
               ) : filteredAgencies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">No agencies found</TableCell>
+                  <TableCell colSpan={isSuperAdmin ? 5 : 4} className="text-center">No agencies found</TableCell>
                 </TableRow>
               ) : (
                 filteredAgencies.map((agency) => (
                   <TableRow key={agency.id}>
                     <TableCell className="font-medium">{agency.name}</TableCell>
                     <TableCell>{agency.slug}</TableCell>
+                    {isSuperAdmin && (
+                      <TableCell>
+                        {agency.country_partner ? (
+                          <Badge variant="outline">
+                            <Globe className="h-3 w-3 mr-1" />
+                            {agency.country_partner.name}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>{new Date(agency.created_at).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm">Manage</Button>
+                        {isSuperAdmin && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleAssignClick(agency)}
+                          >
+                            <Globe className="mr-1 h-4 w-4" />
+                            Assign
+                          </Button>
+                        )}
                         <Button variant="secondary" size="sm" onClick={() => handleLoginAs(agency.id)}>
                           <LogIn className="mr-2 h-4 w-4" />
                           Login As
@@ -317,6 +446,46 @@ export default function Agencies() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Assign Partner Dialog */}
+      <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign to Country Partner</DialogTitle>
+            <DialogDescription>
+              Assign "{selectedAgency?.name}" to a country partner
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Country Partner</Label>
+              <Select value={assignPartnerId} onValueChange={setAssignPartnerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a partner" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Partner</SelectItem>
+                  {partners.map((partner) => (
+                    <SelectItem key={partner.id} value={partner.id}>
+                      {partner.name} {partner.country && `(${partner.country})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAssignOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAssignPartner} disabled={assigning}>
+              {assigning ? "Saving..." : "Save Assignment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

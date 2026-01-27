@@ -98,3 +98,9 @@ verify_jwt = true
 
 [functions.wordpress-publish]
 verify_jwt = true
+
+[functions.create-partner-invite]
+verify_jwt = false
+
+[functions.accept-partner-invite]
+verify_jwt = false

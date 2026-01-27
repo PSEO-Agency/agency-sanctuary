@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
-type AppRole = "super_admin" | "agency_admin" | "sub_account_user";
+type AppRole = "super_admin" | "country_partner" | "agency_admin" | "sub_account_user";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -55,14 +55,21 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     if (requiredRole) {
       const hasRequiredRole = hasRole(requiredRole);
       const isSuperAdmin = hasRole('super_admin');
+      const isCountryPartner = hasRole('country_partner');
       
-      if (!hasRequiredRole && !isSuperAdmin) {
+      // Super admins can access everything
+      // Country partners can access super_admin routes (they use filtered super admin UI)
+      const canAccess = hasRequiredRole || isSuperAdmin || 
+        (requiredRole === 'super_admin' && isCountryPartner);
+      
+      if (!canAccess) {
         hasRedirectedRef.current = true;
         lastRedirectRef.current = now;
         
         // Redirect to appropriate portal based on primary role from profile
         switch (profile.role) {
           case "super_admin":
+          case "country_partner":
             navigate("/super-admin", { replace: true });
             break;
           case "agency_admin":
