@@ -27,7 +27,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Search, ArrowRightLeft, Eye, Trash2, Building2, ArrowUpCircle, Loader2, Globe } from "lucide-react";
+import { Search, ArrowRightLeft, Eye, Trash2, Building2, ArrowUpCircle, Loader2, Globe, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DeleteSubaccountDialog } from "@/components/DeleteSubaccountDialog";
@@ -374,37 +387,45 @@ export default function Subaccounts() {
                       {new Date(subaccount.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                        <Button 
-                          variant="secondary" 
-                          size="sm"
-                          onClick={() => handleTransferClick(subaccount)}
-                        >
-                          <ArrowRightLeft className="h-4 w-4 mr-1" />
-                          Transfer
-                        </Button>
-                        {isSuperAdmin && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleUpgradeClick(subaccount)}
-                          >
-                            <ArrowUpCircle className="h-4 w-4 mr-1" />
-                            Upgrade
-                          </Button>
-                        )}
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => handleDeleteClick(subaccount)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
+                      <div className="flex justify-end items-center gap-1">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleTransferClick(subaccount)}>
+                              <ArrowRightLeft className="h-4 w-4 mr-2" />
+                              Transfer
+                            </DropdownMenuItem>
+                            {isSuperAdmin && (
+                              <DropdownMenuItem onClick={() => handleUpgradeClick(subaccount)}>
+                                <ArrowUpCircle className="h-4 w-4 mr-2" />
+                                Upgrade to Agency
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteClick(subaccount)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
