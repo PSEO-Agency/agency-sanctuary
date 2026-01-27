@@ -17,9 +17,10 @@ const modeConfig = {
     title: "Welcome to Content Machine",
     icon: FileText,
     description: "Create in-depth, AI-researched articles that rank. Our Content Machine analyzes top-performing content, builds comprehensive outlines, and generates SEO-optimized articles tailored to your brand voice.",
-    gradient: "from-blue-500 via-indigo-500 to-purple-500",
-    iconBg: "bg-gradient-to-br from-blue-400 to-indigo-600",
+    gradient: "from-cyan-400 via-blue-500 to-indigo-600",
+    iconBg: "bg-gradient-to-br from-cyan-400 to-blue-600",
     buttonText: "Start Writing",
+    glowColor: "bg-cyan-500/30",
   },
   "pseo-builder": {
     title: "Welcome to pSEO Builder",
@@ -28,6 +29,7 @@ const modeConfig = {
     gradient: "from-purple-500 via-pink-500 to-orange-400",
     iconBg: "bg-gradient-to-br from-purple-400 to-pink-600",
     buttonText: "Start Building",
+    glowColor: "bg-primary/30",
   },
 };
 
@@ -50,12 +52,13 @@ export function ModeSwitchDialog({ open, mode, onConfirm, onOpenChange }: ModeSw
         <div className="relative rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-xl border border-white/10 overflow-hidden">
           {/* Animated gradient background */}
           <div className={cn(
-            "absolute inset-0 opacity-20 bg-gradient-to-br",
-            config.gradient
+            "absolute inset-0 bg-gradient-to-br",
+            config.gradient,
+            mode === "content-machine" ? "opacity-30" : "opacity-20"
           )} />
           
           {/* Glow effect */}
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/30 rounded-full blur-3xl animate-pulse" />
+          <div className={cn("absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl animate-pulse", config.glowColor)} />
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
           
           {/* Content */}
