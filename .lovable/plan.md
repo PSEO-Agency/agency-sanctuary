@@ -1,314 +1,371 @@
 
 
-# Plan: Enhanced Variable Visibility in AI Template Generation
+# Plan: Fix Empty AI Templates & Enforce Review Flow
 
-## Problem Statement
+## Problem Analysis
 
-When a user writes a natural language prompt like:
-> "Let's generate a template for vaccines relevant to a cat breed. This page would include a vaccine variable and breed variable..."
+### Issue 1: Empty Section Content
+The AI template generator is returning sections with empty `content: {}` objects. Looking at the network response:
+```json
+{"sections":[{"name":"Hero Section","type":"hero","content":{},"id":"hero-breeds"}...]}
+```
 
-The current system:
-1. Passes ALL available variables to the AI (`{{vaccines}}`, `{{breeds}}`, `{{company}}`)
-2. Hopes the AI uses them correctly in the generated sections
-3. Shows a preview, but doesn't clearly highlight HOW each variable is used in which section
+The AI is successfully creating section types and names, but not populating the content fields despite instructions.
 
-The user has no way to:
-- Select which variables should be used in this template
-- See a clear breakdown of variable usage before approving
-- Verify that the AI understood their intent correctly
+**Root Cause:** The tool schema in `generate-template-ai` marks `content` as a generic object without specifying the required fields per section type. The AI is "lazy" and returns empty objects when the structure isn't enforced.
+
+### Issue 2: Review Flow Gaps
+- Users cannot edit section content inline before approving
+- No mechanism to manually add missing variables/prompts
+- Skip button exists but shouldn't
 
 ---
 
-## Solution Overview
+## Solution
 
-### Part 1: Variable Selection Before Generation
+### Part 1: Fix AI Template Generation (Edge Function)
 
-Add a variable picker UI in the "idle" state of `AITemplateGeneratorDialog` where users can:
-- See all available variables as toggleable chips
-- Select/deselect which variables to include for this entity's template
-- See sample values for each variable (from `scratchData`)
+**File:** `supabase/functions/generate-template-ai/index.ts`
 
-### Part 2: Enhanced Variable Usage Preview After Generation
+The fix involves two changes:
 
-Improve the `TemplatePreview` component to show:
-- A section-by-section breakdown of which variables and prompts are used
-- Clear visual distinction between `{{variable}}`, `prompt("...")`, and `image_prompt("...")`
-- Highlighting of any unused variables (potential issue)
+1. **Add concrete content examples to the prompt** - Give the AI actual JSON examples of what each section type should look like with `{{variable}}` and `prompt(...)` filled in.
 
----
+2. **Post-process AI output** - If sections come back empty, populate them with sensible defaults based on type and available variables.
 
-## UI Design
-
-### Before Generation (Variable Selection)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Ready to Generate                                              │
-│  AI will create a custom template for Vaccines Pages            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Select Variables to Use                                        │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ ☑ {{vaccines}}     Sample: "Rabies", "FVRCP", "FeLV"     │  │
-│  │ ☑ {{breeds}}       Sample: "Persian", "Siamese", "Maine" │  │
-│  │ ☐ {{locations}}    Sample: "New York", "Los Angeles"      │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│  ℹ️ Only selected variables will be used in the template       │
-│                                                                 │
-│  Quick Templates: [🏢 Local] [🐾 Product] [📋 Directory]        │
-│                                                                 │
-│  Guide the AI:                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Create sections for vaccine benefits, side effects,      │  │
-│  │ how many shots needed, pros/cons of this vaccine for... │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│              [ Generate Template for Vaccines ]                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### After Generation (Variable Usage Preview)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Generated Sections                                             │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐        │
-│  │  hero  │ │features│ │content │ │pros_cons│ │  faq   │        │
-│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Variable Usage by Section (expand each to see details)        │
-│                                                                 │
-│  ▼ Hero Section                                                 │
-│    ├── headline: "{{vaccines}} for {{breeds}}"                  │
-│    │   └─ Variables: {{vaccines}} ✓, {{breeds}} ✓              │
-│    ├── subheadline: prompt("Write about {{vaccines}}...")       │
-│    │   └─ Variables: {{vaccines}} ✓                            │
-│    └── cta_text: "Get Quote" (static)                          │
-│                                                                 │
-│  ▼ Pros & Cons Section                                          │
-│    ├── title: "Pros & Cons of {{vaccines}}"                     │
-│    │   └─ Variables: {{vaccines}} ✓                            │
-│    ├── pros: [prompt("List benefits of {{vaccines}}...")]       │
-│    └── cons: [prompt("List drawbacks of {{vaccines}}...")]      │
-│                                                                 │
-│  ▼ FAQ Section                                                  │
-│    └── items: ["How many shots|prompt(...)"]                    │
-│                                                                 │
-│  ────────────────────────────────────────────────────────────── │
-│  Variable Summary:                                              │
-│  • {{vaccines}} → Used in 5/6 sections ✓                       │
-│  • {{breeds}} → Used in 2/6 sections ✓                         │
-│  • {{company}} → Used in 1/6 sections ✓                        │
-│                                                                 │
-│              [ Skip ]  [ Regenerate ]  [ Approve & Next ]       │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Implementation Details
-
-### Part 1: Variable Selection State
-
-**File**: `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx`
-
-Add new state and UI:
-
+#### Updated System Prompt
 ```typescript
-// New state for selected variables
-const [selectedVariables, setSelectedVariables] = useState<string[]>(() => {
-  // Initialize with all variables selected
-  return formData.dynamicColumns.map(c => c.variableName);
-});
+const systemPrompt = `You are an expert landing page architect...
 
-// In the idle state UI, add variable picker:
-<div className="space-y-2">
-  <Label className="text-sm font-medium">Select Variables to Use</Label>
-  <div className="space-y-2 bg-muted/30 rounded-lg p-3">
-    {formData.dynamicColumns.map((col) => {
-      const isSelected = selectedVariables.includes(col.variableName);
-      const samples = (formData.scratchData[col.id] || []).slice(0, 3);
-      return (
-        <div 
-          key={col.id}
-          className={cn(
-            "flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-muted/50",
-            isSelected && "bg-primary/10 border border-primary/20"
-          )}
-          onClick={() => toggleVariable(col.variableName)}
-        >
-          <Checkbox checked={isSelected} />
-          <Badge variant="secondary" className="font-mono">
-            {`{{${col.variableName}}}`}
-          </Badge>
-          <span className="text-xs text-muted-foreground flex-1">
-            {samples.join(", ") || "No samples"}
-          </span>
-        </div>
-      );
-    })}
+CRITICAL: Every section MUST have populated content fields. Empty content objects are NOT allowed.
+
+EXAMPLE OUTPUT FOR HERO SECTION:
+{
+  "id": "hero-1",
+  "type": "hero",
+  "name": "Hero Banner",
+  "content": {
+    "headline": "Everything About {{breed}}",
+    "subheadline": "prompt(\"Write a compelling 1-2 sentence introduction about {{breed}} cats for {{company}}\")",
+    "cta_text": "Get a Quote"
+  }
+}
+
+EXAMPLE OUTPUT FOR FAQ SECTION:
+{
+  "id": "faq-1",
+  "type": "faq",
+  "name": "Frequently Asked Questions",
+  "content": {
+    "title": "Common Questions About {{breed}}",
+    "items": [
+      "What is the temperament of {{breed}} cats?|prompt(\"Write a detailed answer about {{breed}} cat temperament\")",
+      "How much does a {{breed}} cat cost?|prompt(\"Provide pricing information for {{breed}} cats\")"
+    ]
+  }
+}
+
+EXAMPLE OUTPUT FOR PROS_CONS SECTION:
+{
+  "id": "pros-cons-1",
+  "type": "pros_cons",
+  "name": "Pros and Cons",
+  "content": {
+    "title": "Is {{breed}} Right for You?",
+    "pros": ["prompt(\"List 3 advantages of owning a {{breed}} cat\")"],
+    "cons": ["prompt(\"List 3 potential challenges of owning a {{breed}} cat\")"]
+  }
+}
+...similar examples for each section type...
+
+RULES:
+- EVERY section MUST have content fields populated
+- Use {{variable}} placeholders from: ${variableList}
+- Use prompt("...") for AI-generated text
+- Use image_prompt("...") for AI-generated images
+- NEVER return content: {} - this is invalid`;
+```
+
+#### Default Content Generator (Post-Processing)
+```typescript
+// After parsing AI response, ensure all sections have content
+function ensureContentPopulated(
+  sections: any[], 
+  variables: string[],
+  businessName: string
+): any[] {
+  return sections.map(section => {
+    if (!section.content || Object.keys(section.content).length === 0) {
+      section.content = getDefaultContent(section.type, variables, businessName);
+    }
+    return section;
+  });
+}
+
+function getDefaultContent(
+  type: string, 
+  variables: string[],
+  businessName: string
+): Record<string, any> {
+  const mainVar = variables[0] || "item";
+  
+  const defaults: Record<string, Record<string, any>> = {
+    hero: {
+      headline: `{{${mainVar}}} - ${businessName}`,
+      subheadline: `prompt("Write an engaging introduction about {{${mainVar}}} for ${businessName}")`,
+      cta_text: "Learn More"
+    },
+    features: {
+      title: `Key Features of {{${mainVar}}}`,
+      items: [
+        `prompt("List feature 1 of {{${mainVar}}}")`,
+        `prompt("List feature 2 of {{${mainVar}}}")`,
+        `prompt("List feature 3 of {{${mainVar}}}")`,
+      ]
+    },
+    content: {
+      title: `About {{${mainVar}}}`,
+      body: `prompt("Write detailed content about {{${mainVar}}} for ${businessName}")`
+    },
+    faq: {
+      title: `Frequently Asked Questions about {{${mainVar}}}`,
+      items: [
+        `What is {{${mainVar}}}?|prompt("Answer the question: What is {{${mainVar}}}?")`,
+        `Why choose {{${mainVar}}}?|prompt("Explain why {{${mainVar}}} is a good choice")`
+      ]
+    },
+    pros_cons: {
+      title: `Pros and Cons of {{${mainVar}}}`,
+      pros: [`prompt("List advantages of {{${mainVar}}}")`],
+      cons: [`prompt("List disadvantages of {{${mainVar}}}")`]
+    },
+    pricing: {
+      title: `{{${mainVar}}} Pricing`,
+      price: `prompt("Estimate price range for {{${mainVar}}}")`,
+      description: `prompt("Describe what's included")`,
+      cta_text: "Get Quote"
+    },
+    testimonials: {
+      title: "What Our Customers Say",
+      items: [
+        `prompt("Write a testimonial about {{${mainVar}}}")|Happy Customer`
+      ]
+    },
+    benefits: {
+      title: `Benefits of {{${mainVar}}}`,
+      items: [
+        `prompt("Benefit 1 of {{${mainVar}}}")`,
+        `prompt("Benefit 2 of {{${mainVar}}}")`
+      ]
+    },
+    process: {
+      title: "How It Works",
+      steps: [
+        `prompt("Step 1 for {{${mainVar}}}")`,
+        `prompt("Step 2 for {{${mainVar}}}")`
+      ]
+    },
+    image: {
+      src: `image_prompt("High quality photo of {{${mainVar}}}")`,
+      alt: `{{${mainVar}}} image`
+    },
+    cta: {
+      headline: `Ready to Learn About {{${mainVar}}}?`,
+      subtext: `Contact ${businessName} today`,
+      button_text: "Contact Us"
+    }
+  };
+  
+  return defaults[type] || { 
+    title: `{{${mainVar}}}`,
+    body: `prompt("Write content about {{${mainVar}}}")`
+  };
+}
+```
+
+---
+
+### Part 2: Add Inline Content Editing in Preview
+
+**File:** `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx`
+
+Add an "Edit" mode to the `TemplatePreview` component that allows users to:
+1. Click on a section to expand and edit its content fields
+2. Edit text fields inline (textarea for prompts/variables)
+3. Add/remove items from arrays
+4. See changes reflected immediately
+
+#### New State and Handlers
+```typescript
+// In TemplatePreview component
+const [editingSection, setEditingSection] = useState<string | null>(null);
+const [editedContent, setEditedContent] = useState<Record<string, Record<string, any>>>({});
+
+const handleContentEdit = (sectionId: string, field: string, value: any) => {
+  setEditedContent(prev => ({
+    ...prev,
+    [sectionId]: {
+      ...prev[sectionId],
+      [field]: value
+    }
+  }));
+  
+  // Update the template in parent state
+  const updatedSections = template.sections.map(s => 
+    s.id === sectionId 
+      ? { ...s, content: { ...s.content, ...editedContent[sectionId], [field]: value } }
+      : s
+  );
+  onTemplateUpdate?.({ ...template, sections: updatedSections });
+};
+```
+
+#### Inline Editor UI
+```tsx
+// For each field in section content
+{editingSection === section.id && (
+  <div className="mt-2 space-y-3 pl-4 border-l-2 border-primary/30">
+    {Object.entries(section.content).map(([key, value]) => (
+      <div key={key} className="space-y-1">
+        <Label className="text-xs font-mono">{key}</Label>
+        {Array.isArray(value) ? (
+          <div className="space-y-1">
+            {value.map((item, i) => (
+              <div key={i} className="flex gap-2">
+                <Input 
+                  value={item}
+                  onChange={(e) => {
+                    const newItems = [...value];
+                    newItems[i] = e.target.value;
+                    handleContentEdit(section.id, key, newItems);
+                  }}
+                  className="font-mono text-xs"
+                />
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => {
+                    const newItems = value.filter((_, idx) => idx !== i);
+                    handleContentEdit(section.id, key, newItems);
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => handleContentEdit(section.id, key, [...value, ""])}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add Item
+            </Button>
+          </div>
+        ) : (
+          <Textarea
+            value={String(value)}
+            onChange={(e) => handleContentEdit(section.id, key, e.target.value)}
+            className="font-mono text-xs min-h-[60px]"
+            placeholder={`Enter ${key}...`}
+          />
+        )}
+      </div>
+    ))}
   </div>
-  <p className="text-xs text-muted-foreground">
-    Only selected variables will be used in the AI-generated template.
-  </p>
+)}
+```
+
+---
+
+### Part 3: Remove Skip & Add Context-Based Warnings
+
+**File:** `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx`
+
+#### Remove Skip Button
+```tsx
+// Remove the Skip button entirely from action buttons
+<div className="flex justify-end gap-3 pt-4 border-t">
+  <Button variant="outline" onClick={generateTemplate} disabled={isGenerating}>
+    <RotateCcw className="h-4 w-4 mr-2" />
+    Regenerate
+  </Button>
+  <Button onClick={handleApprove}>
+    <Check className="h-4 w-4 mr-2" />
+    {currentEntityIndex < entities.length - 1 ? "Approve & Next" : "Approve & Finish"}
+  </Button>
 </div>
 ```
 
-Pass selected variables to edge function:
+#### Context-Based Warnings
+Show warnings based on section context, not blanket rules:
 
 ```typescript
-// In generateTemplate function:
-const response = await supabase.functions.invoke("generate-template-ai", {
-  body: {
-    // ... existing fields ...
-    variables: selectedVariables,  // Only pass selected variables
-    // ... rest ...
-  },
-});
+// Analyze if section is missing expected content for its type
+const getSectionWarnings = (section: GeneratedSection, selectedVars: string[]): string[] => {
+  const warnings: string[] = [];
+  const content = section.content;
+  
+  // Check if content is empty
+  if (!content || Object.keys(content).length === 0) {
+    warnings.push("Section has no content - click to add");
+    return warnings;
+  }
+  
+  // Check for missing variables in key fields
+  const keyFields = ['headline', 'title', 'body', 'subheadline'];
+  const hasVariable = keyFields.some(field => 
+    content[field] && /\{\{\w+\}\}/.test(String(content[field]))
+  );
+  
+  if (!hasVariable && selectedVars.length > 0) {
+    warnings.push(`No variables used in main content`);
+  }
+  
+  // Check if prompts exist for dynamic content
+  const hasPrompt = Object.values(content).some(v => 
+    /prompt\s*\(/.test(String(Array.isArray(v) ? v.join('') : v))
+  );
+  
+  // For content-heavy sections, warn if no prompts
+  if (['content', 'faq', 'pros_cons', 'testimonials'].includes(section.type) && !hasPrompt) {
+    warnings.push("Consider adding AI prompts for dynamic content");
+  }
+  
+  return warnings;
+};
 ```
 
----
-
-### Part 2: Enhanced Variable Usage Preview
-
-**File**: `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx`
-
-Replace the simple `TemplatePreview` with a detailed variable usage breakdown:
-
-```typescript
-function TemplatePreview({ template, entity, variables }: TemplatePreviewProps) {
-  // Parse all sections to extract variable and prompt usage
-  const sectionAnalysis = template.sections.map(section => {
-    const usedVariables: string[] = [];
-    const promptFields: string[] = [];
-    const imagePromptFields: string[] = [];
-    
-    const analyzeValue = (value: string | string[]) => {
-      const values = Array.isArray(value) ? value : [value];
-      values.forEach(v => {
-        const str = String(v);
-        // Extract {{variable}} patterns
-        const varMatches = str.match(/\{\{(\w+)\}\}/g) || [];
-        varMatches.forEach(m => {
-          const varName = m.replace(/\{\{|\}\}/g, '');
-          if (!usedVariables.includes(varName)) {
-            usedVariables.push(varName);
-          }
-        });
-        // Check for prompt() patterns
-        if (/prompt\s*\(/.test(str)) promptFields.push(str);
-        // Check for image_prompt() patterns
-        if (/image_prompt\s*\(/.test(str)) imagePromptFields.push(str);
-      });
-    };
-    
-    Object.values(section.content).forEach(analyzeValue);
-    
-    return {
-      section,
-      usedVariables,
-      promptFields,
-      imagePromptFields,
-    };
-  });
-  
-  // Calculate overall variable usage
-  const allVariableNames = variables.map(v => v.variableName);
-  const variableUsageSummary = allVariableNames.map(varName => {
-    const sectionsUsing = sectionAnalysis.filter(a => 
-      a.usedVariables.includes(varName)
-    );
-    return {
-      name: varName,
-      usedIn: sectionsUsing.length,
-      totalSections: template.sections.length,
-    };
-  });
-  
-  return (
-    <div className="space-y-6">
-      {/* Sections grid - existing */}
-      
-      {/* NEW: Variable Usage by Section - collapsible */}
-      <Accordion type="multiple" className="w-full">
-        {sectionAnalysis.map(({ section, usedVariables, promptFields, imagePromptFields }) => (
-          <AccordionItem key={section.id} value={section.id}>
-            <AccordionTrigger className="text-sm">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">{section.type}</Badge>
-                <span>{section.name}</span>
-                {usedVariables.length > 0 && (
-                  <span className="text-xs text-muted-foreground ml-auto mr-2">
-                    {usedVariables.length} variables
-                  </span>
-                )}
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2 pl-4 border-l-2 border-muted">
-                {Object.entries(section.content).map(([key, value]) => (
-                  <div key={key} className="text-sm">
-                    <code className="text-xs bg-muted px-1 rounded">{key}:</code>
-                    <HighlightedContent value={value} />
-                  </div>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
-      
-      {/* NEW: Variable Usage Summary */}
-      <div className="bg-muted/30 rounded-lg p-4">
-        <h4 className="font-semibold text-sm mb-3">Variable Usage Summary</h4>
-        <div className="space-y-2">
-          {variableUsageSummary.map(({ name, usedIn, totalSections }) => (
-            <div key={name} className="flex items-center gap-2">
-              <Badge variant="secondary" className="font-mono text-xs">
-                {`{{${name}}}`}
-              </Badge>
-              <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
-                <div 
-                  className="h-full bg-primary" 
-                  style={{ width: `${(usedIn / totalSections) * 100}%` }}
-                />
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {usedIn}/{totalSections} sections
-              </span>
-              {usedIn > 0 ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <AlertCircle className="h-4 w-4 text-amber-500" />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+#### Warning Display in Accordion
+```tsx
+<AccordionItem key={section.id} value={section.id}>
+  <AccordionTrigger className="text-sm hover:no-underline">
+    <div className="flex items-center gap-2 flex-1">
+      <Badge variant="outline" className="text-xs">{section.type}</Badge>
+      <span className="font-medium">{section.name}</span>
+      {warnings.length > 0 && (
+        <Badge variant="destructive" className="text-[10px] px-1.5">
+          {warnings.length} issue{warnings.length > 1 ? 's' : ''}
+        </Badge>
+      )}
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        className="ml-auto h-6 px-2"
+        onClick={(e) => { e.stopPropagation(); setEditingSection(section.id); }}
+      >
+        <Pencil className="h-3 w-3 mr-1" /> Edit
+      </Button>
     </div>
-  );
-}
-
-// Helper component to highlight variables and prompts in content
-function HighlightedContent({ value }: { value: string | string[] }) {
-  const str = Array.isArray(value) 
-    ? `[${value.map(v => `"${v}"`).join(", ")}]`
-    : String(value);
-  
-  // Highlight patterns
-  const highlighted = str
-    .replace(/\{\{(\w+)\}\}/g, '<span class="text-primary font-medium">{{$1}}</span>')
-    .replace(/prompt\s*\([^)]+\)/g, '<span class="text-amber-600 italic">$&</span>')
-    .replace(/image_prompt\s*\([^)]+\)/g, '<span class="text-purple-600 italic">$&</span>');
-  
-  return (
-    <span 
-      className="text-muted-foreground ml-2 text-xs"
-      dangerouslySetInnerHTML={{ __html: highlighted }}
-    />
-  );
-}
+  </AccordionTrigger>
+  <AccordionContent>
+    {warnings.length > 0 && (
+      <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+        {warnings.map((w, i) => <div key={i}>• {w}</div>)}
+      </div>
+    )}
+    {/* Content fields display/edit */}
+  </AccordionContent>
+</AccordionItem>
 ```
 
 ---
@@ -317,41 +374,46 @@ function HighlightedContent({ value }: { value: string | string[] }) {
 
 | File | Changes |
 |------|---------|
-| `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx` | Add variable selection UI, enhance TemplatePreview with usage analysis |
-| `supabase/functions/generate-template-ai/index.ts` | (Optional) Add emphasis in prompt for using selected variables |
+| `supabase/functions/generate-template-ai/index.ts` | Add concrete examples to prompt, add post-processing to ensure content is populated |
+| `src/components/campaigns/steps/AITemplateGeneratorDialog.tsx` | Add inline editing, remove skip button, add context-based warnings, enable template updates |
 
 ---
 
-## User Flow After Implementation
+## Technical Implementation Notes
 
-1. **User enters prompt**: "Let's generate a template for vaccines relevant to a cat breed..."
+### Edge Function Changes
+1. Update system prompt with explicit JSON examples for every section type
+2. Add `ensureContentPopulated()` function to post-process AI response
+3. Add `getDefaultContent()` fallback generator per section type
 
-2. **Variable Selection** (new):
-   - User sees checkboxes for `{{vaccines}}` and `{{breeds}}`
-   - Samples shown: "Rabies, FVRCP, FeLV..." and "Persian, Siamese, Maine Coon..."
-   - User ensures both are selected
+### Frontend Changes
+1. Add `editingSection` state and `handleContentEdit` handler
+2. Add `onTemplateUpdate` prop to `TemplatePreview` for bidirectional updates
+3. Replace section display with editable inputs when in edit mode
+4. Remove Skip button from action bar
+5. Add `getSectionWarnings()` for context-aware warnings
+6. Add Edit button per section in accordion header
 
-3. **AI Generation**:
-   - Only selected variables passed to AI
-   - AI generates sections using those variables
+### Data Flow
+```
+User clicks "Generate"
+    ↓
+Edge function calls AI with detailed examples
+    ↓
+Post-process: ensureContentPopulated() fills any empty sections
+    ↓
+Return to frontend
+    ↓
+TemplatePreview shows sections with edit capability
+    ↓
+User can edit inline if issues detected
+    ↓
+Changes sync to generatedTemplates state
+    ↓
+User clicks "Approve" 
+    ↓
+Template saved to formData.entityTemplates
+    ↓
+Proceed to next entity (no skip option)
+```
 
-4. **Variable Usage Preview** (new):
-   - Accordion shows each section with content breakdown
-   - Variables highlighted in blue: `{{vaccines}}`
-   - Prompts highlighted in amber: `prompt("...")`
-   - Image prompts highlighted in purple: `image_prompt("...")`
-   - Summary bar shows: `{{vaccines}} → 5/6 sections`, `{{breeds}} → 3/6 sections`
-
-5. **User Reviews**:
-   - Can see exactly where variables are used
-   - Can regenerate if AI didn't use variables correctly
-   - Approves once satisfied
-
----
-
-## Benefits
-
-1. **Explicit Variable Selection**: User controls which variables go into the template
-2. **Transparency**: Clear visibility into how AI used the variables
-3. **Quality Assurance**: Can catch if AI missed variables or used them incorrectly
-4. **Better Prompts**: User understands the prompt/variable relationship before generation runs
