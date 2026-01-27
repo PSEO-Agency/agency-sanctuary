@@ -1,66 +1,73 @@
 
-# Plan: Save Campaign Progress at Each Step with Draft Filtering
+# Plan: Parallel Dataset Generation, Pre-Approval Step, and Terminology Alignment
 
-## Overview
+## Problem Analysis
 
-Implement auto-save functionality during campaign creation that persists progress to the database at each step. Draft campaigns that aren't finalized will be hidden from the main campaigns list but can be resumed from a "Continue Draft" entry point.
+Based on my exploration, I identified these issues:
 
----
+1. **Single Global `isGenerating` State**: In `BuildFromScratchStep.tsx`, there's only one `isGenerating` boolean that tracks AI generation for ALL columns. When generation starts for column 1, opening the autofill popover for column 2 shows the global "Generating..." state even though column 2 isn't generating anything.
 
-## Database Schema Changes
+2. **State Corruption on Popover Close**: When closing a popover while generation is running, `setAiColumnId(null)` and `setAiPrompt("")` are called in the `onOpenChange` handler, which can interfere with the active generation.
 
-### Add New Columns to `campaigns` Table
+3. **No Dataset Pre-Approval**: Currently, when a user selects a business type, they're immediately taken to the dataset editor without first approving the suggested datasets/columns.
 
-| Column | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `wizard_step` | `integer` | `1` | Current step in the wizard (1-5) |
-| `is_finalized` | `boolean` | `false` | Whether campaign setup is complete |
-| `wizard_state` | `jsonb` | `'{}'` | Full CampaignFormData snapshot |
+4. **Terminology**: Uses "Add Column" instead of "Add Dataset".
 
-```sql
--- Migration SQL
-ALTER TABLE campaigns 
-ADD COLUMN wizard_step integer DEFAULT 1,
-ADD COLUMN is_finalized boolean DEFAULT false,
-ADD COLUMN wizard_state jsonb DEFAULT '{}'::jsonb;
-
--- Update existing campaigns to be finalized (backward compatibility)
-UPDATE campaigns SET is_finalized = true WHERE is_finalized IS NULL;
-```
+5. **Matrix Builder Misalignment**: The `MatrixBuilderTab` uses `columnConfigs` from `BUSINESS_TYPES` instead of the dynamic columns saved with the campaign.
 
 ---
 
-## Technical Architecture
+## Solution Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        CAMPAIGN CREATION FLOW                        │
+│                     PARALLEL GENERATION STATE                        │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│   Step 1 ──► Auto-save to DB ──► Step 2 ──► Auto-save ──► ...      │
-│       │                              │                              │
-│       └──── wizard_step = 1         └──── wizard_step = 2          │
-│             is_finalized = false          is_finalized = false      │
+│   OLD (Single State):                                               │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │  isGenerating: boolean     (blocks ALL columns)            │   │
+│   │  aiColumnId: string | null (only one popover open)         │   │
+│   │  aiPrompt: string          (shared across all)             │   │
+│   └────────────────────────────────────────────────────────────┘   │
 │                                                                     │
-│   Step 5 (Finish) ──► is_finalized = true ──► Generate Pages       │
+│   NEW (Per-Column State):                                           │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │  generatingColumns: Set<string>   // Track each column     │   │
+│   │  aiPrompts: Record<string, string> // Per-column prompts   │   │
+│   │  openPopoverId: string | null     // Which popover is open │   │
+│   └────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         CAMPAIGNS LIST PAGE                          │
+│                    WIZARD FLOW WITH PRE-APPROVAL                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  ┌───────────────────────────────────────────────────────────────┐ │
-│  │  📝 You have 2 unfinished campaigns                           │ │
-│  │  [Continue "My Campaign"] [Continue "Test Campaign"]          │ │
-│  └───────────────────────────────────────────────────────────────┘ │
+│   Step 1: Business Details                                          │
+│     └─► User selects business type                                  │
 │                                                                     │
-│  Finalized Campaigns:                                               │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │ Campaign A  │ Active │ 45/100 pages │ View │                │   │
-│  ├─────────────────────────────────────────────────────────────┤   │
-│  │ Campaign B  │ Draft  │ 0/50 pages   │ View │                │   │
-│  └─────────────────────────────────────────────────────────────┘   │
+│   Step 2: Data Upload Method                                        │
+│     └─► User chooses "Build From Scratch"                           │
+│                                                                     │
+│   Step 3 (NEW): Dataset Approval                                    │
+│     ┌─────────────────────────────────────────────────────────┐    │
+│     │  "Based on your business type, we suggest these        │    │
+│     │   datasets for your campaign:"                          │    │
+│     │                                                         │    │
+│     │   ☑ Services (e.g., Plumbing, HVAC)                    │    │
+│     │   ☑ Cities (e.g., Amsterdam, Rotterdam)                │    │
+│     │   ☑ Languages (e.g., English, Dutch)                   │    │
+│     │   ☐ Add Custom Dataset...                              │    │
+│     │                                                         │    │
+│     │   [Approve & Continue]                                  │    │
+│     └─────────────────────────────────────────────────────────┘    │
+│                                                                     │
+│   Step 4: Dataset Editor (current BuildFromScratchStep)             │
+│     └─► User populates approved datasets                            │
+│                                                                     │
+│   Step 5: Template Selection                                        │
+│   Step 6: Template Editor                                           │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -69,223 +76,302 @@ UPDATE campaigns SET is_finalized = true WHERE is_finalized IS NULL;
 
 ## File Changes
 
-### 1. Database Migration
+### 1. BuildFromScratchStep.tsx - Parallel Generation State
 
-**New migration** to add columns for tracking wizard progress:
+**Problem**: Single `isGenerating` boolean blocks all columns.
 
-- Add `wizard_step` (integer, default 1)
-- Add `is_finalized` (boolean, default false)  
-- Add `wizard_state` (jsonb, default '{}')
-- Backfill existing campaigns as finalized
+**Solution**: Track generation state per-column using a Set.
 
-### 2. useCampaigns Hook Updates
+| Current State | New State |
+|--------------|-----------|
+| `isGenerating: boolean` | `generatingColumns: Set<string>` |
+| `aiColumnId: string \| null` | `openPopoverId: string \| null` |
+| `aiPrompt: string` | `aiPrompts: Record<string, string>` |
 
-**File: `src/hooks/useCampaigns.ts`**
-
-Changes:
-- Update `CampaignDB` interface to include new columns
-- Modify `fetchCampaigns` to filter by `is_finalized = true`
-- Add `fetchDraftCampaigns` to get unfinished campaigns
-- Add `saveDraftCampaign` function for step-by-step saving
-- Add `finalizeCampaign` function that sets `is_finalized = true` and generates pages
-- Update `createCampaign` to use the new flow
+**Key Changes**:
 
 ```typescript
-interface CampaignDB {
-  // ... existing fields
-  wizard_step: number;
-  is_finalized: boolean;
-  wizard_state: CampaignFormData | Record<string, unknown>;
-}
+// OLD
+const [isGenerating, setIsGenerating] = useState(false);
+const [aiColumnId, setAiColumnId] = useState<string | null>(null);
+const [aiPrompt, setAiPrompt] = useState("");
 
-// New functions:
-const fetchDraftCampaigns = async () => { ... }
-const saveDraftCampaign = async (formData, step, campaignId?) => { ... }
-const finalizeCampaign = async (campaignId) => { ... }
-```
+// NEW
+const [generatingColumns, setGeneratingColumns] = useState<Set<string>>(new Set());
+const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
+const [aiPrompts, setAiPrompts] = useState<Record<string, string>>({});
 
-### 3. CreateCampaignDialog Updates
-
-**File: `src/components/campaigns/CreateCampaignDialog.tsx`**
-
-Changes:
-- Accept optional `existingCampaignId` prop to resume drafts
-- Add `useEffect` to auto-save on step changes
-- Debounce saves to avoid excessive DB calls
-- Load existing draft data when `existingCampaignId` is provided
-- Call `finalizeCampaign` instead of `createCampaign` on completion
-
-```typescript
-interface CreateCampaignDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onComplete: (data: CampaignFormData) => void;
-  existingCampaignId?: string; // NEW: Resume draft
-}
-
-// Auto-save effect
-useEffect(() => {
-  if (open && formData.businessName) {
-    debouncedSave(formData, currentStep);
+// Updated handleAIGenerate
+const handleAIGenerate = async (columnId: string) => {
+  const prompt = aiPrompts[columnId];
+  if (!prompt?.trim()) return;
+  
+  // Add this column to generating set (don't block others)
+  setGeneratingColumns(prev => new Set(prev).add(columnId));
+  
+  try {
+    // ... API call
+    // On success, remove from generating set
+  } finally {
+    setGeneratingColumns(prev => {
+      const next = new Set(prev);
+      next.delete(columnId);
+      return next;
+    });
+    // Clear only this column's prompt
+    setAiPrompts(prev => ({ ...prev, [columnId]: "" }));
   }
-}, [currentStep, formData]);
+};
 ```
 
-### 4. Campaigns List Page Updates
+**UI Updates**:
+- Each popover shows its own loading state: `generatingColumns.has(columnId)`
+- Popover stays open during generation for its own column
+- Opening another popover doesn't affect running generations
 
-**File: `src/pages/subaccount/Campaigns.tsx`**
+### 2. Terminology Change: "Add Column" → "Add Dataset"
 
-Changes:
-- Add state for draft campaigns
-- Show "Continue draft" banner when drafts exist
-- Add handler for resuming drafts
-- Pass `existingCampaignId` to dialog when resuming
+**Files Affected**:
+- `BuildFromScratchStep.tsx`: Button text on line 753
+- `MatrixBuilderTab.tsx`: Any "column" references in UI
 
-```tsx
-// Draft campaigns banner
-{draftCampaigns.length > 0 && (
-  <DraftCampaignsBanner 
-    drafts={draftCampaigns}
-    onContinue={(id) => {
-      setExistingCampaignId(id);
-      setIsCreateDialogOpen(true);
-    }}
-    onDiscard={(id) => deleteCampaign(id)}
-  />
-)}
+**Changes**:
+```typescript
+// BuildFromScratchStep.tsx line 753
+<Plus className="h-4 w-4 mr-1" />
+Add Dataset  // Changed from "Add Column"
+
+// Header text updates
+<h2 className="text-2xl font-bold">Build Your Datasets</h2>
+<p className="text-muted-foreground">
+  Enter items for each dataset below, then add title patterns to generate pages.
+</p>
 ```
 
-### 5. New Component: DraftCampaignsBanner
+### 3. New Component: DatasetApprovalStep.tsx
 
-**New file: `src/components/campaigns/DraftCampaignsBanner.tsx`**
+**Purpose**: Insert a pre-approval step between choosing "Build From Scratch" and the dataset editor.
 
-A banner component that displays unfinished campaigns with options to continue or discard:
+**Location**: `src/components/campaigns/steps/DatasetApprovalStep.tsx`
 
-```tsx
-interface DraftCampaignsBannerProps {
-  drafts: CampaignDB[];
-  onContinue: (id: string) => void;
-  onDiscard: (id: string) => void;
+**Functionality**:
+- Display suggested datasets based on selected business type
+- Allow users to check/uncheck datasets
+- Allow adding custom datasets before proceeding
+- Store approved datasets in `formData.dynamicColumns`
+
+```typescript
+interface DatasetApprovalStepProps {
+  formData: CampaignFormData;
+  updateFormData: (updates: Partial<CampaignFormData>) => void;
 }
 
-export function DraftCampaignsBanner({ drafts, onContinue, onDiscard }) {
+export function DatasetApprovalStep({ formData, updateFormData }: DatasetApprovalStepProps) {
+  // Get suggested columns from business type
+  const businessType = BUSINESS_TYPES.find(t => t.id === formData.businessType);
+  const suggestedColumns = businessType?.columns || [];
+  
+  // Track which columns are approved
+  const [approvedIds, setApprovedIds] = useState<Set<string>>(
+    new Set(suggestedColumns.map(c => c.id))
+  );
+  
+  // Custom column input
+  const [newDatasetName, setNewDatasetName] = useState("");
+  
+  // On mount or when approved changes, update formData
+  useEffect(() => {
+    const approvedColumns: DynamicColumn[] = suggestedColumns
+      .filter(c => approvedIds.has(c.id))
+      .map(col => ({
+        id: `col-${col.id}-${Date.now()}`,
+        variableName: col.id,
+        displayName: col.name,
+        placeholder: `Add ${col.name}`,
+      }));
+    
+    // Initialize scratchData for approved columns
+    const scratchData: Record<string, string[]> = {};
+    approvedColumns.forEach(col => {
+      scratchData[col.id] = formData.scratchData[col.id] || [];
+    });
+    
+    updateFormData({ dynamicColumns: approvedColumns, scratchData });
+  }, [approvedIds]);
+  
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <FileEdit className="h-4 w-4 text-amber-600" />
-        <span className="font-medium">Unfinished Campaigns</span>
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold">Approve Your Datasets</h2>
+        <p className="text-muted-foreground">
+          Based on your business type, we recommend these datasets.
+          Select which ones to include in your campaign.
+        </p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {drafts.map(draft => (
-          <div key={draft.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2">
-            <span>{draft.name || "Untitled"}</span>
-            <Badge>Step {draft.wizard_step}/5</Badge>
-            <Button size="sm" onClick={() => onContinue(draft.id)}>Continue</Button>
-            <Button size="sm" variant="ghost" onClick={() => onDiscard(draft.id)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+      
+      {/* Suggested datasets with checkboxes */}
+      <div className="space-y-3">
+        {suggestedColumns.map(col => (
+          <label key={col.id} className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:border-primary/50">
+            <Checkbox 
+              checked={approvedIds.has(col.id)}
+              onCheckedChange={(checked) => {
+                setApprovedIds(prev => {
+                  const next = new Set(prev);
+                  if (checked) next.add(col.id);
+                  else next.delete(col.id);
+                  return next;
+                });
+              }}
+            />
+            <div>
+              <span className="font-medium">{col.name}</span>
+              <span className="text-xs text-muted-foreground block">
+                e.g., {col.placeholder}
+              </span>
+            </div>
+          </label>
         ))}
+      </div>
+      
+      {/* Add custom dataset */}
+      <div className="border-t pt-4">
+        <Label>Add Custom Dataset</Label>
+        <div className="flex gap-2 mt-2">
+          <Input 
+            placeholder="e.g., Industries, Neighborhoods..."
+            value={newDatasetName}
+            onChange={(e) => setNewDatasetName(e.target.value)}
+          />
+          <Button onClick={handleAddCustomDataset}>
+            <Plus className="h-4 w-4 mr-1" /> Add
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 ```
 
-### 6. Types Update
+### 4. CreateCampaignDialog.tsx - Update Step Flow
 
-**File: `src/components/campaigns/types.ts`**
+**Current Flow** (5 steps):
+1. Business Details
+2. Data Upload Method
+3. CSV Upload OR BuildFromScratch
+4. Template Selection
+5. Template Editor
 
-Add wizard state to the interface for proper typing:
+**New Flow** (6 steps for "scratch" path):
+1. Business Details
+2. Data Upload Method
+3. **Dataset Approval** (NEW - only for "scratch")
+4. Dataset Editor (BuildFromScratch)
+5. Template Selection
+6. Template Editor
 
+**Implementation**:
 ```typescript
-export interface CampaignFormData {
-  // ... existing fields
-  
-  // Wizard progress tracking (for DB sync)
-  _campaignId?: string;  // DB record ID when resuming
-}
+const STEP_TITLES = [
+  "Business Details",
+  "Data Upload Method",
+  "Dataset Approval",  // NEW
+  "Build Your Datasets",
+  "Template Selection",
+  "Customize Template",
+];
+
+const totalSteps = formData.dataUploadMethod === "scratch" ? 6 : 5;
+
+const renderStep = () => {
+  switch (currentStep) {
+    case 1: return <BusinessDetailsStep ... />;
+    case 2: return <DataUploadMethodStep ... />;
+    case 3:
+      if (formData.dataUploadMethod === "csv") {
+        return <CSVUploadStep ... />;
+      }
+      // For scratch: show approval step first
+      return <DatasetApprovalStep ... />;
+    case 4:
+      if (formData.dataUploadMethod === "csv") {
+        return <TemplateSelectionStep ... />;
+      }
+      return <BuildFromScratchStep ... />;
+    case 5:
+      if (formData.dataUploadMethod === "csv") {
+        return <TemplateEditorStep ... />;
+      }
+      return <TemplateSelectionStep ... />;
+    case 6:
+      return <TemplateEditorStep ... />;
+  }
+};
 ```
 
----
+### 5. MatrixBuilderTab.tsx - Align with Campaign Creation
 
-## Implementation Flow
+**Problem**: Uses hardcoded `columnConfigs` from `BUSINESS_TYPES` instead of the campaign's saved `dynamicColumns`.
 
-### Creating a New Campaign
+**Solution**: Read dynamic columns from `campaign.template_config` or `campaign.wizard_state`.
 
-1. User clicks "Add New" → Dialog opens at Step 1
-2. User fills Step 1 → On "Next" click:
-   - Create campaign record with `wizard_step=1`, `is_finalized=false`
-   - Store `wizard_state` JSON with current form data
-3. User progresses through steps:
-   - Each step change triggers `saveDraftCampaign(formData, step, campaignId)`
-   - Updates `wizard_step` and `wizard_state` in DB
-4. User clicks "Finish Campaign" on Step 5:
-   - Call `finalizeCampaign(campaignId)`
-   - Sets `is_finalized = true`
-   - Generates campaign pages
-   - Shows success toast
+**Changes**:
+```typescript
+// OLD: Hardcoded from business type
+const columnConfigs = businessType?.columns || BUSINESS_TYPES[2].columns;
 
-### Resuming a Draft
+// NEW: Use saved dynamic columns from campaign
+const savedDynamicColumns = (campaign.template_config as any)?.dynamicColumns 
+  || (campaign.wizard_state as any)?.dynamicColumns 
+  || [];
 
-1. User visits Campaigns page
-2. `fetchDraftCampaigns()` loads unfinished campaigns
-3. Banner displays with "Continue" buttons
-4. User clicks "Continue":
-   - Sets `existingCampaignId` state
-   - Opens dialog with this ID
-5. Dialog loads:
-   - Fetches campaign by ID
-   - Restores `wizard_state` to form data
-   - Sets `currentStep` from `wizard_step`
-6. User continues from where they left off
+// If none saved, fall back to business type defaults
+const columnConfigs = savedDynamicColumns.length > 0 
+  ? savedDynamicColumns.map((col: DynamicColumn) => ({
+      id: col.variableName,
+      name: col.displayName,
+      placeholder: col.placeholder,
+    }))
+  : businessType?.columns || BUSINESS_TYPES[2].columns;
+```
 
-### Discarding a Draft
-
-1. User clicks discard button in banner
-2. Confirmation dialog appears
-3. On confirm: `deleteCampaign(id)` removes the record
+**Additional Alignment**:
+- Add AI Autofill button (Sparkles icon) to each column in MatrixBuilderTab
+- Share the same popover UI pattern as BuildFromScratchStep
+- Use same per-column generation state approach
 
 ---
 
-## Data Flow Diagram
+## Data Flow Summary
 
 ```text
-┌──────────────────┐     ┌─────────────────────┐
-│  User fills      │     │     Database        │
-│  Step 1 form     │────►│  INSERT campaign    │
-└──────────────────┘     │  wizard_step=1      │
-                         │  is_finalized=false │
-                         └─────────────────────┘
-         │
-         ▼
-┌──────────────────┐     ┌─────────────────────┐
-│  User moves to   │     │  UPDATE campaign    │
-│  Step 2          │────►│  wizard_step=2      │
-└──────────────────┘     │  wizard_state={...} │
-                         └─────────────────────┘
-         │
-         ▼ (repeat for steps 3-4)
-         │
-┌──────────────────┐     ┌─────────────────────┐
-│  User clicks     │     │  UPDATE campaign    │
-│  "Finish"        │────►│  is_finalized=true  │
-└──────────────────┘     │  + generate pages   │
-                         └─────────────────────┘
+Step 1: User selects "Local Business"
+          │
+          ▼
+Step 2: User picks "Build From Scratch"
+          │
+          ▼
+Step 3: DatasetApprovalStep shows:
+        ☑ Services  ☑ Cities  ☑ Languages
+        User can uncheck or add custom
+          │
+          ▼
+        formData.dynamicColumns = [
+          { id: "col-services-xxx", variableName: "services", displayName: "Services" },
+          { id: "col-cities-xxx", variableName: "cities", displayName: "Cities" },
+        ]
+          │
+          ▼
+Step 4: BuildFromScratchStep shows approved columns
+        User fills data with parallel AI generation support
+          │
+          ▼
+        Data saved to campaign.template_config.dynamicColumns
+          │
+          ▼
+Later:  MatrixBuilderTab reads campaign.template_config.dynamicColumns
+        Shows same columns user approved, with AI autofill
 ```
-
----
-
-## Edge Cases Handled
-
-| Scenario | Handling |
-|----------|----------|
-| User closes dialog mid-step | Draft is already saved, can resume later |
-| User exits browser | Last saved step is preserved |
-| User has multiple drafts | All shown in banner, can continue any |
-| User discards a draft | Record deleted from database |
-| Existing campaigns (migration) | Backfilled as `is_finalized=true` |
-| User goes back to previous step | Save on any step change (forward or backward) |
 
 ---
 
@@ -293,19 +379,41 @@ export interface CampaignFormData {
 
 | File | Action | Description |
 |------|--------|-------------|
-| `supabase/migrations/xxx_add_campaign_wizard_columns.sql` | Create | Add wizard tracking columns |
-| `src/hooks/useCampaigns.ts` | Modify | Add draft functions, update types |
-| `src/components/campaigns/CreateCampaignDialog.tsx` | Modify | Add auto-save, draft resume |
-| `src/pages/subaccount/Campaigns.tsx` | Modify | Add draft banner, resume flow |
-| `src/components/campaigns/DraftCampaignsBanner.tsx` | Create | Draft campaigns UI component |
-| `src/components/campaigns/types.ts` | Modify | Add `_campaignId` field |
+| `src/components/campaigns/steps/BuildFromScratchStep.tsx` | Modify | Per-column generation state, "Add Dataset" terminology |
+| `src/components/campaigns/steps/DatasetApprovalStep.tsx` | Create | New pre-approval step component |
+| `src/components/campaigns/CreateCampaignDialog.tsx` | Modify | Insert approval step, update step count logic |
+| `src/components/campaigns/detail/tabs/MatrixBuilderTab.tsx` | Modify | Read dynamic columns from campaign config, add AI autofill |
+| `src/hooks/useCampaigns.ts` | Modify | Save dynamicColumns to template_config on finalize |
 
 ---
 
-## Technical Notes
+## Technical Details
 
-- **Debouncing**: Save operations are debounced (500ms) to prevent excessive DB writes during rapid typing
-- **Optimistic UI**: The dialog remains responsive while saves happen in the background
-- **Error Handling**: Failed saves show a toast but don't block the user's flow
-- **Backward Compatibility**: Existing campaigns are marked as finalized via migration
-- **File Uploads**: Business logo is saved as base64 in `wizard_state` for draft persistence
+### Parallel Generation State Interface
+
+```typescript
+interface ColumnGenerationState {
+  generatingColumns: Set<string>;  // Column IDs currently generating
+  aiPrompts: Record<string, string>;  // Per-column prompts
+  openPopoverId: string | null;  // Which popover is currently open
+}
+```
+
+### Popover Behavior
+
+- Opening a popover sets `openPopoverId` to that column's ID
+- Closing a popover only clears `openPopoverId`, does NOT interrupt generation
+- Each popover's Generate button checks `generatingColumns.has(columnId)` for its own state
+- Multiple columns can generate simultaneously
+
+### Template Config Structure Update
+
+```typescript
+// Saved to campaign.template_config
+{
+  dynamicColumns: DynamicColumn[],  // Approved and customized columns
+  entities: Entity[],
+  titlePatterns: TitlePattern[],
+  // ... other template config
+}
+```
