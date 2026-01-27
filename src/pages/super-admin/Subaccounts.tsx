@@ -27,10 +27,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Search, ArrowRightLeft, Eye, Trash2, Building2, ArrowUpCircle, Loader2 } from "lucide-react";
+import { Search, ArrowRightLeft, Eye, Trash2, Building2, ArrowUpCircle, Loader2, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DeleteSubaccountDialog } from "@/components/DeleteSubaccountDialog";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface CountryPartner {
+  id: string;
+  name: string;
+  country: string | null;
+}
 
 interface Subaccount {
   id: string;
@@ -42,6 +49,8 @@ interface Subaccount {
     id: string;
     name: string;
     is_main: boolean;
+    country_partner_id: string | null;
+    country_partner?: CountryPartner | null;
   };
 }
 
@@ -49,6 +58,7 @@ interface Agency {
   id: string;
   name: string;
   is_main: boolean;
+  country_partner_id: string | null;
 }
 
 interface SubaccountUser {
@@ -60,9 +70,15 @@ interface SubaccountUser {
 export default function Subaccounts() {
   const [subaccounts, setSubaccounts] = useState<Subaccount[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [partners, setPartners] = useState<CountryPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAgency, setFilterAgency] = useState<string>("all");
+  const [filterPartner, setFilterPartner] = useState<string>("all");
+  const { hasRole } = useAuth();
+  
+  const isSuperAdmin = hasRole("super_admin");
+  const isCountryPartner = hasRole("country_partner");
   
   // Transfer dialog state
   const [isTransferOpen, setIsTransferOpen] = useState(false);
@@ -95,7 +111,7 @@ export default function Subaccounts() {
         .from("subaccounts")
         .select(`
           *,
-          agency:agencies(id, name, is_main)
+          agency:agencies(id, name, is_main, country_partner_id, country_partner:country_partners(id, name, country))
         `)
         .order("created_at", { ascending: false });
 
@@ -103,10 +119,22 @@ export default function Subaccounts() {
       
       const { data: agenciesData, error: agenciesError } = await supabase
         .from("agencies")
-        .select("id, name, is_main")
+        .select("id, name, is_main, country_partner_id")
         .order("name");
 
       if (agenciesError) throw agenciesError;
+
+      // Fetch partners for super admin filtering
+      if (isSuperAdmin) {
+        const { data: partnersData, error: partnersError } = await supabase
+          .from("country_partners")
+          .select("id, name, country")
+          .order("name");
+
+        if (!partnersError && partnersData) {
+          setPartners(partnersData);
+        }
+      }
       
       setSubaccounts(subaccountsData || []);
       setAgencies(agenciesData || []);
@@ -223,7 +251,12 @@ export default function Subaccounts() {
     
     const matchesAgency = filterAgency === "all" || sub.agency_id === filterAgency;
     
-    return matchesSearch && matchesAgency;
+    const matchesPartner = 
+      filterPartner === "all" || 
+      (filterPartner === "none" && !sub.agency?.country_partner_id) ||
+      sub.agency?.country_partner_id === filterPartner;
+    
+    return matchesSearch && matchesAgency && matchesPartner;
   });
 
   const getAgencyBadge = (agency?: { name: string; is_main: boolean }) => {
@@ -242,7 +275,10 @@ export default function Subaccounts() {
       <div>
         <h1 className="text-3xl font-bold">Subaccounts</h1>
         <p className="text-muted-foreground mt-2">
-          Manage all subaccounts across agencies
+          {isCountryPartner && !isSuperAdmin 
+            ? "Manage subaccounts within your partner region's agencies"
+            : "Manage all subaccounts across agencies"
+          }
         </p>
       </div>
 
@@ -272,6 +308,23 @@ export default function Subaccounts() {
                 ))}
               </SelectContent>
             </Select>
+            {isSuperAdmin && partners.length > 0 && (
+              <Select value={filterPartner} onValueChange={setFilterPartner}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <Globe className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by partner" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Partners</SelectItem>
+                  <SelectItem value="none">No Partner</SelectItem>
+                  {partners.map((partner) => (
+                    <SelectItem key={partner.id} value={partner.id}>
+                      {partner.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -281,6 +334,7 @@ export default function Subaccounts() {
                 <TableHead>Name</TableHead>
                 <TableHead>Location ID</TableHead>
                 <TableHead>Agency</TableHead>
+                {isSuperAdmin && <TableHead>Partner</TableHead>}
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -288,13 +342,13 @@ export default function Subaccounts() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={isSuperAdmin ? 6 : 5} className="text-center py-8">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : filteredSubaccounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={isSuperAdmin ? 6 : 5} className="text-center py-8">
                     No subaccounts found
                   </TableCell>
                 </TableRow>
@@ -304,6 +358,18 @@ export default function Subaccounts() {
                     <TableCell className="font-medium">{subaccount.name}</TableCell>
                     <TableCell className="font-mono text-sm">{subaccount.location_id}</TableCell>
                     <TableCell>{getAgencyBadge(subaccount.agency)}</TableCell>
+                    {isSuperAdmin && (
+                      <TableCell>
+                        {subaccount.agency?.country_partner ? (
+                          <Badge variant="outline">
+                            <Globe className="h-3 w-3 mr-1" />
+                            {subaccount.agency.country_partner.name}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       {new Date(subaccount.created_at).toLocaleDateString()}
                     </TableCell>
@@ -321,14 +387,16 @@ export default function Subaccounts() {
                           <ArrowRightLeft className="h-4 w-4 mr-1" />
                           Transfer
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleUpgradeClick(subaccount)}
-                        >
-                          <ArrowUpCircle className="h-4 w-4 mr-1" />
-                          Upgrade
-                        </Button>
+                        {isSuperAdmin && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleUpgradeClick(subaccount)}
+                          >
+                            <ArrowUpCircle className="h-4 w-4 mr-1" />
+                            Upgrade
+                          </Button>
+                        )}
                         <Button 
                           variant="destructive" 
                           size="sm"

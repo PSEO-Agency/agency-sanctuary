@@ -4,12 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-type AppRole = "super_admin" | "agency_admin" | "sub_account_user";
+type AppRole = "super_admin" | "country_partner" | "agency_admin" | "sub_account_user";
 
 interface UserRole {
   role: AppRole;
   context_id: string | null;
-  context_type: "agency" | "subaccount" | "platform" | null;
+  context_type: "agency" | "subaccount" | "platform" | "country_partner" | null;
 }
 
 interface UserProfile {
@@ -349,6 +349,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       switch (targetProfile.role) {
         case "super_admin":
+        case "country_partner":
           navigate("/super-admin");
           break;
         case "agency_admin":
@@ -374,6 +375,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       switch (originalProfile.role) {
         case "super_admin":
+        case "country_partner":
           navigate("/super-admin");
           break;
         case "agency_admin":

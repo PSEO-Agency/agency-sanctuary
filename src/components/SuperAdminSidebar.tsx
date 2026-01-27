@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard, Settings, Building, Users } from "lucide-react";
+import { Building2, LayoutDashboard, Settings, Building, Users, Globe } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -14,25 +14,34 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 
-const menuItems = [
-  { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
-  { title: "Agencies", url: "/super-admin/agencies", icon: Building2 },
-  { title: "Subaccounts", url: "/super-admin/subaccounts", icon: Users },
-];
-
 export function SuperAdminSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, hasRole } = useAuth();
   const collapsed = state === "collapsed";
+
+  const isSuperAdmin = hasRole("super_admin");
+  const isCountryPartner = hasRole("country_partner");
+
+  // Build menu items based on role
+  const menuItems = [
+    { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
+    { title: "Agencies", url: "/super-admin/agencies", icon: Building2 },
+    { title: "Subaccounts", url: "/super-admin/subaccounts", icon: Users },
+  ];
+
+  // Only super admins can see the Partners page
+  if (isSuperAdmin) {
+    menuItems.push({ title: "Country Partners", url: "/super-admin/partners", icon: Globe });
+  }
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
       <SidebarContent className="pt-16">
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
-            Super Admin
+            {isCountryPartner && !isSuperAdmin ? "Partner Portal" : "Super Admin"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -53,8 +62,8 @@ export function SuperAdminSidebar() {
                 );
               })}
               
-              {/* My Agency Link */}
-              {profile?.agency_id && (
+              {/* My Agency Link - only for super admins with an agency */}
+              {isSuperAdmin && profile?.agency_id && (
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     className="text-sidebar-foreground hover:bg-sidebar-primary/10"

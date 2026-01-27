@@ -7,6 +7,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Auth from "./pages/Auth";
 import AgencyInvite from "./pages/auth/AgencyInvite";
 import SubaccountInvite from "./pages/auth/SubaccountInvite";
+import PartnerInvite from "./pages/auth/PartnerInvite";
 import Onboarding from "./pages/Onboarding";
 import SuperAdmin from "./pages/SuperAdmin";
 import Agency from "./pages/Agency";
@@ -37,6 +38,7 @@ function App() {
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/agency-invite" element={<AgencyInvite />} />
               <Route path="/auth/subaccount-invite" element={<SubaccountInvite />} />
+              <Route path="/auth/partner-invite" element={<PartnerInvite />} />
               <Route path="/onboarding" element={<Onboarding />} />
               {/* Public preview route - no auth required */}
               <Route path="/preview/:token" element={<Preview />} />

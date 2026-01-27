@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface ValidateTokenRequest {
   token: string;
-  inviteType: 'new_agency' | 'subaccount' | 'agency_subaccount';
+  inviteType: 'new_agency' | 'subaccount' | 'agency_subaccount' | 'partner';
 }
 
 serve(async (req) => {
@@ -29,7 +29,7 @@ serve(async (req) => {
     }
 
     // Validate invite type
-    if (!['new_agency', 'subaccount', 'agency_subaccount'].includes(inviteType)) {
+    if (!['new_agency', 'subaccount', 'agency_subaccount', 'partner'].includes(inviteType)) {
       console.error('Invalid invite type:', inviteType);
       return new Response(
         JSON.stringify({ error: 'Invalid invite type' }),

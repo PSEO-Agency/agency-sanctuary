@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       agencies: {
         Row: {
+          country_partner_id: string | null
           created_at: string
           id: string
           is_main: boolean | null
@@ -28,6 +29,7 @@ export type Database = {
           white_label_config: Json | null
         }
         Insert: {
+          country_partner_id?: string | null
           created_at?: string
           id?: string
           is_main?: boolean | null
@@ -40,6 +42,7 @@ export type Database = {
           white_label_config?: Json | null
         }
         Update: {
+          country_partner_id?: string | null
           created_at?: string
           id?: string
           is_main?: boolean | null
@@ -51,12 +54,21 @@ export type Database = {
           updated_at?: string
           white_label_config?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "agencies_country_partner_id_fkey"
+            columns: ["country_partner_id"]
+            isOneToOne: false
+            referencedRelation: "country_partners"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       agency_invites: {
         Row: {
           accepted_at: string | null
           accepted_by: string | null
+          country_partner_id: string | null
           created_at: string | null
           email: string | null
           expires_at: string
@@ -70,6 +82,7 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
+          country_partner_id?: string | null
           created_at?: string | null
           email?: string | null
           expires_at: string
@@ -83,6 +96,7 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           accepted_by?: string | null
+          country_partner_id?: string | null
           created_at?: string | null
           email?: string | null
           expires_at?: string
@@ -94,6 +108,13 @@ export type Database = {
           token?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "agency_invites_country_partner_id_fkey"
+            columns: ["country_partner_id"]
+            isOneToOne: false
+            referencedRelation: "country_partners"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agency_invites_target_agency_id_fkey"
             columns: ["target_agency_id"]
@@ -424,6 +445,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      country_partners: {
+        Row: {
+          country: string | null
+          created_at: string | null
+          id: string
+          name: string
+          owner_user_id: string | null
+          settings: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          owner_user_id?: string | null
+          settings?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          owner_user_id?: string | null
+          settings?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       platform_settings: {
         Row: {
@@ -860,6 +911,10 @@ export type Database = {
         Returns: string
       }
       get_user_agency_id: { Args: { _user_id: string }; Returns: string }
+      get_user_country_partner_id: {
+        Args: { _user_id: string }
+        Returns: string
+      }
       get_user_subaccount_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
