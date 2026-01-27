@@ -98,10 +98,15 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
     const oldVar = `{{${oldColumn.variableName}}}`;
     const newVar = `{{${sanitizedVarName}}}`;
 
-    // Update column configuration
+    // Update column configuration (including placeholder for dynamic button text)
     const updatedColumns = formData.dynamicColumns.map(col =>
       col.id === columnId 
-        ? { ...col, displayName: newDisplayName, variableName: sanitizedVarName } 
+        ? { 
+            ...col, 
+            displayName: newDisplayName, 
+            variableName: sanitizedVarName,
+            placeholder: `Add ${newDisplayName}`,
+          } 
         : col
     );
 
@@ -146,6 +151,32 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         ...formData.scratchData,
         [columnId]: currentItems.filter((_, i) => i !== index),
       },
+    });
+  };
+
+  const handleAddColumn = () => {
+    const newColId = `col-custom-${Date.now()}`;
+    const columnNumber = formData.dynamicColumns.length + 1;
+    const newColumn: DynamicColumn = {
+      id: newColId,
+      variableName: `column_${columnNumber}`,
+      displayName: `Column ${columnNumber}`,
+      placeholder: `Add Column ${columnNumber}`,
+    };
+    
+    updateFormData({
+      dynamicColumns: [...formData.dynamicColumns, newColumn],
+      scratchData: {
+        ...formData.scratchData,
+        [newColId]: [],
+      },
+    });
+    
+    // Auto-open edit mode for the new column
+    setEditingColumn({
+      columnId: newColId,
+      displayName: newColumn.displayName,
+      variableName: newColumn.variableName,
     });
   };
 
@@ -295,27 +326,27 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                     <Input
                       value={editingColumn.displayName}
                       onChange={(e) => setEditingColumn({ ...editingColumn, displayName: e.target.value })}
-                      placeholder="Display Name"
+                      placeholder="Column Name"
                       className="h-7 text-sm font-semibold"
                       autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && editingColumn.displayName.trim()) {
+                          handleColumnRename(col.id, editingColumn.displayName, editingColumn.displayName);
+                          setEditingColumn(null);
+                        }
+                      }}
                     />
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">{`{{`}</span>
-                      <Input
-                        value={editingColumn.variableName}
-                        onChange={(e) => setEditingColumn({ ...editingColumn, variableName: e.target.value })}
-                        placeholder="variable_name"
-                        className="h-6 text-xs font-mono flex-1"
-                      />
-                      <span className="text-xs text-muted-foreground">{`}}`}</span>
-                    </div>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      → Variable: {`{{${sanitizeVariableName(editingColumn.displayName) || "variable"}}}`}
+                    </p>
                     <div className="flex gap-1">
                       <Button
                         size="sm"
                         variant="default"
                         className="h-6 text-xs"
+                        disabled={!editingColumn.displayName.trim()}
                         onClick={() => {
-                          handleColumnRename(col.id, editingColumn.displayName, editingColumn.variableName);
+                          handleColumnRename(col.id, editingColumn.displayName, editingColumn.displayName);
                           setEditingColumn(null);
                         }}
                       >
@@ -389,11 +420,19 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                 onClick={() => addItem(col.id)}
               >
                 <Plus className="h-4 w-4 mr-1" />
-                {col.placeholder}
+                Add {col.displayName}
               </Button>
             </div>
           );
         })}
+        
+        {/* Add New Column Card */}
+        <div className="border rounded-xl p-4 flex items-center justify-center min-h-[200px] border-dashed hover:border-primary transition-colors cursor-pointer">
+          <Button variant="ghost" onClick={handleAddColumn}>
+            <Plus className="h-5 w-5 mr-2" />
+            Add Column
+          </Button>
+        </div>
       </div>
 
       {/* Title Patterns Section */}
