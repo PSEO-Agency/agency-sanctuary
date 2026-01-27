@@ -21,7 +21,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, LogIn, Search, ExternalLink, Loader2, RefreshCw, Trash2, Link, Copy, Check, UserPlus } from "lucide-react";
+import { Plus, LogIn, Search, Loader2, RefreshCw, Trash2, Copy, Check, UserPlus, Eye, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -523,49 +536,66 @@ export default function Subaccounts() {
                       {new Date(subaccount.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         {!subaccount.airtable_base_id && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleRetrySetup(subaccount)}
-                            disabled={retryingSetup === subaccount.id}
-                          >
-                            {retryingSetup === subaccount.id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="mr-2 h-4 w-4" />
-                            )}
-                            Retry Setup
-                          </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleRetrySetup(subaccount)}
+                                  disabled={retryingSetup === subaccount.id}
+                                >
+                                  {retryingSetup === subaccount.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Retry Setup</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => handleSwitchToSubaccount(subaccount.id)}
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Switch To
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          Manage
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleLoginAs(subaccount.id)}
-                        >
-                          <LogIn className="mr-2 h-4 w-4" />
-                          Login As
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteClick(subaccount)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleSwitchToSubaccount(subaccount.id)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleLoginAs(subaccount.id)}>
+                              <LogIn className="h-4 w-4 mr-2" />
+                              Login As
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteClick(subaccount)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
