@@ -57,6 +57,13 @@ export interface DynamicColumn {
   placeholder: string;  // Placeholder text
 }
 
+// AI generation progress tracking (for resume capability)
+export interface AIGenerationProgress {
+  currentEntityIndex: number;
+  completedEntityIds: string[];
+  userPrompts?: Record<string, string>; // Per-entity prompts
+}
+
 export interface CampaignFormData {
   // Step 1: Business Details
   businessName: string;
@@ -89,6 +96,9 @@ export interface CampaignFormData {
   // Step 5: Template Editor - Per-Entity Templates
   entityTemplates: Record<string, TemplateContentConfig>;  // entityId → template
   templateContent?: TemplateContentConfig; // Legacy/default template
+  
+  // AI Generation tracking (for resume capability)
+  aiGenerationProgress?: AIGenerationProgress;
   
   // Wizard progress tracking (for DB sync)
   _campaignId?: string;  // DB record ID when resuming
