@@ -77,6 +77,7 @@ export default function Features() {
     position: 0,
     deadline: null,
     priority: "medium",
+    category: null,
     created_by: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
