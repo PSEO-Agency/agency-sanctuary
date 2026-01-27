@@ -1,275 +1,129 @@
 
-# Page Builder Refinement Plan
+# Fix: Isolate Horizontal Scrolling to Columns Section Only
 
-## Issues Identified
+## Problem Analysis
 
-Based on code analysis, I've found the following problems:
+The horizontal scrolling is affecting the entire `CreateCampaignDialog` popup instead of just the columns section. This happens because:
 
-### 1. Top Bar Weird Margin
-**Location:** `CreateCampaignDialog.tsx` (line 134-138) and `TemplateEditorStep.tsx`
+1. **DialogContent** (line 143) has `overflow-y-auto` for vertical scrolling
+2. **Step content wrapper** (line 156) is `<div className="px-6 py-8">` with no overflow containment
+3. **BuildFromScratchStep** uses `flex flex-row overflow-x-auto` for columns, but the scroll "bubbles up" because the parent containers don't properly contain it
+4. The **Next/Continue button** in the sticky footer gets pushed out of view
 
-The full-screen portal renders with `fixed inset-0 z-50`, but `TemplateEditorStep` adds an Entity Progress Bar with padding (`px-4 py-3`) that creates extra top spacing. The `UnifiedPageBuilder` toolbar also has `px-4 py-3` padding which adds more vertical space.
-
-### 2. Side Panels Expanded by Default
-**Location:** `UnifiedPageBuilder.tsx` (lines 74-75 and 84-85)
-
-```tsx
-defaultBlocksPanelOpen = true,
-defaultSettingsPanelOpen = true,
-```
-
-Both panels initialize as `true` by default, and `TemplateEditorStep` doesn't override these defaults.
-
-### 3. No Drag-and-Drop for Sections
-**Location:** `BlocksPanel.tsx` (lines 79-94)
-
-The "Page Sections" list shows a `GripVertical` icon but has no drag-and-drop handlers. Sections cannot be reordered.
-
-### 4. Entity Editing Clarity Issues
-**Location:** `TemplateEditorStep.tsx` (lines 251-258)
-
-The current entity indicator is buried in the header content as a small text label. When there are no entities defined in the previous step, the UI doesn't communicate this clearly.
-
-### 5. Additional Issues Discovered
-- No delete section functionality
-- No visual indicator when no entities exist
-- Entity Progress Bar adds extra visual noise when there's only one entity
-- Missing "Finish Campaign" button prominence
+**Why MatrixBuilderTab works:** It uses `grid grid-cols-3 gap-4` which creates a fixed-width grid that never exceeds its container.
 
 ---
 
-## Solution Overview
+## Solution
 
-| Issue | Fix |
-|-------|-----|
-| Top margin | Remove padding from portal wrapper, make toolbar flush |
-| Side panels | Set `defaultBlocksPanelOpen={false}` and `defaultSettingsPanelOpen={false}` in TemplateEditorStep |
-| Drag-and-drop | Add native HTML5 drag-and-drop to BlocksPanel section list |
-| Entity clarity | Add prominent header banner showing current entity, hide progress bar if single entity |
-| Section delete | Add delete button to section list items |
+### Step 1: Add Overflow Containment to Dialog Step Content
 
----
-
-## Detailed Changes
-
-### 1. Fix Top Margin (CreateCampaignDialog.tsx)
-
-Remove any wrapper padding to ensure the builder fills the entire viewport:
+In `CreateCampaignDialog.tsx`, the step content wrapper (line 156) needs to prevent horizontal overflow from bubbling up:
 
 ```tsx
-// Line 133-138: Keep portal but ensure no extra spacing
-if (open && currentStep === 5) {
-  return (
-    <div className="fixed inset-0 z-50 bg-background">
-      {renderStep()}
-    </div>
-  );
-}
+{/* Before */}
+<div className="px-6 py-8">{renderStep()}</div>
+
+{/* After */}
+<div className="px-6 py-8 overflow-x-hidden">{renderStep()}</div>
 ```
 
-The issue is actually in `TemplateEditorStep.tsx` - the Entity Progress Bar container adds padding even when it should be flush.
+### Step 2: Properly Constrain the Columns Container in BuildFromScratchStep
 
-### 2. Collapse Panels by Default (TemplateEditorStep.tsx)
-
-Update the `UnifiedPageBuilder` call:
+The columns section needs explicit width constraints. Update lines 499-501:
 
 ```tsx
-<UnifiedPageBuilder
-  mode="template"
-  sections={templateSections}
-  // ...existing props...
-  defaultBlocksPanelOpen={false}   // NEW: Start collapsed
-  defaultSettingsPanelOpen={false}  // NEW: Start collapsed
-  // ...
-/>
+{/* Before */}
+<div className="w-full overflow-hidden">
+  <div className="flex flex-row gap-3 overflow-x-auto pb-3" style={{ scrollbarWidth: 'thin' }}>
+
+{/* After - Add max-width and proper containment */}
+<div className="relative w-full max-w-full">
+  <div 
+    className="flex flex-row gap-3 pb-3 overflow-x-auto" 
+    style={{ scrollbarWidth: 'thin', maxWidth: '100%' }}
+  >
 ```
 
-### 3. Add Drag-and-Drop to BlocksPanel (BlocksPanel.tsx)
+### Step 3: Ensure Proper Box Model for Parent Container
 
-Add state and handlers for reordering:
-
-```tsx
-interface BlocksPanelProps {
-  // ...existing props...
-  onReorderSections?: (sections: TemplateSection[]) => void;  // NEW
-}
-
-// Inside component:
-const [draggedSection, setDraggedSection] = useState<string | null>(null);
-const [dragOverSection, setDragOverSection] = useState<string | null>(null);
-
-const handleDragStart = (e: React.DragEvent, sectionId: string) => {
-  setDraggedSection(sectionId);
-  e.dataTransfer.effectAllowed = "move";
-};
-
-const handleDragOver = (e: React.DragEvent, sectionId: string) => {
-  e.preventDefault();
-  if (sectionId !== draggedSection) {
-    setDragOverSection(sectionId);
-  }
-};
-
-const handleDrop = (e: React.DragEvent, targetId: string) => {
-  e.preventDefault();
-  if (!draggedSection || draggedSection === targetId) return;
-  
-  const reordered = [...sections];
-  const fromIndex = reordered.findIndex(s => s.id === draggedSection);
-  const toIndex = reordered.findIndex(s => s.id === targetId);
-  const [moved] = reordered.splice(fromIndex, 1);
-  reordered.splice(toIndex, 0, moved);
-  
-  onReorderSections?.(reordered);
-  setDraggedSection(null);
-  setDragOverSection(null);
-};
-```
-
-Update section buttons:
+The entire `BuildFromScratchStep` return container (line 491) needs to prevent its children from expanding horizontally:
 
 ```tsx
-<button
-  key={section.id}
-  draggable
-  onDragStart={(e) => handleDragStart(e, section.id)}
-  onDragOver={(e) => handleDragOver(e, section.id)}
-  onDrop={(e) => handleDrop(e, section.id)}
-  onDragEnd={() => { setDraggedSection(null); setDragOverSection(null); }}
-  className={cn(
-    "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left transition-colors",
-    selectedSection === section.id && "bg-primary/10 text-primary border border-primary/20",
-    draggedSection === section.id && "opacity-50",
-    dragOverSection === section.id && "ring-2 ring-primary ring-offset-1"
-  )}
->
-  <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab active:cursor-grabbing" />
-  <span className="flex-1 truncate">{section.name}</span>
-  <button onClick={(e) => { e.stopPropagation(); onDeleteSection?.(section.id); }}>
-    <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-  </button>
-</button>
-```
+{/* Before */}
+<div className="space-y-8">
 
-### 4. Entity Editing Clarity (TemplateEditorStep.tsx)
-
-Redesign the entity indicator:
-
-```tsx
-{/* Entity Progress Bar - Only show if more than one entity */}
-{entities.length > 1 && (
-  <div className="border-b bg-muted/30 px-4 py-3">
-    {/* ...existing EntitySelector... */}
-  </div>
-)}
-
-{/* Current Entity Banner - Always show if entities exist */}
-{entities.length > 0 && selectedEntity && (
-  <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex items-center gap-3">
-    <Tags className="h-4 w-4 text-primary" />
-    <span className="text-sm">
-      Editing template for: 
-      <span className="font-semibold ml-1">{selectedEntity.name}</span>
-    </span>
-    <span className="text-xs text-muted-foreground font-mono">
-      ({selectedEntity.urlPrefix})
-    </span>
-    {entities.length > 1 && (
-      <Badge variant="outline" className="ml-auto">
-        {completedEntities.length + 1}/{entities.length}
-      </Badge>
-    )}
-  </div>
-)}
-
-{/* No Entities Warning */}
-{entities.length === 0 && (
-  <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 flex items-center gap-2">
-    <AlertTriangle className="h-4 w-4 text-yellow-600" />
-    <span className="text-sm text-yellow-700">
-      No entities defined. This template will apply to all pages.
-    </span>
-  </div>
-)}
-```
-
-### 5. Wire Up Section Reordering (UnifiedPageBuilder.tsx)
-
-Pass the reorder handler to BlocksPanel:
-
-```tsx
-<BlocksPanel
-  isOpen={blocksPanelOpen}
-  onToggle={() => setBlocksPanelOpen(!blocksPanelOpen)}
-  onAddBlock={handleAddBlock}
-  sections={sections}
-  onSelectSection={handleSectionSelect}
-  selectedSection={selectedSection}
-  onReorderSections={onSectionsChange}  // NEW
-  onDeleteSection={(sectionId) => {     // NEW
-    const updated = sections.filter(s => s.id !== sectionId);
-    onSectionsChange?.(updated);
-  }}
-/>
+{/* After */}
+<div className="space-y-8 w-full max-w-full overflow-x-hidden">
 ```
 
 ---
 
-## File Changes Summary
+## File Changes
 
-| File | Changes |
-|------|---------|
-| `src/components/campaigns/steps/TemplateEditorStep.tsx` | Add `defaultBlocksPanelOpen={false}`, `defaultSettingsPanelOpen={false}`, redesign entity indicator, add no-entity warning |
-| `src/components/page-builder/BlocksPanel.tsx` | Add drag-and-drop reordering, add delete section button, new props `onReorderSections` and `onDeleteSection` |
-| `src/components/page-builder/UnifiedPageBuilder.tsx` | Pass reorder and delete handlers to BlocksPanel |
+| File | Line(s) | Change |
+|------|---------|--------|
+| `src/components/campaigns/CreateCampaignDialog.tsx` | 156 | Add `overflow-x-hidden` to step content wrapper |
+| `src/components/campaigns/steps/BuildFromScratchStep.tsx` | 491 | Add `w-full max-w-full overflow-x-hidden` to root container |
+| `src/components/campaigns/steps/BuildFromScratchStep.tsx` | 500-501 | Update columns container with proper constraints |
 
 ---
 
-## Visual Before/After
+## Technical Details
+
+### Root Cause
+The CSS `overflow-x-auto` on a flex container only works when the container has a definite width. When the parent chain has no width constraints, the flex container expands to fit all children, and the scroll never activates. Instead, the overflow propagates up to the nearest scrollable ancestor (the DialogContent).
+
+### Why This Fix Works
+1. `overflow-x-hidden` on the step wrapper prevents any horizontal overflow from escaping the content area
+2. `max-w-full` on the columns container ensures it never exceeds 100% of its parent
+3. The columns flex container can now scroll internally because its parent has a fixed max-width
+
+### Visual Result
 
 **Before:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ [Entity Progress Bar with padding - 3/3 configured]              │ ← Extra spacing
-├──────────────────────────────────────────────────────────────────┤
-│ [← Back] [Toolbar]                        [Desktop][Tab][Mob]    │ ← More padding
-├───────────────────┬─────────────────────────┬────────────────────┤
-│ [BLOCKS - OPEN]   │                         │ [SETTINGS - OPEN]  │
-│ Page Sections     │                         │ Content | Style    │
-│ - Hero            │    Preview Canvas       │ ...lots of...      │
-│ - Features        │                         │ ...settings...     │
-│ - Content         │                         │                    │
-│ ...               │                         │                    │
-└───────────────────┴─────────────────────────┴────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ Dialog Content (scrolls horizontally!)                                              │
+│ ┌─────────────────────────────────────────────────────────────────────────────────┐ │
+│ │ Step Content                                                                    │ │
+│ │ ┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐                  │ │
+│ │ │ Col 1   │ Col 2   │ Col 3   │ Col 4   │ Col 5   │ + Add   │ ←── Overflows!   │ │
+│ │ └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘                  │ │
+│ │                                                                                 │ │
+│ │ Title Patterns...                                                               │ │
+│ └─────────────────────────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+│ [Back]                                        [Next] ←── Button pushed out of view │
+└─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **After:**
 ```
-┌──────────────────────────────────────────────────────────────────┐ ← Flush to top
-│ [← Back]  🏷 Editing: Services (/services/)    [🖥][📱][📲] [Finish] │
-├────┬────────────────────────────────────────────────────────┬────┤
-│ ▶  │                                                        │ ◀  │ ← Panels collapsed
-│    │                                                        │    │
-│    │                                                        │    │
-│    │              Preview Canvas (maximized)                │    │
-│    │                                                        │    │
-│    │                                                        │    │
-│    │                                                        │    │
-└────┴────────────────────────────────────────────────────────┴────┘
-     ↑ Click to expand Blocks                      Click to expand Settings ↑
+┌──────────────────────────────────────────────────────┐
+│ Dialog Content (no horizontal scroll)                │
+│ ┌──────────────────────────────────────────────────┐ │
+│ │ Step Content (overflow-x-hidden)                 │ │
+│ │ ┌──────────────────────────────────────────────┐ │ │
+│ │ │ ← Scrollable columns container →             │ │ │
+│ │ │ ┌───────┬───────┬───────┬───────┬─────┐     │ │ │
+│ │ │ │ Col 1 │ Col 2 │ Col 3 │ Col 4 │ ... │←→   │ │ │
+│ │ │ └───────┴───────┴───────┴───────┴─────┘     │ │ │
+│ │ └──────────────────────────────────────────────┘ │ │
+│ │                                                  │ │
+│ │ Title Patterns...                                │ │
+│ └──────────────────────────────────────────────────┘ │
+├──────────────────────────────────────────────────────┤
+│ [Back]              Saved auto.             [Next]   │ ← Always visible
+└──────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## New Imports Required
+## Summary
 
-**BlocksPanel.tsx:**
-```tsx
-import { Trash2 } from "lucide-react";
-```
+Three small CSS changes will properly isolate the horizontal scrolling:
 
-**TemplateEditorStep.tsx:**
-```tsx
-import { AlertTriangle, Tags } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-```
+1. **Dialog level**: Prevent overflow escape with `overflow-x-hidden` on step wrapper
+2. **Component level**: Add `max-w-full overflow-x-hidden` to the root BuildFromScratchStep container
+3. **Columns level**: Ensure the scroll container respects its parent's width constraints
