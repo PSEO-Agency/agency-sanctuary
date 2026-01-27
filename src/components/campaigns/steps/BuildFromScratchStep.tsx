@@ -496,8 +496,9 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         </p>
       </div>
 
-      {/* Columns - Horizontal Side-by-Side Layout */}
-      <div className="flex flex-row gap-4 overflow-x-auto pb-4">
+      {/* Columns - Horizontal Side-by-Side Layout with Contained Scroll */}
+      <div className="w-full overflow-hidden">
+        <div className="flex flex-row gap-3 overflow-x-auto pb-3" style={{ scrollbarWidth: 'thin' }}>
         {columns.map((col) => {
           const items = formData.scratchData[col.id] || [];
           const isCollapsed = collapsedColumns.has(col.id);
@@ -541,7 +542,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
               onDrop={(e) => handleDrop(e, col.id)}
               onDragEnd={handleDragEnd}
               className={cn(
-                "flex-shrink-0 w-72 border rounded-xl p-4 space-y-4 transition-all",
+                "flex-shrink-0 w-64 border rounded-xl p-4 space-y-3 transition-all",
                 isDragOver && "ring-2 ring-primary ring-offset-2",
                 isDragging && "opacity-50"
               )}
@@ -594,23 +595,25 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                     </div>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setEditingColumn({ 
-                      columnId: col.id, 
-                      displayName: col.displayName,
-                      variableName: col.variableName 
-                    })}
-                    className="flex-1 font-semibold hover:text-primary transition-colors text-left truncate"
-                  >
-                    <span>{col.displayName}</span>
-                    <span className="text-xs text-muted-foreground font-mono ml-1">
+                  <div className="flex-1 min-w-0">
+                    <button
+                      onClick={() => setEditingColumn({ 
+                        columnId: col.id, 
+                        displayName: col.displayName,
+                        variableName: col.variableName 
+                      })}
+                      className="font-semibold hover:text-primary transition-colors text-left truncate block text-sm w-full"
+                    >
+                      {col.displayName}
+                    </button>
+                    <span className="text-[10px] text-muted-foreground/70 font-mono truncate block">
                       {`{{${col.variableName}}}`}
                     </span>
-                  </button>
+                  </div>
                 )}
 
                 {/* Action buttons */}
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-0 flex-shrink-0">
                   {/* AI Magic Wand */}
                   <Popover open={aiColumnId === col.id} onOpenChange={(open) => {
                     if (!open) {
@@ -622,10 +625,10 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6"
+                        className="h-5 w-5"
                         onClick={() => setAiColumnId(col.id)}
                       >
-                        <Sparkles className="h-4 w-4 text-primary" />
+                        <Sparkles className="h-3 w-3 text-primary" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-80" align="start">
@@ -673,20 +676,20 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
                     onClick={() => setColumnToDelete(col.id)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
 
                   {/* Collapse Column */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-5 w-5"
                     onClick={() => toggleCollapse(col.id)}
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
@@ -742,13 +745,14 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
         
         {/* Add New Column Card */}
         <div 
-          className="flex-shrink-0 w-48 border rounded-xl p-4 flex items-center justify-center min-h-[350px] border-dashed hover:border-primary transition-colors cursor-pointer"
+          className="flex-shrink-0 w-40 border rounded-xl p-4 flex items-center justify-center min-h-[350px] border-dashed hover:border-primary transition-colors cursor-pointer"
           onClick={handleAddColumn}
         >
-          <Button variant="ghost">
-            <Plus className="h-5 w-5 mr-2" />
+          <Button variant="ghost" size="sm">
+            <Plus className="h-4 w-4 mr-1" />
             Add Column
           </Button>
+        </div>
         </div>
       </div>
 
