@@ -95,15 +95,46 @@ export function AITemplateGeneratorDialog({
   
   const currentEntity = entities[currentEntityIndex];
 
-  // Reset state when dialog opens
+  // Restore state from formData when dialog opens (for resume capability)
   useEffect(() => {
     if (open) {
-      setCurrentEntityIndex(0);
-      setGeneratedTemplates({});
-      setGenerationStatus("idle");
+      // Restore previously generated templates from formData
+      const existingTemplates: Record<string, GeneratedTemplate> = {};
+      Object.entries(formData.entityTemplates || {}).forEach(([entityId, template]) => {
+        existingTemplates[entityId] = {
+          sections: template.sections as GeneratedSection[],
+          style: template.style || {
+            primaryColor: "#6366f1",
+            backgroundColor: "#ffffff",
+            typography: "Inter",
+            buttonStyle: "rounded" as const,
+            buttonFill: "solid" as const,
+            darkMode: false,
+          },
+          images: template.images || { sectionImages: [] },
+        };
+      });
+      setGeneratedTemplates(existingTemplates);
+      
+      // Find first entity without a template
+      const firstIncompleteIndex = entities.findIndex(
+        entity => !formData.entityTemplates?.[entity.id]
+      );
+      const targetIndex = firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0;
+      setCurrentEntityIndex(targetIndex);
+      
+      // Set status based on whether current entity has template
+      const targetEntity = entities[targetIndex];
+      if (targetEntity && formData.entityTemplates?.[targetEntity.id]) {
+        setGenerationStatus("reviewing");
+      } else {
+        setGenerationStatus("idle");
+      }
+      
       setError(null);
+      setUserPrompt("");
     }
-  }, [open]);
+  }, [open, entities, formData.entityTemplates]);
 
   // Generate template for current entity
   const generateTemplate = async () => {
@@ -130,11 +161,23 @@ export function AITemplateGeneratorDialog({
       }
 
       if (response.data?.success && response.data?.template) {
-        setGeneratedTemplates((prev) => ({
-          ...prev,
+        const newTemplates = {
+          ...generatedTemplates,
           [currentEntity.id]: response.data.template,
-        }));
+        };
+        setGeneratedTemplates(newTemplates);
         setGenerationStatus("reviewing");
+        
+        // Immediately persist to formData (will trigger auto-save)
+        const updatedEntityTemplates = {
+          ...formData.entityTemplates,
+          [currentEntity.id]: {
+            sections: response.data.template.sections,
+            style: response.data.template.style,
+            images: response.data.template.images,
+          },
+        };
+        updateFormData({ entityTemplates: updatedEntityTemplates });
       } else {
         throw new Error(response.data?.error || "No template generated");
       }
@@ -150,22 +193,28 @@ export function AITemplateGeneratorDialog({
 
   // Approve and move to next entity
   const handleApprove = () => {
+    // Get current entity's template
+    const currentTemplate = generatedTemplates[currentEntity?.id];
+    
+    if (currentTemplate) {
+      // Immediately sync this entity's template to formData (already done on generation, but ensure it's saved)
+      const updatedEntityTemplates = {
+        ...formData.entityTemplates,
+        [currentEntity.id]: {
+          sections: currentTemplate.sections,
+          style: currentTemplate.style,
+          images: currentTemplate.images,
+        },
+      };
+      updateFormData({ entityTemplates: updatedEntityTemplates });
+    }
+    
     if (currentEntityIndex < entities.length - 1) {
       setCurrentEntityIndex((prev) => prev + 1);
       setGenerationStatus("idle");
+      setUserPrompt(""); // Clear prompt for next entity
     } else {
-      // All entities approved - save to form data
-      const entityTemplates: Record<string, TemplateContentConfig> = {};
-      
-      Object.entries(generatedTemplates).forEach(([entityId, template]) => {
-        entityTemplates[entityId] = {
-          sections: template.sections,
-          style: template.style,
-          images: template.images,
-        };
-      });
-
-      updateFormData({ entityTemplates });
+      // All entities done
       onComplete();
     }
   };

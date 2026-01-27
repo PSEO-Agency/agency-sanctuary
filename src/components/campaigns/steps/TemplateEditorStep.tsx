@@ -28,10 +28,12 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
     formData.selectedTemplate === "ai-generated" ? "sitemap" : "editor"
   );
   
-  // Track which entity is currently being edited
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(
-    entities.length > 0 ? entities[0].id : null
-  );
+  // Track which entity is currently being edited - start with first incomplete
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(() => {
+    const existingTemplateIds = Object.keys(formData.entityTemplates || {});
+    const firstIncomplete = entities.find(e => !existingTemplateIds.includes(e.id));
+    return firstIncomplete?.id || entities[0]?.id || null;
+  });
 
   // Calculate pages per entity for display
   const pagesPerEntity: Record<string, number> = {};
@@ -51,8 +53,10 @@ export function TemplateEditorStep({ formData, updateFormData, onBack, onFinish 
     pagesPerEntity[pattern.entityId] = (pagesPerEntity[pattern.entityId] || 0) + pageCount;
   });
 
-  // Track completed entities (ones that have been customized)
-  const [completedEntities, setCompletedEntities] = useState<string[]>([]);
+  // Track completed entities - initialize from existing templates
+  const [completedEntities, setCompletedEntities] = useState<string[]>(() => {
+    return Object.keys(formData.entityTemplates || {});
+  });
 
   // Get current entity's template or initialize from defaults
   const getEntityTemplate = (entityId: string | null): TemplateContentConfig => {
