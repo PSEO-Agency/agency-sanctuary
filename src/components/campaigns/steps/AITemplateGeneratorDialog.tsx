@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +93,9 @@ export function AITemplateGeneratorDialog({
   
   // State for selected variables
   const [selectedVariables, setSelectedVariables] = useState<string[]>([]);
+  
+  // Initialization flag to prevent re-initialization on formData changes
+  const hasInitialized = useRef(false);
 
   // Get entities from formData - if none, create a default one
   const entities: Entity[] = formData.entities?.length > 0 
@@ -101,26 +104,10 @@ export function AITemplateGeneratorDialog({
   
   const currentEntity = entities[currentEntityIndex];
 
-  // Restore state from formData when dialog opens (for resume capability)
+  // Initialize dialog state ONCE when it opens (for resume capability)
   useEffect(() => {
-    if (open) {
-      // Restore previously generated templates from formData
-      const existingTemplates: Record<string, GeneratedTemplate> = {};
-      Object.entries(formData.entityTemplates || {}).forEach(([entityId, template]) => {
-        existingTemplates[entityId] = {
-          sections: template.sections as GeneratedSection[],
-          style: template.style || {
-            primaryColor: "#6366f1",
-            backgroundColor: "#ffffff",
-            typography: "Inter",
-            buttonStyle: "rounded" as const,
-            buttonFill: "solid" as const,
-            darkMode: false,
-          },
-          images: template.images || { sectionImages: [] },
-        };
-      });
-      setGeneratedTemplates(existingTemplates);
+    if (open && !hasInitialized.current) {
+      hasInitialized.current = true;
       
       // Find first entity without a template
       const firstIncompleteIndex = entities.findIndex(
@@ -143,7 +130,34 @@ export function AITemplateGeneratorDialog({
       setError(null);
       setUserPrompt("");
     }
+    
+    // Reset the flag when dialog closes
+    if (!open) {
+      hasInitialized.current = false;
+    }
   }, [open, entities, formData.entityTemplates, formData.dynamicColumns]);
+
+  // Keep generatedTemplates in sync with formData (separate from initialization)
+  useEffect(() => {
+    if (!open) return;
+    
+    const existingTemplates: Record<string, GeneratedTemplate> = {};
+    Object.entries(formData.entityTemplates || {}).forEach(([entityId, template]) => {
+      existingTemplates[entityId] = {
+        sections: template.sections as GeneratedSection[],
+        style: template.style || {
+          primaryColor: "#6366f1",
+          backgroundColor: "#ffffff",
+          typography: "Inter",
+          buttonStyle: "rounded" as const,
+          buttonFill: "solid" as const,
+          darkMode: false,
+        },
+        images: template.images || { sectionImages: [] },
+      };
+    });
+    setGeneratedTemplates(existingTemplates);
+  }, [open, formData.entityTemplates]);
 
   // Toggle variable selection
   const toggleVariable = (varName: string) => {
