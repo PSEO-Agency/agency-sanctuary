@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Plus, Loader2, Search, Filter, LayoutList, LayoutGrid } from "lucide-react";
+import { Plus, Loader2, Search, Filter, LayoutList, LayoutGrid, Settings } from "lucide-react";
 import { ArticlesTable } from "@/components/articles/ArticlesTable";
 import { CreateArticleDialog } from "@/components/articles/CreateArticleDialog";
+import { ProjectKnowledgeBaseDialog } from "@/components/articles/ProjectKnowledgeBaseDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SetupProgress } from "@/components/SetupProgress";
 
@@ -70,6 +72,7 @@ export default function BlogProjects() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [languageEngineOptions, setLanguageEngineOptions] = useState<FieldOption[]>([]);
   const [loadingFieldOptions, setLoadingFieldOptions] = useState(false);
+  const [knowledgeBaseOpen, setKnowledgeBaseOpen] = useState(false);
   
   const STORAGE_KEY = `selected_project_${subaccountId}`;
 
@@ -254,27 +257,48 @@ export default function BlogProjects() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">Articles</h1>
           {projects.length > 0 && (
-            <Select 
-              value={activeProject?.id || ""} 
-              onValueChange={(value) => {
-                const project = projects.find(p => p.id === value);
-                if (project) {
-                  setActiveProject(project);
-                  localStorage.setItem(STORAGE_KEY, project.id);
-                }
-              }}
-            >
-              <SelectTrigger className="w-[200px] h-9">
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select 
+                value={activeProject?.id || ""} 
+                onValueChange={(value) => {
+                  const project = projects.find(p => p.id === value);
+                  if (project) {
+                    setActiveProject(project);
+                    localStorage.setItem(STORAGE_KEY, project.id);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[200px] h-9">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {/* Project Settings Cogwheel */}
+              {activeProject && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => setKnowledgeBaseOpen(true)}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Project Knowledge Base</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -453,6 +477,17 @@ export default function BlogProjects() {
             viewMode={viewMode}
           />
         )
+      )}
+
+      {/* Project Knowledge Base Dialog */}
+      {activeProject && subaccountId && (
+        <ProjectKnowledgeBaseDialog
+          open={knowledgeBaseOpen}
+          onOpenChange={setKnowledgeBaseOpen}
+          projectId={activeProject.id}
+          projectName={activeProject.name}
+          subaccountId={subaccountId}
+        />
       )}
     </div>
   );

@@ -560,6 +560,69 @@ export type Database = {
           },
         ]
       }
+      project_knowledge_base: {
+        Row: {
+          ai_agent_prompt: string | null
+          brand_name: string | null
+          brand_voice: string | null
+          created_at: string | null
+          id: string
+          industry: string | null
+          key_differentiators: string | null
+          project_id: string
+          subaccount_id: string
+          system_prompt: string | null
+          tagline: string | null
+          target_audience: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_agent_prompt?: string | null
+          brand_name?: string | null
+          brand_voice?: string | null
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          key_differentiators?: string | null
+          project_id: string
+          subaccount_id: string
+          system_prompt?: string | null
+          tagline?: string | null
+          target_audience?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_agent_prompt?: string | null
+          brand_name?: string | null
+          brand_voice?: string | null
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          key_differentiators?: string | null
+          project_id?: string
+          subaccount_id?: string
+          system_prompt?: string | null
+          tagline?: string | null
+          target_audience?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_knowledge_base_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "blog_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_knowledge_base_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subaccount_knowledge_base: {
         Row: {
           ai_agent_prompt: string | null
