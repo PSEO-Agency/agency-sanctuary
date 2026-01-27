@@ -46,9 +46,24 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
   const [showModeSwitchDialog, setShowModeSwitchDialog] = useState(false);
   const [pendingMode, setPendingMode] = useState<"content-machine" | "pseo-builder" | null>(null);
 
+  // Show welcome modal on subaccount entry (login, switch from agency/super-admin, or switch between subaccounts)
   useEffect(() => {
     fetchFeatureSettings();
     fetchSubscription();
+    
+    // Check if we should show the welcome modal on entry
+    const hideDialogPermanently = localStorage.getItem("hide-mode-switch-dialog") === "true";
+    const sessionKey = `shown-mode-dialog-${subaccountId}`;
+    const alreadyShownThisSession = sessionStorage.getItem(sessionKey) === "true";
+    
+    if (!hideDialogPermanently && !alreadyShownThisSession) {
+      // Show the modal for current active mode after a short delay for smoother UX
+      setTimeout(() => {
+        setPendingMode(activeMode);
+        setShowModeSwitchDialog(true);
+        sessionStorage.setItem(sessionKey, "true");
+      }, 300);
+    }
   }, [subaccountId]);
 
   const fetchFeatureSettings = async () => {
@@ -100,10 +115,11 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const handleModeSwitchConfirm = () => {
     setShowModeSwitchDialog(false);
-    if (pendingMode) {
+    if (pendingMode && pendingMode !== activeMode) {
+      // Only switch if it's a different mode
       performModeSwitch(pendingMode);
-      setPendingMode(null);
     }
+    setPendingMode(null);
   };
 
   const fetchSubscription = async () => {
