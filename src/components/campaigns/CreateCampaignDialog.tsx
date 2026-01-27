@@ -153,7 +153,7 @@ export function CreateCampaignDialog({
         </div>
 
         {/* Step Content */}
-        <div className="px-6 py-8">{renderStep()}</div>
+        <div className="px-6 py-8 overflow-x-hidden">{renderStep()}</div>
 
         {/* Footer */}
         <div className="sticky bottom-0 bg-background border-t px-6 py-4">

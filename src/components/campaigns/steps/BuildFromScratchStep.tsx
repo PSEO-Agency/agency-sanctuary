@@ -488,7 +488,7 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full max-w-full overflow-x-hidden">
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold">Add Your Data</h2>
         <p className="text-muted-foreground">
@@ -497,8 +497,8 @@ export function BuildFromScratchStep({ formData, updateFormData }: BuildFromScra
       </div>
 
       {/* Columns - Horizontal Side-by-Side Layout with Contained Scroll */}
-      <div className="w-full overflow-hidden">
-        <div className="flex flex-row gap-3 overflow-x-auto pb-3" style={{ scrollbarWidth: 'thin' }}>
+      <div className="relative w-full max-w-full">
+        <div className="flex flex-row gap-3 pb-3 overflow-x-auto" style={{ scrollbarWidth: 'thin', maxWidth: '100%' }}>
         {columns.map((col) => {
           const items = formData.scratchData[col.id] || [];
           const isCollapsed = collapsedColumns.has(col.id);
