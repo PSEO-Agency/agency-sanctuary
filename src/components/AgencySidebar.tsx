@@ -13,6 +13,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SubaccountSwitcher } from "./SubaccountSwitcher";
+import { cn } from "@/lib/utils";
 
 interface AgencySidebarProps {
   agencyId: string;
@@ -29,8 +30,29 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
     { title: "Team", url: `/agency/${agencyId}/team`, icon: Users },
   ];
 
+  const getMenuItemClassName = (isActive: boolean) => {
+    if (isActive) {
+      return "bg-white/15 text-white font-medium hover:bg-white/20";
+    }
+    return "text-white/80 hover:bg-white/10 hover:text-white";
+  };
+
+  const getIconClassName = (isActive: boolean) => {
+    if (isActive) {
+      return "h-5 w-5 text-white";
+    }
+    return "h-5 w-5 text-white/70";
+  };
+
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
+    <Sidebar 
+      className={cn(
+        collapsed ? "w-14" : "w-60",
+        "m-3 rounded-2xl shadow-xl overflow-hidden",
+        "bg-gradient-to-b from-[hsl(var(--theme-gradient-from))] to-[hsl(var(--theme-gradient-to))]"
+      )} 
+      collapsible="icon"
+    >
       <SidebarContent className="flex-1 pt-16">
         {!collapsed && (
           <div className="px-2 py-2 mt-2">
@@ -38,7 +60,7 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
           </div>
         )}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/70 uppercase text-xs">
+          <SidebarGroupLabel className="text-white/50 uppercase text-xs">
             Agency Portal
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -49,10 +71,10 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
                       asChild 
-                      className={isActive ? "bg-primary/10 text-primary" : "text-sidebar-foreground hover:bg-primary/10"}
+                      className={getMenuItemClassName(isActive)}
                     >
                       <NavLink to={item.url} end>
-                        <item.icon className="h-5 w-5" />
+                        <item.icon className={getIconClassName(isActive)} />
                         {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
@@ -64,17 +86,15 @@ export function AgencySidebar({ agencyId }: AgencySidebarProps) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-4">
+      <SidebarFooter className="border-t border-white/10 p-4">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
               asChild 
-              className={location.pathname === `/agency/${agencyId}/settings` 
-                ? "bg-primary/10 text-primary" 
-                : "text-sidebar-foreground hover:bg-primary/10"}
+              className={getMenuItemClassName(location.pathname === `/agency/${agencyId}/settings`)}
             >
               <NavLink to={`/agency/${agencyId}/settings`} end>
-                <Settings className="h-5 w-5" />
+                <Settings className={getIconClassName(location.pathname === `/agency/${agencyId}/settings`)} />
                 {!collapsed && <span>Settings</span>}
               </NavLink>
             </SidebarMenuButton>

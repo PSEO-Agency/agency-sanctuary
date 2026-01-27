@@ -204,21 +204,28 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
 
   const getMenuItemClassName = (isActive: boolean) => {
     if (isActive) {
-      return "bg-primary/10 text-sidebar-foreground font-medium hover:bg-primary/10";
+      return "bg-white/15 text-white font-medium hover:bg-white/20";
     }
-    return "text-sidebar-foreground hover:bg-primary/10 hover:text-sidebar-foreground";
+    return "text-white/80 hover:bg-white/10 hover:text-white";
   };
 
   const getIconClassName = (isActive: boolean) => {
     if (isActive) {
-      return "h-5 w-5 text-primary";
+      return "h-5 w-5 text-white";
     }
-    return "h-5 w-5 text-sidebar-foreground/70";
+    return "h-5 w-5 text-white/70";
   };
 
   return (
-    <Sidebar className={`${collapsed ? "w-14" : "w-60"} border-r border-sidebar-border`} collapsible="icon">
-      <SidebarContent className="flex-1 pt-16 bg-sidebar">
+    <Sidebar 
+      className={cn(
+        collapsed ? "w-14" : "w-60",
+        "m-3 rounded-2xl shadow-xl overflow-hidden",
+        "bg-gradient-to-b from-[hsl(var(--theme-gradient-from))] to-[hsl(var(--theme-gradient-to))]"
+      )} 
+      collapsible="icon"
+    >
+      <SidebarContent className="flex-1 pt-16">
         {!collapsed && (
           <div className="px-2 py-2 mt-2">
             <SubaccountSwitcher subaccountId={subaccountId} />
@@ -232,18 +239,18 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
               onClick={toggleMode}
               className={cn(
                 "w-full group relative overflow-hidden rounded-xl p-3",
-                "bg-gradient-to-br from-primary/10 via-primary/5 to-transparent",
-                "border border-primary/20 hover:border-primary/40",
+                "bg-white/10 backdrop-blur-sm",
+                "border border-white/20 hover:border-white/40",
                 "transition-all duration-300 ease-out",
-                "hover:shadow-lg hover:shadow-primary/10",
+                "hover:bg-white/15",
                 "hover:scale-[1.02]"
               )}
             >
               <div className="flex items-center gap-2">
                 <div className={cn(
                   "flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg",
-                  "bg-primary/15 text-primary",
-                  "group-hover:bg-primary group-hover:text-primary-foreground",
+                  "bg-white/20 text-white",
+                  "group-hover:bg-white group-hover:text-[hsl(var(--theme-primary))]",
                   "transition-colors duration-300"
                 )}>
                   {activeMode === "content-machine" ? (
@@ -253,16 +260,16 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                   )}
                 </div>
                 <div className="flex-1 text-left min-w-0">
-                  <p className="text-sm font-semibold text-sidebar-foreground whitespace-nowrap">
+                  <p className="text-sm font-semibold text-white whitespace-nowrap">
                     {activeMode === "content-machine" ? "pSEO Builder" : "Content Machine"}
                   </p>
-                  <p className="text-xs text-sidebar-foreground/60 leading-tight">
+                  <p className="text-xs text-white/60 leading-tight">
                     {activeMode === "content-machine" 
                       ? "Switch to our industry leading most powerful builder" 
                       : "Write in-depth researched SEO optimized articles"}
                   </p>
                 </div>
-                <ArrowRightLeft className="flex-shrink-0 h-3.5 w-3.5 text-sidebar-foreground/40 group-hover:text-primary transition-colors" />
+                <ArrowRightLeft className="flex-shrink-0 h-3.5 w-3.5 text-white/40 group-hover:text-white transition-colors" />
               </div>
             </button>
           </div>
@@ -302,7 +309,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
         )}>
           {activeMode === "content-machine" && (
             <SidebarGroup>
-              <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
+              <SidebarGroupLabel className="text-white/50 uppercase text-xs font-normal">
                 Content Machine
               </SidebarGroupLabel>
               <SidebarGroupContent>
@@ -339,7 +346,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
         )}>
           {activeMode === "pseo-builder" && pseoBuilderEnabled && (
             <SidebarGroup>
-              <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs font-normal">
+              <SidebarGroupLabel className="text-white/50 uppercase text-xs font-normal">
                 pSEO Builder
               </SidebarGroupLabel>
               <SidebarGroupContent>
@@ -351,13 +358,13 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
                         <SidebarMenuItem key={item.title}>
                           <SidebarMenuButton 
                             disabled
-                            className="text-sidebar-foreground/40 cursor-not-allowed"
+                            className="text-white/30 cursor-not-allowed"
                           >
                             <item.icon className="h-5 w-5" />
                             {!collapsed && (
                               <span className="flex items-center justify-between w-full">
                                 {item.title}
-                                <span className="text-xs text-sidebar-foreground/30 ml-2">Soon</span>
+                                <span className="text-xs text-white/20 ml-2">Soon</span>
                               </span>
                             )}
                           </SidebarMenuButton>
@@ -385,7 +392,7 @@ export function SubaccountSidebar({ subaccountId }: SubaccountSidebarProps) {
         </div>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-3 bg-sidebar space-y-3">
+      <SidebarFooter className="border-t border-white/10 p-3 space-y-3">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 

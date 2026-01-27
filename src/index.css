@@ -53,6 +53,43 @@ All colors MUST be HSL.
     --gradient-sidebar: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
   }
 
+  /* Role-based theme variables */
+  .theme-subaccount {
+    --theme-primary: 262 83% 58%;
+    --theme-gradient-from: 263 70% 50%;
+    --theme-gradient-to: 271 81% 45%;
+    --theme-sidebar-text: 0 0% 100%;
+    --theme-sidebar-text-muted: 0 0% 100%;
+    --theme-sidebar-active-bg: 0 0% 100%;
+  }
+
+  .theme-agency {
+    --theme-primary: 217 91% 60%;
+    --theme-gradient-from: 217 91% 55%;
+    --theme-gradient-to: 224 76% 48%;
+    --theme-sidebar-text: 0 0% 100%;
+    --theme-sidebar-text-muted: 0 0% 100%;
+    --theme-sidebar-active-bg: 0 0% 100%;
+  }
+
+  .theme-partner {
+    --theme-primary: 25 95% 53%;
+    --theme-gradient-from: 25 95% 53%;
+    --theme-gradient-to: 38 92% 50%;
+    --theme-sidebar-text: 0 0% 100%;
+    --theme-sidebar-text-muted: 0 0% 100%;
+    --theme-sidebar-active-bg: 0 0% 100%;
+  }
+
+  .theme-super-admin {
+    --theme-primary: 220 13% 46%;
+    --theme-gradient-from: 220 13% 33%;
+    --theme-gradient-to: 217 19% 27%;
+    --theme-sidebar-text: 0 0% 100%;
+    --theme-sidebar-text-muted: 0 0% 100%;
+    --theme-sidebar-active-bg: 0 0% 100%;
+  }
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
