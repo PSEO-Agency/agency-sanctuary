@@ -883,7 +883,13 @@ export function MatrixBuilderTab({ campaign, pages, onRefreshPages }: MatrixBuil
               <div className="flex-1">
                 <Input
                   ref={patternInputRef}
-                  placeholder="e.g., What is {{services}} or Best {{services}} in {{cities}}"
+                  placeholder={
+                    columnConfigs.length >= 2
+                      ? `e.g., What is {{${columnConfigs[0].id}}} or Best {{${columnConfigs[0].id}}} in {{${columnConfigs[1].id}}}`
+                      : columnConfigs.length === 1
+                      ? `e.g., What is {{${columnConfigs[0].id}}}`
+                      : "e.g., What is {{variable}}"
+                  }
                   value={newPattern}
                   onChange={(e) => setNewPattern(e.target.value)}
                   onKeyDown={(e) => {

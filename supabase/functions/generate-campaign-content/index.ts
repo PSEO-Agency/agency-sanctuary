@@ -324,6 +324,8 @@ serve(async (req) => {
     console.log("Generating content for page:", page_id, is_sample ? "(sample mode)" : "");
     console.log("Business:", business_name, business_type);
     console.log("Data values:", data_values);
+    console.log("Using template sections count:", template_sections.length);
+    console.log("Template section types:", template_sections.map(s => s.type));
 
     // Include company name in data values
     const enrichedDataValues = {

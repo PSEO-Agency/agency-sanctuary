@@ -17,8 +17,16 @@ export function TitlePatternInput({
   onChange,
   columns,
   label = "Title Pattern",
-  placeholder = "e.g., {{service}} in {{city}}",
+  placeholder,
 }: TitlePatternInputProps) {
+  // Generate dynamic placeholder based on available columns
+  const dynamicPlaceholder = placeholder || (
+    columns.length >= 2
+      ? `e.g., {{${columns[0].id}}} in {{${columns[1].id}}}`
+      : columns.length === 1
+      ? `e.g., What is {{${columns[0].id}}}`
+      : "e.g., {{variable}} in {{location}}"
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const [cursorPosition, setCursorPosition] = useState<number>(value.length);
 
@@ -72,7 +80,7 @@ export function TitlePatternInput({
         onChange={handleInputChange}
         onSelect={handleSelect}
         onClick={handleSelect}
-        placeholder={placeholder}
+        placeholder={dynamicPlaceholder}
         className="font-mono text-sm"
       />
       

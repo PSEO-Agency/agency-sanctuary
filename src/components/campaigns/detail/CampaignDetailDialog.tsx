@@ -20,7 +20,7 @@ import { ReusableBlocksTab } from "./tabs/ReusableBlocksTab";
 import { PagesTab } from "./tabs/PagesTab";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
+import { resolveTemplateForPage } from "@/lib/campaignTemplateResolver";
 import { toast } from "sonner";
 
 interface CampaignDetailDialogProps {
@@ -52,16 +52,22 @@ export function CampaignDetailDialog({
 
   if (!campaign) return null;
 
-  // Get template for this campaign's business type
-  const template = getTemplateForBusinessType(campaign.business_type || "local");
-
-  // Generate content using the edge function
+  // Generate content using the edge function with the correct entity template
   const handleGenerateContent = async (pageId: string) => {
     const page = pages.find(p => p.id === pageId);
     if (!page) {
       toast.error("Page not found");
       return;
     }
+
+    // Resolve the correct template for this specific page
+    const resolvedTemplate = resolveTemplateForPage(page, campaign);
+    console.log("[CampaignDetailDialog] Resolved template for page:", {
+      pageId,
+      entityId: page.data_values?.entityId,
+      source: resolvedTemplate.source,
+      sectionsCount: resolvedTemplate.sections.length,
+    });
 
     try {
       const { data, error } = await supabase.functions.invoke("generate-campaign-content", {
@@ -70,7 +76,7 @@ export function CampaignDetailDialog({
           business_name: campaign.business_name || "Your Company",
           business_type: campaign.business_type || "local",
           data_values: page.data_values || {},
-          template_sections: template.sections,
+          template_sections: resolvedTemplate.sections,
           tone_of_voice: "Professional, friendly, and trustworthy",
         },
       });

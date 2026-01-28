@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,11 +8,10 @@ import { Pencil, Code, Search, Loader2, Sparkles, ExternalLink, Settings2, Check
 import { CampaignDB } from "@/hooks/useCampaigns";
 import { CampaignPageDB, SectionContent } from "@/hooks/useCampaignPages";
 import { PreviewCanvas } from "@/components/page-builder/PreviewCanvas";
-import { getTemplateForBusinessType } from "@/lib/campaignTemplates";
+import { resolveTemplateForPage } from "@/lib/campaignTemplateResolver";
 import { parseStaticPlaceholders, extractPrompts } from "@/lib/templateParser";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { DEFAULT_STYLE_CONFIG, DEFAULT_IMAGES_CONFIG } from "@/components/page-builder/types";
 
 interface PagePreviewDialogProps {
   open: boolean;
@@ -42,12 +41,15 @@ export function PagePreviewDialog({
     }
   }, [page?.sections_content]);
 
-  if (!page) return null;
+  // Resolve the correct template for this specific page
+  const resolvedTemplate = useMemo(() => {
+    if (!page) return null;
+    return resolveTemplateForPage(page, campaign);
+  }, [page, campaign]);
+
+  if (!page || !resolvedTemplate) return null;
 
   const generating = isGenerating || localGenerating;
-
-  // Get template based on campaign business type
-  const template = getTemplateForBusinessType(campaign.business_type || "local");
 
   // Merge campaign data with page-specific data
   const dataValues: Record<string, string> = {
@@ -81,7 +83,7 @@ export function PagePreviewDialog({
     // If section doesn't exist yet, create it
     const sectionExists = updatedSections.some(s => s.id === sectionId);
     if (!sectionExists) {
-      const templateSection = template.sections.find(s => s.id === sectionId);
+      const templateSection = resolvedTemplate.sections.find(s => s.id === sectionId);
       updatedSections.push({
         id: sectionId,
         name: templateSection?.name || sectionId,
@@ -225,7 +227,7 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
       generatedContent: string | null;
     }> = [];
 
-    template.sections.forEach(section => {
+    resolvedTemplate.sections.forEach(section => {
       Object.entries(section.content).forEach(([field, value]) => {
         if (typeof value === "string" && value.includes("prompt(")) {
           const extracted = extractPrompts(value, dataValues);
@@ -442,9 +444,9 @@ ${sectionHTML || "  <!-- No content generated yet -->"}
 
           <TabsContent value="preview" className="flex-1 m-0 min-h-0">
             <PreviewCanvas
-              sections={template.sections}
-              styleConfig={DEFAULT_STYLE_CONFIG}
-              imagesConfig={DEFAULT_IMAGES_CONFIG}
+              sections={resolvedTemplate.sections}
+              styleConfig={resolvedTemplate.style}
+              imagesConfig={resolvedTemplate.images}
               dataValues={dataValues}
               generatedContent={localSections}
               viewport="desktop"
