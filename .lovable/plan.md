@@ -1,280 +1,327 @@
 
+# Plan: Fix Campaign Creation-to-Page-Generation Sync Issues
 
-# Plan: Enhance Dashboards at All Levels with Rich Metrics
+## Executive Summary
 
-## Overview
+After extensive analysis of the codebase and database, I've identified **three major categories of issues** causing the campaign creation flow to be out of sync with page generation:
 
-Expand all four dashboard levels (Super Admin, Country Partner, Agency, Sub-account) with comprehensive, role-relevant metrics. The project already has recharts installed and a chart component system ready to use.
-
-## Current State Analysis
-
-| Dashboard | Current Metrics | Gap |
-|-----------|-----------------|-----|
-| **Super Admin** | 3 basic counts (Agencies, Subaccounts, Users) | No growth trends, billing insights, platform health, or activity feed |
-| **Country Partner** | Uses Super Admin dashboard (unfiltered) | No network-specific filtering or dedicated view |
-| **Agency** | 2 basic counts (Subaccounts, Users) | No aggregate content metrics, subaccount health, or activity |
-| **Sub-account** | Most complete (Projects, Articles, Usage) | Missing campaign metrics, WordPress status, quick actions |
-
-## Database Metrics Available
-
-Based on the current data:
-- 21 campaigns, 448 campaign pages
-- 10 Basic plan subscriptions, 0 Pro
-- 15 blog projects, 2 article publications
-- 1 active WordPress connection
-- Growth data available by week
+1. **Template Source Mismatch**: When editing/viewing campaign pages, the system uses hardcoded default templates from `campaignTemplates.ts` instead of the user's AI-generated templates stored in `campaign.template_config.entityTemplates`
+2. **Variable Leakage**: Hardcoded default variables (`{{service}}`, `{{city}}`) from the "Local Business" template appear in places where user-defined variables (`{{breeds}}`, `{{vaccines}}`) should be used
+3. **Entity-Template Association Gap**: Pages are generated with data values but aren't linked to the correct entity-specific template
 
 ---
 
-## Implementation Plan
+## Issue Analysis
 
-### Phase 1: Create Shared Dashboard Components
+### Issue 1: Template Source Mismatch
 
-**File: `src/components/dashboard/StatCard.tsx`**
-A reusable stat card component with optional trend indicator and click navigation.
+**Current Problem:**
+- In `CampaignDetailDialog.tsx` (line 56), templates are fetched via `getTemplateForBusinessType(campaign.business_type)` which returns hardcoded templates from `campaignTemplates.ts`
+- The AI-generated templates stored in `campaign.template_config.entityTemplates` are **never used** when viewing/editing pages
+- `PagePreviewDialog.tsx` (line 50) also fetches from `getTemplateForBusinessType()` instead of the campaign's saved templates
 
-**File: `src/components/dashboard/MiniAreaChart.tsx`**
-A compact area chart for showing trends (last 7 days, last 30 days).
+**Evidence from Database:**
+The "ABC Cats" campaign has properly saved `entityTemplates` with `{{breeds}}` and `{{vaccines}}` variables, but when pages are viewed, the system falls back to the default LOCAL_BUSINESS_TEMPLATE which uses `{{service}}` and `{{city}}`.
 
-**File: `src/components/dashboard/ActivityFeed.tsx`**
-A recent activity list component showing latest actions across the platform.
+**Files Affected:**
+- `src/components/campaigns/detail/CampaignDetailDialog.tsx`
+- `src/components/campaigns/detail/PagePreviewDialog.tsx`
+- `src/components/campaigns/detail/tabs/PagesTab.tsx`
 
-**File: `src/components/dashboard/PlanDistributionChart.tsx`**
-A donut/pie chart showing subscription plan distribution.
+### Issue 2: Variable Leakage from Default Templates
 
-**File: `src/components/dashboard/HealthIndicator.tsx`**
-A status indicator component for showing connection health, trial status, etc.
-
----
-
-### Phase 2: Super Admin Dashboard Enhancement
-
-**File: `src/pages/super-admin/Dashboard.tsx`**
-
-#### New Metrics to Add:
-
-**Row 1 - Key Stats (4 cards):**
-1. Total Agencies (existing)
-2. Total Subaccounts (existing)
-3. Total Users (existing)
-4. Active Trials (NEW)
-
-**Row 2 - Platform Health (3 cards):**
-1. Total Campaigns (21)
-2. Total Pages Generated (448)
-3. WordPress Connections (1 active)
-
-**Row 3 - Two-column layout:**
-
-*Left Column - Growth Chart:*
-- Area chart showing new subaccounts over the last 4 weeks
-- Uses recharts AreaChart with gradient fill
-
-*Right Column - Plan Distribution:*
-- Donut chart showing Basic vs Pro distribution
-- Shows revenue potential (10 Basic at €0, 0 Pro at €495)
-
-**Row 4 - Recent Activity Feed:**
-- Latest subaccount creations
-- Latest campaign creations
-- Latest WordPress publications
-
-#### Data Fetching:
+**Current Problem:**
+The `campaignTemplates.ts` file contains hardcoded variables:
 ```typescript
-// Additional queries needed:
-const fetchPlatformMetrics = async () => {
-  const [campaigns, pages, wpConnections, trials, planDist, recentActivity] = await Promise.all([
-    supabase.from("campaigns").select("id", { count: "exact", head: true }),
-    supabase.from("campaign_pages").select("id", { count: "exact", head: true }),
-    supabase.from("wordpress_connections").select("id, status", { count: "exact" }),
-    supabase.from("subaccount_subscriptions").select("id", { count: "exact", head: true }).eq("is_trial", true),
-    // Plan distribution query
-    supabase.from("subaccount_subscriptions").select("plan_id, subscription_plans(name)"),
-    // Growth data - last 4 weeks
-    supabase.from("subaccounts").select("created_at").gte("created_at", fourWeeksAgo),
-  ]);
-};
+// LOCAL_BUSINESS_TEMPLATE
+content: {
+  headline: "Best {{service}} Services in {{city}}",
+  ...
+}
+```
+
+When the system falls back to these templates (due to Issue 1), users see `{{service}}` placeholders instead of their custom `{{breeds}}` variables.
+
+**Additionally:**
+- Placeholder hints in UI components reference `{{services}}` as examples (e.g., `MatrixBuilderTab.tsx` line 886)
+- These are informational but add to user confusion
+
+### Issue 3: Page-to-Entity Template Association
+
+**Current Problem:**
+When pages are generated in `useCampaigns.ts` (`generateCampaignPages` function, line 353):
+- Pages correctly store `entityId` in their `data_values`
+- But when rendering pages, the code doesn't look up the matching entity template
+- Instead, it uses a single fallback template
+
+---
+
+## Solution Architecture
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         CAMPAIGN CREATION FLOW                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Step 4: Dataset Setup          Step 6: AI Template Generator          │
+│  ┌──────────────────┐           ┌──────────────────────────┐           │
+│  │ dynamicColumns:  │           │ entityTemplates:          │           │
+│  │  - breeds        │  ────────▶│  - ent-breeds: sections[] │           │
+│  │  - vaccines      │           │  - ent-vaccines: sections│           │
+│  └──────────────────┘           └──────────────────────────┘           │
+│                                            │                            │
+│                                            ▼                            │
+│                    ┌───────────────────────────────────────┐           │
+│                    │     campaign.template_config          │           │
+│                    │ ┌─────────────────────────────────┐   │           │
+│                    │ │ dynamicColumns, entities,       │   │           │
+│                    │ │ entityTemplates, titlePatterns  │   │           │
+│                    │ └─────────────────────────────────┘   │           │
+│                    └───────────────────────────────────────┘           │
+│                                            │                            │
+└────────────────────────────────────────────┼────────────────────────────┘
+                                             │
+                                             ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      PAGE GENERATION & VIEWING                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  campaign_pages table                                                   │
+│  ┌─────────────────────────────────────────────────────────┐           │
+│  │ id | title        | data_values                         │           │
+│  │ 1  | Cat: Bengal  | { breeds: "Bengal", entityId: "..." }│          │
+│  └─────────────────────────────────────────────────────────┘           │
+│                                            │                            │
+│                                            ▼                            │
+│                    ┌───────────────────────────────────────┐           │
+│                    │  GET TEMPLATE FOR THIS PAGE           │           │
+│                    │                                       │           │
+│         CURRENT:   │  getTemplateForBusinessType() ───────▶│ ❌ WRONG  │
+│                    │  returns LOCAL_BUSINESS_TEMPLATE     │           │
+│                    │  with {{service}}, {{city}}          │           │
+│                    │                                       │           │
+│         SHOULD BE: │  getTemplateForPage(page, campaign) ──▶│ ✓ CORRECT│
+│                    │  looks up entityId in data_values     │           │
+│                    │  returns entityTemplates[entityId]   │           │
+│                    └───────────────────────────────────────┘           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Phase 3: Country Partner Dashboard
+## Technical Implementation Plan
 
-**File: `src/pages/super-admin/Dashboard.tsx`** (Enhanced with role detection)
+### Phase 1: Create Template Resolution Utility
 
-The dashboard will detect if user is Country Partner (not Super Admin) and filter all queries by their assigned agencies.
+**New File: `src/lib/campaignTemplateResolver.ts`**
 
-#### Filtered Metrics for Partners:
-1. **My Agencies** - Count of agencies assigned to this partner
-2. **My Subaccounts** - Subaccounts within partner's agencies
-3. **My Users** - Users within partner's network
-4. **Active Trials** - Trials in partner's network
+Create a utility function that properly resolves templates for a given page:
 
-#### Partner-Specific Sections:
-- **Network Performance Card**: Total articles generated across all subaccounts in network
-- **Agency Health Overview**: Table showing each agency with subaccount count, active users, trial status
-- **Growth within Network**: Area chart showing subaccount growth in partner's territory
-
-#### Implementation:
 ```typescript
-// Get country partner ID from auth context
-const partnerId = roles.find(r => r.role === 'country_partner')?.context_id;
+interface TemplateResolutionResult {
+  sections: TemplateSection[];
+  style: TemplateStyleConfig;
+  images: TemplateImagesConfig;
+  source: "entity" | "legacy" | "default";
+}
 
-// Filter agencies by partner
-const { data: agencies } = await supabase
-  .from("agencies")
-  .select("id")
-  .eq("country_partner_id", partnerId);
-
-const agencyIds = agencies?.map(a => a.id) || [];
-
-// Then filter all subsequent queries by these agency IDs
-const subaccounts = await supabase
-  .from("subaccounts")
-  .select("id", { count: "exact" })
-  .in("agency_id", agencyIds);
-```
-
----
-
-### Phase 4: Agency Dashboard Enhancement
-
-**File: `src/pages/agency/Dashboard.tsx`**
-
-#### New Metrics to Add:
-
-**Row 1 - Key Stats (4 cards):**
-1. Total Subaccounts (existing)
-2. Total Team Members (existing)
-3. Active Campaigns (NEW)
-4. Articles This Month (NEW - aggregate across all subaccounts)
-
-**Row 2 - Subaccount Health Overview:**
-A table/list showing each subaccount with:
-- Name
-- Plan type (Basic/Pro)
-- Articles used / limit
-- WordPress connection status (green/red dot)
-- Last activity date
-
-**Row 3 - Two-column layout:**
-
-*Left Column - Usage Overview:*
-- Stacked bar or grouped bar chart showing article usage across subaccounts
-- Helps agency admins identify which subaccounts are near limits
-
-*Right Column - Recent Activity:*
-- Latest articles created across all subaccounts
-- Latest campaigns created
-- Latest team member additions
-
-#### Data Fetching:
-```typescript
-const fetchAgencyMetrics = async () => {
-  if (!agencyId) return;
+export function resolveTemplateForPage(
+  page: CampaignPageDB,
+  campaign: CampaignDB
+): TemplateResolutionResult {
+  const templateConfig = campaign.template_config as any;
+  const entityTemplates = templateConfig?.entityTemplates || {};
   
-  const [subaccounts, campaigns, wpConnections, subscriptions] = await Promise.all([
-    supabase.from("subaccounts").select("id, name").eq("agency_id", agencyId),
-    supabase.from("campaigns")
-      .select("id, subaccount_id")
-      .in("subaccount_id", subaccountIds),
-    supabase.from("wordpress_connections")
-      .select("id, subaccount_id, status")
-      .in("subaccount_id", subaccountIds),
-    supabase.from("subaccount_subscriptions")
-      .select("subaccount_id, articles_used, plan_id, subscription_plans(name, article_limit)")
-      .in("subaccount_id", subaccountIds),
-  ]);
+  // 1. Try to get entity-specific template using entityId from page data
+  const entityId = page.data_values?.entityId;
+  if (entityId && entityTemplates[entityId]) {
+    return {
+      sections: entityTemplates[entityId].sections,
+      style: entityTemplates[entityId].style || DEFAULT_STYLE_CONFIG,
+      images: entityTemplates[entityId].images || DEFAULT_IMAGES_CONFIG,
+      source: "entity",
+    };
+  }
+  
+  // 2. Fallback to first available entity template
+  const firstEntityTemplate = Object.values(entityTemplates)[0];
+  if (firstEntityTemplate) {
+    return {
+      ...firstEntityTemplate,
+      source: "entity",
+    };
+  }
+  
+  // 3. Fallback to legacy templateContent
+  if (templateConfig?.sections) {
+    return {
+      sections: templateConfig.sections,
+      style: templateConfig.style || DEFAULT_STYLE_CONFIG,
+      images: templateConfig.images || DEFAULT_IMAGES_CONFIG,
+      source: "legacy",
+    };
+  }
+  
+  // 4. Last resort: use default template based on business type
+  return {
+    ...getTemplateForBusinessType(campaign.business_type || "local"),
+    source: "default",
+  };
+}
+```
+
+### Phase 2: Update CampaignDetailDialog
+
+**File: `src/components/campaigns/detail/CampaignDetailDialog.tsx`**
+
+Replace the hardcoded template lookup with the resolver:
+
+**Before (line 55-56):**
+```typescript
+// Get template for this campaign's business type
+const template = getTemplateForBusinessType(campaign.business_type || "local");
+```
+
+**After:**
+```typescript
+import { resolveTemplateForCampaign } from "@/lib/campaignTemplateResolver";
+
+// Get the campaign's saved templates (not hardcoded defaults)
+const templateConfig = resolveTemplateForCampaign(campaign);
+```
+
+Also update `handleGenerateContent` to pass the correct entity template:
+```typescript
+const handleGenerateContent = async (pageId: string) => {
+  const page = pages.find(p => p.id === pageId);
+  if (!page) return;
+
+  // Resolve template for this specific page
+  const resolvedTemplate = resolveTemplateForPage(page, campaign);
+  
+  const { data, error } = await supabase.functions.invoke("generate-campaign-content", {
+    body: {
+      page_id: pageId,
+      business_name: campaign.business_name,
+      business_type: campaign.business_type,
+      data_values: page.data_values,
+      template_sections: resolvedTemplate.sections, // Use resolved template
+      tone_of_voice: "Professional, friendly, and trustworthy",
+    },
+  });
+  // ...
 };
 ```
 
----
+### Phase 3: Update PagePreviewDialog
 
-### Phase 5: Sub-account Dashboard Enhancement
+**File: `src/components/campaigns/detail/PagePreviewDialog.tsx`**
 
-**File: `src/pages/subaccount/Dashboard.tsx`**
-
-#### Enhancements to Add:
-
-**Row 1 - Stats Cards (keep existing 4, enhance):**
-- Add subtle trend arrows (up/down vs last period)
-- Add click-through to relevant pages
-
-**New Row 2 - Campaign Metrics:**
-1. Active pSEO Campaigns (count)
-2. Total Pages Generated (count)
-3. Pages Published (count)
-4. Publishing Rate (percentage)
-
-**Enhanced Row 3 - Two-column layout:**
-
-*Left Column - Usage This Period (existing, enhanced):*
-- Keep existing progress bar
-- Add mini sparkline showing daily article creation trend
-
-*Right Column - WordPress Status (NEW):*
-- Show connected WordPress sites
-- Last sync date
-- Published article count per site
-- Connection health indicator
-
-**New Row 4 - Quick Actions:**
-- "Create New Article" button
-- "Start Campaign" button
-- "Connect WordPress" button (if no connections)
-
-#### Data Fetching Additions:
+Replace line 50:
 ```typescript
-// Campaign metrics
-const { data: campaigns } = await supabase
-  .from("campaigns")
-  .select("id, status, pages_generated, total_pages")
-  .eq("subaccount_id", subaccountId);
+// BEFORE
+const template = getTemplateForBusinessType(campaign.business_type || "local");
 
-// WordPress status
-const { data: wpConnections } = await supabase
-  .from("wordpress_connections")
-  .select("id, name, status, last_checked_at")
-  .eq("subaccount_id", subaccountId);
+// AFTER
+import { resolveTemplateForPage } from "@/lib/campaignTemplateResolver";
 
-// Publication stats
-const { data: publications } = await supabase
-  .from("article_publications")
-  .select("id, published_at, connection_id")
-  .eq("subaccount_id", subaccountId);
+const resolvedTemplate = resolveTemplateForPage(page, campaign);
+const template = resolvedTemplate; // Use resolved template
 ```
 
+Update the PreviewCanvas call (around line 444):
+```typescript
+<PreviewCanvas
+  sections={resolvedTemplate.sections}
+  styleConfig={resolvedTemplate.style}
+  imagesConfig={resolvedTemplate.images}
+  dataValues={dataValues}
+  generatedContent={localSections}
+  viewport="desktop"
+  isEditable={true}
+  onFieldEdit={handleFieldEdit}
+  mode="page"
+/>
+```
+
+### Phase 4: Update CMSEditorTab
+
+**File: `src/components/campaigns/detail/tabs/CMSEditorTab.tsx`**
+
+The CMS editor also needs access to proper templates for rendering:
+
+```typescript
+// Add import
+import { resolveTemplateForPage } from "@/lib/campaignTemplateResolver";
+
+// In component, when a page is selected:
+const resolvedTemplate = selectedPage 
+  ? resolveTemplateForPage(selectedPage, campaign)
+  : null;
+```
+
+### Phase 5: Update generate-campaign-content Edge Function
+
+**File: `supabase/functions/generate-campaign-content/index.ts`**
+
+The edge function already receives `template_sections` as a parameter, so it should work correctly once the frontend passes the right template. However, add logging to verify:
+
+```typescript
+console.log("Using template sections count:", template_sections.length);
+console.log("Template section types:", template_sections.map(s => s.type));
+```
+
+### Phase 6: Remove Hardcoded Example Variables from UI
+
+**Files to update:**
+
+1. **`src/components/campaigns/detail/tabs/MatrixBuilderTab.tsx`** (line 886)
+   Change placeholder from:
+   ```
+   "e.g., What is {{services}} or Best {{services}} in {{cities}}"
+   ```
+   To dynamic placeholder based on user's columns:
+   ```typescript
+   const examplePlaceholder = columnConfigs.length >= 2
+     ? `e.g., What is {{${columnConfigs[0].id}}} or Best {{${columnConfigs[0].id}}} in {{${columnConfigs[1].id}}}`
+     : `e.g., What is {{${columnConfigs[0]?.id || "variable"}}}`;
+   ```
+
+2. **`src/components/campaigns/TitlePatternInput.tsx`** (line 20)
+   Make the placeholder dynamic based on available columns.
+
 ---
 
-## File Summary
+## Summary of Files to Create/Modify
 
-### New Files to Create:
-1. `src/components/dashboard/StatCard.tsx` - Enhanced stat card with trends
-2. `src/components/dashboard/MiniAreaChart.tsx` - Compact trend chart
-3. `src/components/dashboard/ActivityFeed.tsx` - Recent activity list
-4. `src/components/dashboard/PlanDistributionChart.tsx` - Donut chart for plans
-5. `src/components/dashboard/HealthIndicator.tsx` - Status indicators
-6. `src/components/dashboard/SubaccountHealthTable.tsx` - Agency-level overview table
+### New Files:
+| File | Purpose |
+|------|---------|
+| `src/lib/campaignTemplateResolver.ts` | Centralized template resolution logic |
 
 ### Files to Modify:
-1. `src/pages/super-admin/Dashboard.tsx` - Complete overhaul with role detection
-2. `src/pages/agency/Dashboard.tsx` - Add aggregate metrics and health overview
-3. `src/pages/subaccount/Dashboard.tsx` - Add campaign metrics and quick actions
+| File | Changes |
+|------|---------|
+| `src/components/campaigns/detail/CampaignDetailDialog.tsx` | Use resolver for template lookup |
+| `src/components/campaigns/detail/PagePreviewDialog.tsx` | Use resolver for page-specific templates |
+| `src/components/campaigns/detail/tabs/CMSEditorTab.tsx` | Use resolver for template in editor |
+| `src/components/campaigns/detail/tabs/PagesTab.tsx` | Pass campaign to child components for resolution |
+| `src/components/campaigns/detail/tabs/MatrixBuilderTab.tsx` | Dynamic placeholder text |
+| `src/components/campaigns/TitlePatternInput.tsx` | Dynamic placeholder based on columns |
+| `supabase/functions/generate-campaign-content/index.ts` | Add logging for debugging |
 
 ---
 
-## Technical Considerations
+## Expected Behavior After Fix
 
-1. **Chart Library**: Use existing recharts integration via `src/components/ui/chart.tsx`
-2. **Loading States**: Add skeleton loaders for all new data sections
-3. **RLS Compliance**: All queries respect existing RLS policies
-4. **Performance**: Use `Promise.all` for parallel data fetching
-5. **Responsive Design**: Grid layouts adapt from 1 to 4 columns based on screen size
+1. **Template Persistence**: When user creates `{{breeds}}` and `{{vaccines}}` datasets, the AI-generated template using those variables will be:
+   - Saved to `campaign.template_config.entityTemplates`
+   - Used when generating page content
+   - Displayed correctly in page preview and editor
 
-## Visual Design
+2. **No Variable Leakage**: Users will never see `{{service}}` or `{{city}}` unless they explicitly use the "Local Business" business type with those variables
 
-- Consistent card styling using existing shadcn/ui Card components
-- Color coding: Green (healthy/good), Yellow (warning), Red (critical)
-- Trend indicators: Small arrows or percentage badges
-- Charts use theme-consistent colors from the chart config
+3. **Entity-Specific Templates**: Each entity (e.g., /breeds/, /vaccines-for-breeds/) can have its own unique template structure
 
+4. **Consistent Flow**: The template created during campaign wizard Step 6 will be the same template used throughout the campaign lifecycle
