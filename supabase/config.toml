@@ -116,3 +116,6 @@ verify_jwt = false
 
 [functions.generate-announcement-image]
 verify_jwt = false
+
+[functions.dataforseo-keywords]
+verify_jwt = false

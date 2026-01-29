@@ -452,6 +452,7 @@ export type Database = {
           name: string
           pages_generated: number | null
           preview_settings: Json | null
+          seo_connection_id: string | null
           static_pages: Json | null
           status: string
           subaccount_id: string
@@ -480,6 +481,7 @@ export type Database = {
           name: string
           pages_generated?: number | null
           preview_settings?: Json | null
+          seo_connection_id?: string | null
           static_pages?: Json | null
           status?: string
           subaccount_id: string
@@ -508,6 +510,7 @@ export type Database = {
           name?: string
           pages_generated?: number | null
           preview_settings?: Json | null
+          seo_connection_id?: string | null
           static_pages?: Json | null
           status?: string
           subaccount_id?: string
@@ -520,6 +523,13 @@ export type Database = {
           wizard_step?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "campaigns_seo_connection_id_fkey"
+            columns: ["seo_connection_id"]
+            isOneToOne: false
+            referencedRelation: "seo_connections"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "campaigns_subaccount_id_fkey"
             columns: ["subaccount_id"]
@@ -806,6 +816,53 @@ export type Database = {
           },
           {
             foreignKeyName: "project_knowledge_base_subaccount_id_fkey"
+            columns: ["subaccount_id"]
+            isOneToOne: false
+            referencedRelation: "subaccounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seo_connections: {
+        Row: {
+          created_at: string | null
+          credentials: Json
+          id: string
+          last_checked_at: string | null
+          last_error: string | null
+          name: string
+          provider: string
+          status: string
+          subaccount_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          credentials?: Json
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          name: string
+          provider?: string
+          status?: string
+          subaccount_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          credentials?: Json
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          name?: string
+          provider?: string
+          status?: string
+          subaccount_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_connections_subaccount_id_fkey"
             columns: ["subaccount_id"]
             isOneToOne: false
             referencedRelation: "subaccounts"
