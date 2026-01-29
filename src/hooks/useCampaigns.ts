@@ -30,6 +30,8 @@ export interface CampaignDB {
   wizard_step: number;
   is_finalized: boolean;
   wizard_state: CampaignFormData | Record<string, unknown>;
+  // SEO integration
+  seo_connection_id: string | null;
 }
 
 export function useCampaigns() {
