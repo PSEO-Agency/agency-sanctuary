@@ -1,327 +1,291 @@
 
-# Plan: Fix Campaign Creation-to-Page-Generation Sync Issues
+
+# Plan: Keyword Mapper SEO Integration with DataForSEO
 
 ## Executive Summary
 
-After extensive analysis of the codebase and database, I've identified **three major categories of issues** causing the campaign creation flow to be out of sync with page generation:
+Based on my analysis of the current implementation and the pSEO workflow, I recommend **DataForSEO** as the primary integration because:
 
-1. **Template Source Mismatch**: When editing/viewing campaign pages, the system uses hardcoded default templates from `campaignTemplates.ts` instead of the user's AI-generated templates stored in `campaign.template_config.entityTemplates`
-2. **Variable Leakage**: Hardcoded default variables (`{{service}}`, `{{city}}`) from the "Local Business" template appear in places where user-defined variables (`{{breeds}}`, `{{vaccines}}`) should be used
-3. **Entity-Template Association Gap**: Pages are generated with data values but aren't linked to the correct entity-specific template
+1. **Cost-Effective**: Pay-per-use API (no monthly minimums like Ahrefs/Semrush)
+2. **Comprehensive API**: Covers keyword research, difficulty, search volume, and competitor analysis
+3. **Programmatic-Friendly**: Designed for bulk operations (perfect for pSEO with 100s of pages)
+4. **No OAuth Required**: Simple API key authentication works well with Edge Functions
+
+## Current State Analysis
+
+The Keyword Mapper tab (`KeywordMapperTab.tsx`) currently has:
+- Manual keyword entry per page
+- Placeholder dropdown for integrations (Semrush, Ahrefs, Moz - all "Coming Soon")
+- CSV upload placeholder (non-functional)
+- Basic keyword data structure: `{ keyword, kd, volume, clicks, selected }`
+- Toggle selection per keyword
+- Summary stats (total keywords, selected count)
+
+## Recommended DataForSEO Endpoints
+
+| Feature | Endpoint | Purpose | Cost |
+|---------|----------|---------|------|
+| Keyword Suggestions | `/keywords_data/google_ads/keywords_for_keywords/live` | Get related keywords from seed keywords | ~$0.075/request |
+| Search Volume & CPC | `/keywords_data/google_ads/search_volume/live` | Bulk search volume for keywords | ~$0.04/request |
+| Keyword Difficulty | `/dataforseo_labs/google/bulk_keyword_difficulty/live` | KD% score for keywords | ~$0.01/keyword |
+| SERP Competitors | `/dataforseo_labs/serp_competitors/live` | Find competing domains | ~$0.01/request |
+| Ranked Keywords | `/dataforseo_labs/google/ranked_keywords/live` | Keywords a domain ranks for | ~$0.01/request |
 
 ---
 
-## Issue Analysis
+## Implementation Plan
 
-### Issue 1: Template Source Mismatch
+### Phase 1: Create DataForSEO Edge Function
 
-**Current Problem:**
-- In `CampaignDetailDialog.tsx` (line 56), templates are fetched via `getTemplateForBusinessType(campaign.business_type)` which returns hardcoded templates from `campaignTemplates.ts`
-- The AI-generated templates stored in `campaign.template_config.entityTemplates` are **never used** when viewing/editing pages
-- `PagePreviewDialog.tsx` (line 50) also fetches from `getTemplateForBusinessType()` instead of the campaign's saved templates
+**New File: `supabase/functions/dataforseo-keywords/index.ts`**
 
-**Evidence from Database:**
-The "ABC Cats" campaign has properly saved `entityTemplates` with `{{breeds}}` and `{{vaccines}}` variables, but when pages are viewed, the system falls back to the default LOCAL_BUSINESS_TEMPLATE which uses `{{service}}` and `{{city}}`.
+This edge function will handle all DataForSEO API calls and support multiple operations:
 
-**Files Affected:**
-- `src/components/campaigns/detail/CampaignDetailDialog.tsx`
-- `src/components/campaigns/detail/PagePreviewDialog.tsx`
-- `src/components/campaigns/detail/tabs/PagesTab.tsx`
-
-### Issue 2: Variable Leakage from Default Templates
-
-**Current Problem:**
-The `campaignTemplates.ts` file contains hardcoded variables:
 ```typescript
-// LOCAL_BUSINESS_TEMPLATE
-content: {
-  headline: "Best {{service}} Services in {{city}}",
-  ...
+interface DataForSEORequest {
+  operation: 
+    | "keyword_suggestions"    // Get related keywords
+    | "search_volume"          // Get volume + CPC for keywords
+    | "keyword_difficulty"     // Get KD% for keywords
+    | "serp_competitors"       // Get competing domains
+    | "competitor_keywords";   // Get keywords from a competitor domain
+  keywords?: string[];         // Input keywords (for suggestions, volume, KD)
+  domain?: string;             // Competitor domain (for competitor_keywords)
+  location_code?: number;      // Default: 2840 (US)
+  language_code?: string;      // Default: "en"
+  limit?: number;              // Results limit
 }
 ```
 
-When the system falls back to these templates (due to Issue 1), users see `{{service}}` placeholders instead of their custom `{{breeds}}` variables.
+Key features:
+- Basic Auth with DataForSEO credentials
+- Batch processing to minimize API costs
+- Error handling with meaningful messages
+- Rate limiting awareness
 
-**Additionally:**
-- Placeholder hints in UI components reference `{{services}}` as examples (e.g., `MatrixBuilderTab.tsx` line 886)
-- These are informational but add to user confusion
+### Phase 2: Add DataForSEO Secret
 
-### Issue 3: Page-to-Entity Template Association
+**Secret Required:** `DATAFORSEO_CREDENTIALS`
 
-**Current Problem:**
-When pages are generated in `useCampaigns.ts` (`generateCampaignPages` function, line 353):
-- Pages correctly store `entityId` in their `data_values`
-- But when rendering pages, the code doesn't look up the matching entity template
-- Instead, it uses a single fallback template
+Format: `login:password` (Base64 encoded for API calls)
 
----
+Use the Lovable secrets tool to prompt the user for their DataForSEO API credentials.
 
-## Solution Architecture
+### Phase 3: Enhanced Keyword Mapper UI
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         CAMPAIGN CREATION FLOW                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  Step 4: Dataset Setup          Step 6: AI Template Generator          │
-│  ┌──────────────────┐           ┌──────────────────────────┐           │
-│  │ dynamicColumns:  │           │ entityTemplates:          │           │
-│  │  - breeds        │  ────────▶│  - ent-breeds: sections[] │           │
-│  │  - vaccines      │           │  - ent-vaccines: sections│           │
-│  └──────────────────┘           └──────────────────────────┘           │
-│                                            │                            │
-│                                            ▼                            │
-│                    ┌───────────────────────────────────────┐           │
-│                    │     campaign.template_config          │           │
-│                    │ ┌─────────────────────────────────┐   │           │
-│                    │ │ dynamicColumns, entities,       │   │           │
-│                    │ │ entityTemplates, titlePatterns  │   │           │
-│                    │ └─────────────────────────────────┘   │           │
-│                    └───────────────────────────────────────┘           │
-│                                            │                            │
-└────────────────────────────────────────────┼────────────────────────────┘
-                                             │
-                                             ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      PAGE GENERATION & VIEWING                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  campaign_pages table                                                   │
-│  ┌─────────────────────────────────────────────────────────┐           │
-│  │ id | title        | data_values                         │           │
-│  │ 1  | Cat: Bengal  | { breeds: "Bengal", entityId: "..." }│          │
-│  └─────────────────────────────────────────────────────────┘           │
-│                                            │                            │
-│                                            ▼                            │
-│                    ┌───────────────────────────────────────┐           │
-│                    │  GET TEMPLATE FOR THIS PAGE           │           │
-│                    │                                       │           │
-│         CURRENT:   │  getTemplateForBusinessType() ───────▶│ ❌ WRONG  │
-│                    │  returns LOCAL_BUSINESS_TEMPLATE     │           │
-│                    │  with {{service}}, {{city}}          │           │
-│                    │                                       │           │
-│         SHOULD BE: │  getTemplateForPage(page, campaign) ──▶│ ✓ CORRECT│
-│                    │  looks up entityId in data_values     │           │
-│                    │  returns entityTemplates[entityId]   │           │
-│                    └───────────────────────────────────────┘           │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+**File: `src/components/campaigns/detail/tabs/KeywordMapperTab.tsx`**
+
+#### New Features to Add:
+
+**1. Integration Source Selector (Enhanced)**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Integration Source:        Location:         Language:      │
+│  ┌─────────────────────┐   ┌──────────────┐   ┌──────────┐  │
+│  │ DataForSEO      ▼  │   │ United States│   │ English  │  │
+│  └─────────────────────┘   └──────────────┘   └──────────┘  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
+**2. Auto-Generate Keywords from Page Data**
+- Button: "🪄 Generate Keywords from Page Titles"
+- Logic: Extract variable values from each page's `data_values` and use them as seed keywords
+- Example: Page "Bengal Cats Guide" → Seed keywords: ["Bengal cats", "Bengal cat care"]
+
+**3. Keyword Suggestions Panel**
+```
+┌──────────────────────────────────────────────────────────────┐
+│  💡 Keyword Suggestions                              [Close] │
+├──────────────────────────────────────────────────────────────┤
+│  Seed: "bengal cats"                          [🔄 Refresh]   │
+│                                                              │
+│  ☐ bengal cat breeders        Vol: 12,100    KD: 45%   [+]  │
+│  ☐ bengal cat price           Vol: 8,100     KD: 32%   [+]  │
+│  ☐ bengal cat personality     Vol: 5,400     KD: 28%   [+]  │
+│  ☐ bengal kitten              Vol: 4,400     KD: 38%   [+]  │
+│                                                              │
+│  [Add Selected to Page]                                      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**4. Bulk Enrichment Tool**
+- Button: "📊 Fetch Metrics for All Keywords"
+- Updates all existing keywords with latest search volume and KD%
+- Shows progress bar during bulk operation
+
+**5. Competitor Analysis Panel**
+```
+┌──────────────────────────────────────────────────────────────┐
+│  🔍 Competitor Analysis                              [Close] │
+├──────────────────────────────────────────────────────────────┤
+│  Enter competitor domain: [___________________] [Analyze]    │
+│                                                              │
+│  Found 156 keywords for competitor.com:                      │
+│                                                              │
+│  ☐ best cat breeds            Pos: 3    Vol: 18,100   [+]   │
+│  ☐ cat care tips              Pos: 5    Vol: 14,800   [+]   │
+│  ☐ indoor cat toys            Pos: 8    Vol: 9,900    [+]   │
+│                                                              │
+│  [Import Selected Keywords]                                  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Phase 4: Smart Keyword Assignment
+
+**New Component: `KeywordAssignmentDialog.tsx`**
+
+When adding keywords from suggestions or competitor analysis, smart matching:
+
+1. **Auto-Match by Entity**: If keyword contains `{{breed}}` value, assign to that page
+2. **Bulk Assign**: Select multiple pages and apply same keywords
+3. **Manual Override**: Drag-and-drop keywords to specific pages
+
+### Phase 5: Enhanced Table View
+
+Update the keywords table to show richer data:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Page Title          │ Keywords           │ Volume │ KD  │ CPC   │ Selected │
+├─────────────────────┼────────────────────┼────────┼─────┼───────┼──────────┤
+│ Bengal Cats Guide   │ bengal cats        │ 12,100 │ 45% │ $1.20 │    ✓     │
+│                     │ bengal cat care    │ 5,400  │ 28% │ $0.80 │    ✓     │
+│                     │ bengal personality │ 2,900  │ 22% │ $0.60 │          │
+├─────────────────────┼────────────────────┼────────┼─────┼───────┼──────────┤
+│ Siamese Cats Guide  │ siamese cats       │ 9,900  │ 42% │ $1.10 │    ✓     │
+│                     │ siamese cat traits │ 3,200  │ 25% │ $0.70 │    ✓     │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+New columns:
+- **CPC**: Cost-per-click (useful for commercial intent)
+- **Trend**: Sparkline showing monthly search volume trend (from DataForSEO monthly_searches data)
+- **Competition**: LOW/MEDIUM/HIGH badge
+
 ---
 
-## Technical Implementation Plan
+## Additional Features for Complete pSEO Workflow
 
-### Phase 1: Create Template Resolution Utility
+### 1. Keyword-to-Content Integration
 
-**New File: `src/lib/campaignTemplateResolver.ts`**
+**Purpose**: Use selected keywords to enhance AI content generation
 
-Create a utility function that properly resolves templates for a given page:
+**Implementation**:
+- Pass selected keywords to `generate-campaign-content` edge function
+- AI uses keywords for:
+  - Meta title optimization
+  - Natural keyword placement in content
+  - FAQ question generation
 
+**Code Change in `generate-campaign-content/index.ts`**:
 ```typescript
-interface TemplateResolutionResult {
-  sections: TemplateSection[];
-  style: TemplateStyleConfig;
-  images: TemplateImagesConfig;
-  source: "entity" | "legacy" | "default";
-}
-
-export function resolveTemplateForPage(
-  page: CampaignPageDB,
-  campaign: CampaignDB
-): TemplateResolutionResult {
-  const templateConfig = campaign.template_config as any;
-  const entityTemplates = templateConfig?.entityTemplates || {};
-  
-  // 1. Try to get entity-specific template using entityId from page data
-  const entityId = page.data_values?.entityId;
-  if (entityId && entityTemplates[entityId]) {
-    return {
-      sections: entityTemplates[entityId].sections,
-      style: entityTemplates[entityId].style || DEFAULT_STYLE_CONFIG,
-      images: entityTemplates[entityId].images || DEFAULT_IMAGES_CONFIG,
-      source: "entity",
-    };
-  }
-  
-  // 2. Fallback to first available entity template
-  const firstEntityTemplate = Object.values(entityTemplates)[0];
-  if (firstEntityTemplate) {
-    return {
-      ...firstEntityTemplate,
-      source: "entity",
-    };
-  }
-  
-  // 3. Fallback to legacy templateContent
-  if (templateConfig?.sections) {
-    return {
-      sections: templateConfig.sections,
-      style: templateConfig.style || DEFAULT_STYLE_CONFIG,
-      images: templateConfig.images || DEFAULT_IMAGES_CONFIG,
-      source: "legacy",
-    };
-  }
-  
-  // 4. Last resort: use default template based on business type
-  return {
-    ...getTemplateForBusinessType(campaign.business_type || "local"),
-    source: "default",
-  };
+interface GenerationRequest {
+  // ... existing fields
+  target_keywords?: string[];  // NEW: Keywords to optimize for
 }
 ```
 
-### Phase 2: Update CampaignDetailDialog
+### 2. Keyword Density Checker
 
-**File: `src/components/campaigns/detail/CampaignDetailDialog.tsx`**
+**New Component: `KeywordDensityPanel.tsx`**
 
-Replace the hardcoded template lookup with the resolver:
+After content is generated, analyze:
+- Primary keyword usage (recommended: 1-2%)
+- Secondary keyword coverage
+- Missing keyword opportunities
+- Over-optimization warnings
 
-**Before (line 55-56):**
-```typescript
-// Get template for this campaign's business type
-const template = getTemplateForBusinessType(campaign.business_type || "local");
+### 3. SERP Preview
+
+**New Component: `SERPPreviewCard.tsx`**
+
+Show how the page would appear in Google search results:
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Bengal Cats Guide - Complete Care Tips | YourBusiness      │
+│  https://example.com/breeds/bengal-cats                     │
+│  Discover everything about Bengal cats including care tips, │
+│  personality traits, and finding reputable breeders...      │
+└──────────────────────────────────────────────────────────────┘
+Meta Title: 52/60 chars ✓
+Meta Description: 142/160 chars ✓
 ```
 
-**After:**
-```typescript
-import { resolveTemplateForCampaign } from "@/lib/campaignTemplateResolver";
+### 4. Keyword Cannibalization Check
 
-// Get the campaign's saved templates (not hardcoded defaults)
-const templateConfig = resolveTemplateForCampaign(campaign);
-```
+**Purpose**: Detect when multiple pages target the same keyword
 
-Also update `handleGenerateContent` to pass the correct entity template:
-```typescript
-const handleGenerateContent = async (pageId: string) => {
-  const page = pages.find(p => p.id === pageId);
-  if (!page) return;
-
-  // Resolve template for this specific page
-  const resolvedTemplate = resolveTemplateForPage(page, campaign);
-  
-  const { data, error } = await supabase.functions.invoke("generate-campaign-content", {
-    body: {
-      page_id: pageId,
-      business_name: campaign.business_name,
-      business_type: campaign.business_type,
-      data_values: page.data_values,
-      template_sections: resolvedTemplate.sections, // Use resolved template
-      tone_of_voice: "Professional, friendly, and trustworthy",
-    },
-  });
-  // ...
-};
-```
-
-### Phase 3: Update PagePreviewDialog
-
-**File: `src/components/campaigns/detail/PagePreviewDialog.tsx`**
-
-Replace line 50:
-```typescript
-// BEFORE
-const template = getTemplateForBusinessType(campaign.business_type || "local");
-
-// AFTER
-import { resolveTemplateForPage } from "@/lib/campaignTemplateResolver";
-
-const resolvedTemplate = resolveTemplateForPage(page, campaign);
-const template = resolvedTemplate; // Use resolved template
-```
-
-Update the PreviewCanvas call (around line 444):
-```typescript
-<PreviewCanvas
-  sections={resolvedTemplate.sections}
-  styleConfig={resolvedTemplate.style}
-  imagesConfig={resolvedTemplate.images}
-  dataValues={dataValues}
-  generatedContent={localSections}
-  viewport="desktop"
-  isEditable={true}
-  onFieldEdit={handleFieldEdit}
-  mode="page"
-/>
-```
-
-### Phase 4: Update CMSEditorTab
-
-**File: `src/components/campaigns/detail/tabs/CMSEditorTab.tsx`**
-
-The CMS editor also needs access to proper templates for rendering:
-
-```typescript
-// Add import
-import { resolveTemplateForPage } from "@/lib/campaignTemplateResolver";
-
-// In component, when a page is selected:
-const resolvedTemplate = selectedPage 
-  ? resolveTemplateForPage(selectedPage, campaign)
-  : null;
-```
-
-### Phase 5: Update generate-campaign-content Edge Function
-
-**File: `supabase/functions/generate-campaign-content/index.ts`**
-
-The edge function already receives `template_sections` as a parameter, so it should work correctly once the frontend passes the right template. However, add logging to verify:
-
-```typescript
-console.log("Using template sections count:", template_sections.length);
-console.log("Template section types:", template_sections.map(s => s.type));
-```
-
-### Phase 6: Remove Hardcoded Example Variables from UI
-
-**Files to update:**
-
-1. **`src/components/campaigns/detail/tabs/MatrixBuilderTab.tsx`** (line 886)
-   Change placeholder from:
-   ```
-   "e.g., What is {{services}} or Best {{services}} in {{cities}}"
-   ```
-   To dynamic placeholder based on user's columns:
-   ```typescript
-   const examplePlaceholder = columnConfigs.length >= 2
-     ? `e.g., What is {{${columnConfigs[0].id}}} or Best {{${columnConfigs[0].id}}} in {{${columnConfigs[1].id}}}`
-     : `e.g., What is {{${columnConfigs[0]?.id || "variable"}}}`;
-   ```
-
-2. **`src/components/campaigns/TitlePatternInput.tsx`** (line 20)
-   Make the placeholder dynamic based on available columns.
+**Implementation**:
+- Scan all pages for duplicate primary keywords
+- Show warning badge on conflicting pages
+- Suggest keyword differentiation
 
 ---
 
-## Summary of Files to Create/Modify
+## Why Not Ahrefs/Semrush/a-parser?
 
-### New Files:
+| Tool | Pros | Cons |
+|------|------|------|
+| **DataForSEO** | Pay-per-use, bulk-friendly, complete API | Less brand recognition |
+| **Ahrefs** | Best backlink data | Expensive ($99/mo min), OAuth complexity |
+| **Semrush** | Comprehensive suite | Very expensive ($119/mo min), rate limits |
+| **a-parser** | Flexible scraping | Requires self-hosting, legal gray area |
+
+**Recommendation**: Start with DataForSEO, add Ahrefs/Semrush as optional premium integrations later.
+
+---
+
+## File Summary
+
+### New Files to Create:
+
 | File | Purpose |
 |------|---------|
-| `src/lib/campaignTemplateResolver.ts` | Centralized template resolution logic |
+| `supabase/functions/dataforseo-keywords/index.ts` | Edge function for all DataForSEO API calls |
+| `src/components/campaigns/keywords/KeywordSuggestionsPanel.tsx` | UI for keyword suggestions |
+| `src/components/campaigns/keywords/CompetitorAnalysisPanel.tsx` | UI for competitor keyword research |
+| `src/components/campaigns/keywords/KeywordAssignmentDialog.tsx` | Smart keyword-to-page assignment |
+| `src/components/campaigns/keywords/SERPPreviewCard.tsx` | Google SERP preview component |
+| `src/components/campaigns/keywords/KeywordDensityPanel.tsx` | Content keyword analysis |
+| `src/hooks/useDataForSEO.ts` | React hook for DataForSEO API calls |
 
 ### Files to Modify:
+
 | File | Changes |
 |------|---------|
-| `src/components/campaigns/detail/CampaignDetailDialog.tsx` | Use resolver for template lookup |
-| `src/components/campaigns/detail/PagePreviewDialog.tsx` | Use resolver for page-specific templates |
-| `src/components/campaigns/detail/tabs/CMSEditorTab.tsx` | Use resolver for template in editor |
-| `src/components/campaigns/detail/tabs/PagesTab.tsx` | Pass campaign to child components for resolution |
-| `src/components/campaigns/detail/tabs/MatrixBuilderTab.tsx` | Dynamic placeholder text |
-| `src/components/campaigns/TitlePatternInput.tsx` | Dynamic placeholder based on columns |
-| `supabase/functions/generate-campaign-content/index.ts` | Add logging for debugging |
+| `src/components/campaigns/detail/tabs/KeywordMapperTab.tsx` | Complete overhaul with new features |
+| `src/hooks/useCampaignPages.ts` | Add `cpc` and `trend` to KeywordData interface |
+| `supabase/functions/generate-campaign-content/index.ts` | Accept target_keywords parameter |
+
+### Secrets to Add:
+
+| Secret | Format |
+|--------|--------|
+| `DATAFORSEO_LOGIN` | DataForSEO account email |
+| `DATAFORSEO_PASSWORD` | DataForSEO API password |
 
 ---
 
-## Expected Behavior After Fix
+## Expected User Flow
 
-1. **Template Persistence**: When user creates `{{breeds}}` and `{{vaccines}}` datasets, the AI-generated template using those variables will be:
-   - Saved to `campaign.template_config.entityTemplates`
-   - Used when generating page content
-   - Displayed correctly in page preview and editor
+1. **Open Keyword Mapper** → See pages with empty keywords
+2. **Click "Generate from Page Titles"** → AI extracts seed keywords from page data
+3. **Click "💡 Suggestions"** on a page → DataForSEO returns related keywords with metrics
+4. **Select keywords and click "Add"** → Keywords saved to page
+5. **Click "Fetch Metrics"** → Bulk update all keywords with latest volume/KD
+6. **Optional: Enter competitor domain** → Import competitor's ranking keywords
+7. **Generate Content** → AI uses selected keywords for SEO optimization
+8. **Review in CMS Editor** → SERP preview shows search appearance
 
-2. **No Variable Leakage**: Users will never see `{{service}}` or `{{city}}` unless they explicitly use the "Local Business" business type with those variables
+---
 
-3. **Entity-Specific Templates**: Each entity (e.g., /breeds/, /vaccines-for-breeds/) can have its own unique template structure
+## Cost Estimation
 
-4. **Consistent Flow**: The template created during campaign wizard Step 6 will be the same template used throughout the campaign lifecycle
+For a campaign with 100 pages:
+- Initial keyword suggestions: ~$7.50 (100 requests × $0.075)
+- Bulk volume lookup: ~$4.00 (100 requests × $0.04)
+- Bulk KD lookup: ~$1.00 (100 keywords × $0.01)
+- **Total per campaign: ~$12.50**
+
+This is significantly cheaper than Ahrefs ($99/mo) or Semrush ($119/mo) for occasional use.
+
